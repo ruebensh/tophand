@@ -1,0 +1,10 @@
+{
+  "name": "Remix TopHand - Mahalliy Xizmatlar va Ish Bozor Platformasi",
+  "description": "TopHand — O\u0027zbekistonda xizmatlar, mutaxassislar, bo\u0027sh ish o\u0027rinlari va ish qidiruvchilar uchun zamonaviy mahalliy bozor platformasi.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

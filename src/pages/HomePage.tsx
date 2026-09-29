@@ -1,0 +1,914 @@
+import React, { useState, useEffect } from 'react';
+import { Listing, Category, ListingType, Region, District } from '../types/index.ts';
+import { apiRequest } from '../lib/api.ts';
+import { ListingCard } from '../components/listings/ListingCard.tsx';
+import {
+  Search,
+  MapPin,
+  ChevronDown,
+  SlidersHorizontal,
+  X,
+  RotateCcw,
+  Users,
+  Briefcase,
+  Star,
+} from 'lucide-react';
+import { useAuth } from '../context/AuthContext.tsx';
+
+interface HomePageProps {
+  initialType?: ListingType;
+  onNavigate: (route: string) => void;
+  onOpenListing: (id: string) => void;
+}
+
+export const HomePage: React.FC<HomePageProps> = ({
+  initialType,
+  onNavigate,
+  onOpenListing,
+}) => {
+  const { user } = useAuth();
+
+  // Read URL params initially
+  const getInitialParams = () => {
+    if (typeof window === 'undefined') {
+      return { cat: undefined, kw: '', type: initialType };
+    }
+    const params = new URLSearchParams(window.location.search);
+    return {
+      cat: params.get('category') || undefined,
+      kw: params.get('search') || params.get('keyword') || '',
+      type: (params.get('type') as ListingType) || initialType,
+    };
+  };
+
+  const initialParams = getInitialParams();
+
+  // Reference data
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [regions, setRegions] = useState<Region[]>([]);
+  const [districts, setDistricts] = useState<District[]>([]);
+
+  // Listings data
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [totalCount, setTotalCount] = useState<number>(0);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
+
+  const [selectedType, setSelectedType] = useState<ListingType | undefined>(initialParams.type);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | undefined>(initialParams.cat);
+  const [selectedRegionId, setSelectedRegionId] = useState<string | undefined>(user?.region_id);
+  const [selectedDistrictId, setSelectedDistrictId] = useState<string | undefined>(undefined);
+  const [selectedWorkSchedule, setSelectedWorkSchedule] = useState<string[]>([]);
+  const [selectedExperience, setSelectedExperience] = useState<string[]>([]);
+  const [keyword, setKeyword] = useState<string>(initialParams.kw);
+  const [priceMin, setPriceMin] = useState<number | undefined>(undefined);
+  const [priceMax, setPriceMax] = useState<number | undefined>(undefined);
+  // Local string state for the price inputs — formatted with spaces, only applied on blur/Enter
+  const [priceMinInput, setPriceMinInput] = useState<string>('');
+  const [priceMaxInput, setPriceMaxInput] = useState<string>('');
+  const [sortBy, setSortBy] = useState<string>('newest');
+  const [onlyFollowed, setOnlyFollowed] = useState<boolean>(false);
+
+  // Helper: format number with space separators: 9000000 → "9 000 000"
+  const formatUZS = (n: number): string =>
+    n.toLocaleString('ru-RU'); // ru-RU uses space as thousands separator
+
+  // Mobile filters toggle
+  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
+
+  // Load initial reference data: Categories and Regions
+  useEffect(() => {
+    apiRequest<Category[]>('/api/categories')
+      .then(setCategories)
+      .catch(console.error);
+
+    apiRequest<Region[]>('/api/locations/regions')
+      .then(setRegions)
+      .catch(console.error);
+  }, []);
+
+  // Load districts when selectedRegionId changes
+  useEffect(() => {
+    if (!selectedRegionId) {
+      setDistricts([]);
+      setSelectedDistrictId(undefined);
+      return;
+    }
+    apiRequest<District[]>(`/api/locations/districts?region_id=${selectedRegionId}`)
+      .then(setDistricts)
+      .catch(console.error);
+  }, [selectedRegionId]);
+
+  // Fetch listings with all filter parameters
+  const fetchListings = async (page: number = 1, append: boolean = false) => {
+    if (append) {
+      setIsLoadingMore(true);
+    } else {
+      setIsLoading(true);
+    }
+
+    try {
+      const params = new URLSearchParams();
+      params.append('page', String(page));
+      params.append('limit', '12');
+
+      if (selectedType) params.append('type', selectedType);
+      if (selectedCategoryId) params.append('category_id', selectedCategoryId);
+      if (selectedRegionId) params.append('region_id', selectedRegionId);
+      if (selectedDistrictId) params.append('district_id', selectedDistrictId);
+      if (keyword.trim()) params.append('keyword', keyword.trim());
+      if (priceMin !== undefined && !isNaN(priceMin)) params.append('price_min', String(priceMin));
+      if (priceMax !== undefined && !isNaN(priceMax)) params.append('price_max', String(priceMax));
+      if (selectedWorkSchedule.length > 0) params.append('work_format', selectedWorkSchedule.join(','));
+      if (selectedExperience.length > 0) params.append('experience', selectedExperience.join(','));
+      if (sortBy) params.append('sort_by', sortBy);
+      if (onlyFollowed) params.append('only_followed', 'true');
+
+      const res = await apiRequest<{
+        items: Listing[];
+        pagination: { total: number; total_pages: number; page: number };
+      }>(`/api/listings?${params.toString()}`);
+
+      if (append) {
+        setListings((prev) => [...prev, ...res.items]);
+      } else {
+        setListings(res.items);
+      }
+
+      setTotalCount(res.pagination.total);
+      setTotalPages(res.pagination.total_pages);
+      setCurrentPage(page);
+    } catch (err) {
+      console.error('Failed to load listings:', err);
+    } finally {
+      setIsLoading(false);
+      setIsLoadingMore(false);
+    }
+  };
+
+  // Trigger search when any filter changes
+  useEffect(() => {
+    fetchListings(1, false);
+  }, [
+    selectedType,
+    selectedCategoryId,
+    selectedRegionId,
+    selectedDistrictId,
+    selectedWorkSchedule,
+    selectedExperience,
+    priceMin,
+    priceMax,
+    sortBy,
+    onlyFollowed,
+  ]);
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    fetchListings(1, false);
+  };
+
+  const handleResetFilters = () => {
+    setSelectedType(undefined);
+    setSelectedCategoryId(undefined);
+    setSelectedRegionId(undefined);
+    setSelectedDistrictId(undefined);
+    setSelectedWorkSchedule([]);
+    setSelectedExperience([]);
+    setKeyword('');
+    setPriceMin(undefined);
+    setPriceMax(undefined);
+    setPriceMinInput('');
+    setPriceMaxInput('');
+    setSortBy('newest');
+    setOnlyFollowed(false);
+  };
+
+  const handleLoadMore = () => {
+    if (currentPage < totalPages && !isLoadingMore) {
+      fetchListings(currentPage + 1, true);
+    }
+  };
+
+  const toggleWorkSchedule = (val: string) => {
+    setSelectedWorkSchedule((prev) =>
+      prev.includes(val) ? prev.filter((x) => x !== val) : [...prev, val]
+    );
+  };
+
+  const toggleExperience = (val: string) => {
+    setSelectedExperience((prev) =>
+      prev.includes(val) ? prev.filter((x) => x !== val) : [...prev, val]
+    );
+  };
+
+  // Helper title based on type
+  const getSectionTitle = () => {
+    switch (selectedType) {
+      case 'JOB_OPENING':
+        return 'Vakansiyalar va bo‘sh ish o‘rinlari';
+      case 'SERVICE_OFFER':
+        return 'Xizmatlar va mutaxassis ustalar';
+      case 'SERVICE_REQUEST':
+        return 'Buyurtmalar va xizmat so‘rovlari';
+      case 'JOB_SEEKER':
+        return 'Mutaxassislar va rezyumelar';
+      default:
+        return 'Barcha xizmat va ish e’lonlari';
+    }
+  };
+
+  const selectedCategory = categories.find((c) => c.id === selectedCategoryId);
+  const selectedRegion = regions.find((r) => r.id === selectedRegionId);
+  const selectedDistrict = districts.find((d) => d.id === selectedDistrictId);
+
+  // Count active filters (excluding default sort)
+  const activeFiltersCount = [
+    Boolean(selectedType),
+    Boolean(selectedCategoryId),
+    Boolean(selectedRegionId),
+    Boolean(selectedDistrictId),
+    Boolean(keyword.trim()),
+    priceMin !== undefined,
+    priceMax !== undefined,
+    selectedWorkSchedule.length > 0,
+    selectedExperience.length > 0,
+    onlyFollowed,
+  ].filter(Boolean).length;
+
+  const TYPE_TABS: { type?: ListingType; label: string }[] = [
+    { type: undefined, label: 'Barchasi' },
+    { type: 'SERVICE_OFFER', label: 'Xizmatlar' },
+    { type: 'JOB_OPENING', label: 'Ish e’lonlari' },
+    { type: 'SERVICE_REQUEST', label: 'Buyurtmalar' },
+    { type: 'JOB_SEEKER', label: 'Rezyumelar' },
+  ];
+
+  return (
+    <div className="max-w-[1440px] mx-auto flex-1 w-full flex flex-col lg:grid lg:grid-cols-[300px_1fr] min-h-[calc(100vh-64px)]">
+      {/* Mobile Filters Toggle Button */}
+      <div className="lg:hidden px-3.5 py-2.5 sm:p-4 bg-white border-b border-[#EBECF0] flex items-center justify-between w-full max-w-full">
+        <button
+          onClick={() => setIsMobileFiltersOpen(!isMobileFiltersOpen)}
+          className="flex items-center gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 border border-[#EBECF0] rounded-xl text-xs font-semibold text-[#172B4D] hover:bg-gray-50 shadow-2xs"
+        >
+          <SlidersHorizontal className="w-4 h-4 text-[#1673E6]" />
+          <span>Filtrlar</span>
+          {activeFiltersCount > 0 && (
+            <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] flex items-center justify-center font-bold">
+              {activeFiltersCount}
+            </span>
+          )}
+        </button>
+        <span className="text-xs text-[#5E6C84] font-medium">
+          {totalCount} ta e’lon topildi
+        </span>
+      </div>
+
+      {/* 1. Left Sidebar Filter */}
+      <aside
+        className={`${
+          isMobileFiltersOpen ? 'block fixed inset-0 z-50 overflow-y-auto bg-white p-6' : 'hidden'
+        } lg:block border-r border-[#EBECF0] p-6 lg:pl-8 bg-[#F9FAFB] shrink-0`}
+      >
+        {/* Mobile close button */}
+        <div className="lg:hidden flex items-center justify-between pb-4 mb-4 border-b border-[#EBECF0]">
+          <div className="flex items-center gap-2">
+            <SlidersHorizontal className="w-4 h-4 text-[#1673E6]" />
+            <span className="font-bold text-sm text-[#172B4D]">Filtrlar</span>
+          </div>
+          <button
+            onClick={() => setIsMobileFiltersOpen(false)}
+            className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Section: Hudud va Tuman (Region and District) */}
+        <div className="mb-6">
+          <span className="font-mono text-[11px] uppercase tracking-wider text-[#5E6C84] font-semibold mb-2.5 block">
+            Hudud va Tuman
+          </span>
+          <div className="space-y-2">
+            <div className="relative">
+              <select
+                value={selectedRegionId || ''}
+                onChange={(e) => {
+                  setSelectedRegionId(e.target.value || undefined);
+                  setSelectedDistrictId(undefined);
+                }}
+                className="w-full bg-white border border-[#EBECF0] rounded-xl px-3 py-2 text-xs font-medium text-[#172B4D] focus:outline-hidden focus:border-[#1673E6] appearance-none pr-8 cursor-pointer"
+              >
+                <option value="">Barcha viloyatlar</option>
+                {regions.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name_uz}
+                  </option>
+                ))}
+              </select>
+              <MapPin className="w-3.5 h-3.5 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+
+            {selectedRegionId && districts.length > 0 && (
+              <div className="relative animate-in fade-in duration-200">
+                <select
+                  value={selectedDistrictId || ''}
+                  onChange={(e) => setSelectedDistrictId(e.target.value || undefined)}
+                  className="w-full bg-white border border-[#1673E6]/40 rounded-xl px-3 py-2 text-xs font-medium text-[#172B4D] focus:outline-hidden focus:border-[#1673E6] appearance-none pr-8 cursor-pointer"
+                >
+                  <option value="">Barcha tumanlar</option>
+                  {districts.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name_uz}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="w-3.5 h-3.5 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Section: Kategoriyalar (Categories) */}
+        <div className="mb-6">
+          <span className="font-mono text-[11px] uppercase tracking-wider text-[#5E6C84] font-semibold mb-2.5 block">
+            Kategoriyalar
+          </span>
+          <div className="flex flex-col gap-2 max-h-56 overflow-y-auto pr-1">
+            <label className="flex items-center gap-2.5 text-xs text-[#172B4D] cursor-pointer hover:text-[#1673E6]">
+              <input
+                type="radio"
+                name="category_filter"
+                checked={!selectedCategoryId}
+                onChange={() => setSelectedCategoryId(undefined)}
+                className="w-3.5 h-3.5 text-[#1673E6] accent-[#1673E6]"
+              />
+              <span className={!selectedCategoryId ? 'font-bold text-[#1673E6]' : ''}>Barcha kategoriyalar</span>
+            </label>
+            {categories.map((cat) => (
+              <label
+                key={cat.id}
+                className="flex items-center gap-2.5 text-xs text-[#172B4D] cursor-pointer hover:text-[#1673E6] transition-colors"
+              >
+                <input
+                  type="radio"
+                  name="category_filter"
+                  checked={selectedCategoryId === cat.id}
+                  onChange={() => setSelectedCategoryId(cat.id)}
+                  className="w-3.5 h-3.5 text-[#1673E6] accent-[#1673E6]"
+                />
+                <span className={`truncate ${selectedCategoryId === cat.id ? 'font-bold text-[#1673E6]' : ''}`}>
+                  {cat.name_uz}
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Section: Ish formati (Work Format) */}
+        <div className="mb-6">
+          <span className="font-mono text-[11px] uppercase tracking-wider text-[#5E6C84] font-semibold mb-2.5 block">
+            Ish / Xizmat formati
+          </span>
+          <div className="flex flex-col gap-2">
+            {[
+              { id: 'ONSITE', label: 'Joyida (Ofis / Xonadon)' },
+              { id: 'REMOTE', label: 'Masofaviy (Online)' },
+              { id: 'HYBRID', label: 'Gibrid (Aralash)' },
+            ].map((item) => {
+              const isChecked = selectedWorkSchedule.includes(item.id);
+              return (
+                <label
+                  key={item.id}
+                  className="flex items-center gap-2.5 text-xs text-[#172B4D] cursor-pointer hover:text-[#1673E6] transition-colors"
+                >
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={() => toggleWorkSchedule(item.id)}
+                    className="w-3.5 h-3.5 rounded text-[#1673E6] border-[#EBECF0] focus:ring-[#1673E6] accent-[#1673E6]"
+                  />
+                  <span className={isChecked ? 'font-semibold text-[#1673E6]' : ''}>{item.label}</span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Section: Narx va Maosh (UZS) */}
+        <div className="mb-6">
+          <span className="font-mono text-[11px] uppercase tracking-wider text-[#5E6C84] font-semibold mb-2.5 block">
+            Narx / Maosh oralig'i (UZS)
+          </span>
+
+          {/* Active price display */}
+          {(priceMin !== undefined || priceMax !== undefined) && (
+            <div className="mb-2 flex items-center justify-between bg-blue-50 border border-blue-200 rounded-xl px-3 py-1.5">
+              <span className="text-[11px] font-bold text-blue-700">
+                {priceMin !== undefined ? formatUZS(priceMin) : '0'} —{' '}
+                {priceMax !== undefined ? formatUZS(priceMax) : '∞'} so'm
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setPriceMin(undefined);
+                  setPriceMax(undefined);
+                  setPriceMinInput('');
+                  setPriceMaxInput('');
+                }}
+                className="text-blue-400 hover:text-blue-700"
+                title="Narx filtrini tozalash"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
+          {/* Quick price chips */}
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {[
+              { label: '< 500 ming', min: undefined, max: 500000 },
+              { label: '500k – 2M', min: 500000, max: 2000000 },
+              { label: '2M – 5M', min: 2000000, max: 5000000 },
+              { label: '5M – 10M', min: 5000000, max: 10000000 },
+              { label: '10M+', min: 10000000, max: undefined },
+            ].map((chip) => {
+              const isChipActive = priceMin === chip.min && priceMax === chip.max;
+              return (
+                <button
+                  key={chip.label}
+                  type="button"
+                  onClick={() => {
+                    if (isChipActive) {
+                      setPriceMin(undefined);
+                      setPriceMax(undefined);
+                      setPriceMinInput('');
+                      setPriceMaxInput('');
+                    } else {
+                      setPriceMin(chip.min);
+                      setPriceMax(chip.max);
+                      setPriceMinInput(chip.min !== undefined ? String(chip.min) : '');
+                      setPriceMaxInput(chip.max !== undefined ? String(chip.max) : '');
+                    }
+                  }}
+                  className={`text-[10px] px-2.5 py-1.5 rounded-lg border font-semibold transition-all ${
+                    isChipActive
+                      ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                      : 'bg-white text-gray-600 border-gray-200 hover:border-blue-400 hover:text-blue-600'
+                  }`}
+                >
+                  {chip.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Manual price inputs — text based, no spinners */}
+          <div className="flex items-center gap-2">
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="Dan"
+                value={priceMinInput}
+                onChange={(e) => {
+                  // Allow only digits
+                  const raw = e.target.value.replace(/\D/g, '');
+                  setPriceMinInput(raw);
+                }}
+                onBlur={() => {
+                  const n = priceMinInput ? parseInt(priceMinInput, 10) : undefined;
+                  setPriceMin(n);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const n = priceMinInput ? parseInt(priceMinInput, 10) : undefined;
+                    setPriceMin(n);
+                    (e.target as HTMLInputElement).blur();
+                  }
+                }}
+                className="w-full px-3 py-2 bg-white border border-[#EBECF0] rounded-xl text-xs font-medium text-[#172B4D] focus:outline-hidden focus:border-[#1673E6] placeholder-gray-400"
+              />
+              {priceMinInput && (
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 pointer-events-none">
+                  {Number(priceMinInput).toLocaleString('ru-RU')}
+                </span>
+              )}
+            </div>
+
+            <span className="text-gray-400 text-sm font-medium shrink-0">—</span>
+
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="Gacha"
+                value={priceMaxInput}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/\D/g, '');
+                  setPriceMaxInput(raw);
+                }}
+                onBlur={() => {
+                  const n = priceMaxInput ? parseInt(priceMaxInput, 10) : undefined;
+                  setPriceMax(n);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const n = priceMaxInput ? parseInt(priceMaxInput, 10) : undefined;
+                    setPriceMax(n);
+                    (e.target as HTMLInputElement).blur();
+                  }
+                }}
+                className="w-full px-3 py-2 bg-white border border-[#EBECF0] rounded-xl text-xs font-medium text-[#172B4D] focus:outline-hidden focus:border-[#1673E6] placeholder-gray-400"
+              />
+              {priceMaxInput && (
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 pointer-events-none">
+                  {Number(priceMaxInput).toLocaleString('ru-RU')}
+                </span>
+              )}
+            </div>
+          </div>
+          <p className="text-[10px] text-gray-400 mt-1.5">
+            Raqam yozing yoki yuqoridagi tezkor tugmalardan birini bosing
+          </p>
+        </div>
+
+
+        {/* Section: Tajriba (Experience) */}
+        <div className="mb-6">
+          <span className="font-mono text-[11px] uppercase tracking-wider text-[#5E6C84] font-semibold mb-2.5 block">
+            Tajriba darajasi
+          </span>
+          <div className="flex flex-col gap-2">
+            {[
+              { id: 'none', label: 'Tajribasiz / Yangi boshlovchi' },
+              { id: '1-3', label: '1–3 yil' },
+              { id: '3-5', label: '3–5 yil' },
+              { id: '5+', label: '5+ yil' },
+            ].map((exp) => {
+              const isChecked = selectedExperience.includes(exp.id);
+              return (
+                <label
+                  key={exp.id}
+                  className="flex items-center gap-2.5 text-xs text-[#172B4D] cursor-pointer hover:text-[#1673E6] transition-colors"
+                >
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={() => toggleExperience(exp.id)}
+                    className="w-3.5 h-3.5 rounded text-[#1673E6] border-[#EBECF0] accent-[#1673E6]"
+                  />
+                  <span className={isChecked ? 'font-semibold text-[#1673E6]' : ''}>{exp.label}</span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Clear Filters Button */}
+        {activeFiltersCount > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              handleResetFilters();
+              setIsMobileFiltersOpen(false);
+            }}
+            className="w-full py-2.5 px-4 border border-rose-200 bg-rose-50/50 hover:bg-rose-100/60 rounded-xl text-xs font-semibold text-rose-700 transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Filtrlarni tozalash ({activeFiltersCount})</span>
+          </button>
+        )}
+      </aside>
+
+      {/* 2. Main Content */}
+      <div className="p-3.5 sm:p-6 lg:p-8 bg-white flex-1 flex flex-col justify-between overflow-y-auto w-full max-w-full min-w-0">
+        <div>
+          {/* Top Search Form */}
+          <form
+            onSubmit={handleSearchSubmit}
+            className="flex flex-col sm:flex-row bg-[#F9FAFB] border border-[#EBECF0] rounded-2xl p-2 sm:p-1.5 mb-5 gap-2 sm:gap-1.5 shadow-2xs focus-within:border-[#1673E6]/60 transition-all w-full max-w-full"
+          >
+            {/* Search Keyword */}
+            <div className="flex items-center gap-2 px-3 sm:px-4 flex-1 bg-white sm:bg-transparent rounded-xl sm:rounded-none py-2 sm:py-0 border border-[#EBECF0] sm:border-0 sm:border-r min-w-0">
+              <Search className="w-4 h-4 text-[#5E6C84] shrink-0" />
+              <input
+                type="text"
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+                placeholder="Mutaxassislik, xizmat, kasb yoki kalit so‘z..."
+                className="w-full bg-transparent h-8 sm:h-10 text-xs sm:text-sm text-[#172B4D] placeholder-[#5E6C84] focus:outline-hidden min-w-0"
+              />
+              {keyword && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setKeyword('');
+                    fetchListings(1, false);
+                  }}
+                  className="p-1 text-gray-400 hover:text-gray-600 rounded-full cursor-pointer shrink-0"
+                  title="Tozalash"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Region Selector */}
+            <div className="flex items-center gap-2 px-3 sm:px-4 sm:max-w-[200px] bg-white sm:bg-transparent rounded-xl sm:rounded-none py-1.5 sm:py-0 border border-[#EBECF0] sm:border-0 flex-1 min-w-0">
+              <MapPin className="w-4 h-4 text-[#5E6C84] shrink-0" />
+              <select
+                value={selectedRegionId || ''}
+                onChange={(e) => {
+                  setSelectedRegionId(e.target.value || undefined);
+                  setSelectedDistrictId(undefined);
+                }}
+                className="w-full bg-transparent h-8 sm:h-10 text-xs sm:text-sm text-[#172B4D] focus:outline-hidden cursor-pointer min-w-0"
+              >
+                <option value="">Barcha viloyatlar</option>
+                {regions.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name_uz}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* District Selector (visible in top bar if region selected) */}
+            {selectedRegionId && districts.length > 0 && (
+              <div className="flex items-center gap-2 px-3 sm:px-4 sm:max-w-[190px] bg-white sm:bg-transparent rounded-xl sm:rounded-none py-1.5 sm:py-0 border border-[#EBECF0] sm:border-0 flex-1 min-w-0">
+                <select
+                  value={selectedDistrictId || ''}
+                  onChange={(e) => setSelectedDistrictId(e.target.value || undefined)}
+                  className="w-full bg-transparent h-8 sm:h-10 text-xs sm:text-sm text-[#172B4D] focus:outline-hidden cursor-pointer min-w-0"
+                >
+                  <option value="">Barcha tumanlar</option>
+                  {districts.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name_uz}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              className="w-full sm:w-auto bg-[#1673E6] hover:bg-blue-700 active:bg-blue-800 text-white font-semibold text-xs sm:text-sm px-6 py-2.5 rounded-xl transition-colors shrink-0 cursor-pointer flex items-center justify-center gap-2 shadow-xs"
+            >
+              <Search className="w-4 h-4" />
+              <span>Topish</span>
+            </button>
+          </form>
+
+          {/* Interactive Listing Type Tabs */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-5 no-scrollbar border-b border-[#EBECF0] w-full max-w-full">
+            {TYPE_TABS.map((tab) => {
+              const isSelected = selectedType === tab.type;
+              return (
+                <button
+                  key={tab.label}
+                  type="button"
+                  onClick={() => setSelectedType(tab.type)}
+                  className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all duration-150 shrink-0 cursor-pointer ${
+                    isSelected
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-gray-50 hover:bg-gray-100 text-gray-700'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Active Filter Chips Bar */}
+          {activeFiltersCount > 0 && (
+            <div className="flex flex-wrap items-center gap-2 p-3 bg-blue-50/50 border border-blue-100 rounded-2xl mb-5 text-xs">
+              <span className="text-gray-500 font-medium">Faol filtrlar:</span>
+
+              {selectedType && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-100 text-blue-800 font-semibold text-[11px]">
+                  <span>{TYPE_TABS.find((t) => t.type === selectedType)?.label}</span>
+                  <button type="button" onClick={() => setSelectedType(undefined)} className="hover:text-blue-950">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+
+              {selectedCategory && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-100 text-blue-800 font-semibold text-[11px]">
+                  <span>Kategoriya: {selectedCategory.name_uz}</span>
+                  <button type="button" onClick={() => setSelectedCategoryId(undefined)} className="hover:text-blue-950">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+
+              {selectedRegion && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-100 text-blue-800 font-semibold text-[11px]">
+                  <span>Viloyat: {selectedRegion.name_uz}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedRegionId(undefined);
+                      setSelectedDistrictId(undefined);
+                    }}
+                    className="hover:text-blue-950"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+
+              {selectedDistrict && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-100 text-blue-800 font-semibold text-[11px]">
+                  <span>Tuman: {selectedDistrict.name_uz}</span>
+                  <button type="button" onClick={() => setSelectedDistrictId(undefined)} className="hover:text-blue-950">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+
+              {(priceMin !== undefined || priceMax !== undefined) && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-100 text-blue-800 font-semibold text-[11px]">
+                  <span>
+                    Narx: {priceMin ? `${priceMin.toLocaleString()} dan` : ''}{' '}
+                    {priceMax ? `${priceMax.toLocaleString()} gacha` : ''} UZS
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPriceMin(undefined);
+                      setPriceMax(undefined);
+                    }}
+                    className="hover:text-blue-950"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+
+              {selectedWorkSchedule.map((ws) => {
+                const label = { ONSITE: 'Joyida', REMOTE: 'Masofaviy', HYBRID: 'Gibrid' }[ws] || ws;
+                return (
+                  <span key={ws} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-100 text-blue-800 font-semibold text-[11px]">
+                    <span>Format: {label}</span>
+                    <button type="button" onClick={() => toggleWorkSchedule(ws)} className="hover:text-blue-950">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                );
+              })}
+
+              {selectedExperience.map((exp) => {
+                const label = { none: 'Tajribasiz', '1-3': '1-3 yil', '3-5': '3-5 yil', '5+': '5+ yil' }[exp] || exp;
+                return (
+                  <span key={exp} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-100 text-blue-800 font-semibold text-[11px]">
+                    <span>Tajriba: {label}</span>
+                    <button type="button" onClick={() => toggleExperience(exp)} className="hover:text-blue-950">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                );
+              })}
+
+              {keyword.trim() && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-100 text-blue-800 font-semibold text-[11px]">
+                  <span>Qidiruv: "{keyword}"</span>
+                  <button type="button" onClick={() => setKeyword('')} className="hover:text-blue-950">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="ml-auto text-[11px] font-bold text-rose-600 hover:text-rose-800 underline cursor-pointer"
+              >
+                Hammasini tozalash
+              </button>
+            </div>
+          )}
+
+          {/* Results Header */}
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
+            <div>
+              <h1 className="text-xl sm:text-2xl font-extrabold text-[#172B4D] tracking-tight">
+                {getSectionTitle()}
+              </h1>
+              <p className="text-xs sm:text-sm text-[#5E6C84] mt-1">
+                {totalCount > 0
+                  ? `O‘zbekiston bo‘ylab ${totalCount.toLocaleString()} ta dolzarb taklif topildi`
+                  : 'E’lonlar qidirilmoqda...'}
+              </p>
+            </div>
+
+            {/* Sorting Dropdown & Obunalar filter */}
+            <div className="flex flex-wrap items-center gap-2.5">
+              {user && (
+                <button
+                  type="button"
+                  onClick={() => setOnlyFollowed(!onlyFollowed)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                    onlyFollowed
+                      ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                      : 'bg-white hover:bg-gray-50 text-[#172B4D] border-[#EBECF0]'
+                  }`}
+                  title="Faqat o‘zingiz obuna bo‘lgan mutaxassislar va tashkilotlar e’lonlarini ko‘rish"
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  <span>Obunalarim</span>
+                  {onlyFollowed && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
+                </button>
+              )}
+
+              <div className="flex items-center gap-1.5">
+                <span className="font-mono text-[11px] uppercase tracking-wider text-[#5E6C84] font-semibold">
+                  Saralash:
+                </span>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="border border-[#EBECF0] bg-white px-3 py-1.5 rounded-xl text-xs font-medium text-[#172B4D] focus:outline-hidden focus:border-[#1673E6] cursor-pointer"
+                >
+                  <option value="newest">Eng yangilari</option>
+                  <option value="price_asc">Narx / Maosh: pastdan yuqoriga</option>
+                  <option value="price_desc">Narx / Maosh: yuqoridan pastga</option>
+                  <option value="rating_desc">Reytingi yuqorilar</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Job / Service Listing Cards */}
+          {isLoading ? (
+            <div className="space-y-4">
+              {[...Array(4)].map((_, i) => (
+                <div
+                  key={i}
+                  className="border border-[#EBECF0] rounded-2xl p-6 bg-white animate-pulse flex flex-col md:flex-row gap-6 justify-between"
+                >
+                  <div className="space-y-3 flex-1">
+                    <div className="w-1/4 h-5 bg-gray-100 rounded" />
+                    <div className="w-3/4 h-6 bg-gray-100 rounded" />
+                    <div className="w-1/2 h-4 bg-gray-100 rounded" />
+                    <div className="w-full h-12 bg-gray-100 rounded" />
+                  </div>
+                  <div className="w-full md:w-56 h-32 bg-gray-50 rounded-xl" />
+                </div>
+              ))}
+            </div>
+          ) : listings.length === 0 ? (
+            <div className="bg-[#F9FAFB] rounded-3xl border border-[#EBECF0] p-12 text-center max-w-md mx-auto my-8">
+              <div className="w-16 h-16 rounded-full bg-blue-50 text-[#1673E6] flex items-center justify-center text-2xl mx-auto mb-3">
+                🔍
+              </div>
+              <h3 className="font-bold text-base text-[#172B4D]">Mos e’lonlar topilmadi</h3>
+              <p className="text-xs text-[#5E6C84] mt-1 mb-5">
+                Tanlangan filtrlar bo‘yicha e’lon mavjud emas. Filtrlarni tozalab yoki qidiruv so‘zini o‘zgartirib ko‘ring.
+              </p>
+              <button
+                onClick={handleResetFilters}
+                className="px-5 py-2.5 rounded-xl bg-[#1673E6] hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
+              >
+                Barcha filtrlarni tozalash
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {listings.map((listing) => (
+                <ListingCard
+                  key={listing.id}
+                  listing={listing}
+                  variant="row"
+                  onClick={() => onOpenListing(listing.id)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Load More Button */}
+        {currentPage < totalPages && (
+          <div className="py-10 flex justify-center">
+            <button
+              onClick={handleLoadMore}
+              disabled={isLoadingMore}
+              className="bg-transparent border border-[#EBECF0] hover:border-[#1673E6] hover:bg-blue-50/20 px-8 py-3 rounded-xl text-[#1673E6] font-bold text-xs sm:text-sm transition-colors cursor-pointer flex items-center gap-2"
+            >
+              <span>{isLoadingMore ? 'Yuklanmoqda...' : 'Yana yuklash'}</span>
+              <ChevronDown className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default HomePage;

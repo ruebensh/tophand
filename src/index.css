@@ -1,0 +1,103 @@
+@import "tailwindcss";
+
+/* Tillarang zarchalar (Floating golden sparkles around verified badge) */
+@keyframes zarcha-up-1 {
+  0% {
+    transform: translate(0, 0) scale(0);
+    opacity: 0;
+  }
+  25% {
+    transform: translate(-3px, -3px) scale(1);
+    opacity: 1;
+  }
+  60% {
+    transform: translate(-5px, -7px) scale(0.9);
+    opacity: 0.9;
+  }
+  100% {
+    transform: translate(-8px, -13px) scale(0);
+    opacity: 0;
+  }
+}
+
+@keyframes zarcha-up-2 {
+  0% {
+    transform: translate(0, 0) scale(0);
+    opacity: 0;
+  }
+  30% {
+    transform: translate(3px, -3px) scale(1.1);
+    opacity: 1;
+  }
+  70% {
+    transform: translate(6px, -8px) scale(0.85);
+    opacity: 0.85;
+  }
+  100% {
+    transform: translate(9px, -13px) scale(0);
+    opacity: 0;
+  }
+}
+
+@keyframes zarcha-up-3 {
+  0% {
+    transform: translate(0, 0) scale(0);
+    opacity: 0;
+  }
+  35% {
+    transform: translate(-1px, -4px) scale(1.2);
+    opacity: 1;
+  }
+  75% {
+    transform: translate(-2px, -9px) scale(0.8);
+    opacity: 0.8;
+  }
+  100% {
+    transform: translate(-3px, -15px) scale(0);
+    opacity: 0;
+  }
+}
+
+@keyframes zarcha-up-4 {
+  0% {
+    transform: translate(0, 0) scale(0);
+    opacity: 0;
+  }
+  25% {
+    transform: translate(4px, -2px) scale(1);
+    opacity: 1;
+  }
+  65% {
+    transform: translate(7px, -6px) scale(0.75);
+    opacity: 0.75;
+  }
+  100% {
+    transform: translate(10px, -11px) scale(0);
+    opacity: 0;
+  }
+}
+
+@keyframes badge-gentle-glow {
+  0%, 100% {
+    filter: drop-shadow(0 0 2px rgba(22, 115, 230, 0.4)) drop-shadow(0 0 5px rgba(245, 158, 11, 0.4));
+  }
+  50% {
+    filter: drop-shadow(0 0 4px rgba(22, 115, 230, 0.6)) drop-shadow(0 0 8px rgba(245, 158, 11, 0.7));
+  }
+}
+
+.animate-zarcha-1 {
+  animation: zarcha-up-1 2.2s ease-out infinite;
+}
+.animate-zarcha-2 {
+  animation: zarcha-up-2 2.7s ease-out 0.6s infinite;
+}
+.animate-zarcha-3 {
+  animation: zarcha-up-3 2.1s ease-out 1.2s infinite;
+}
+.animate-zarcha-4 {
+  animation: zarcha-up-4 2.9s ease-out 0.9s infinite;
+}
+.animate-badge-glow {
+  animation: badge-gentle-glow 3s ease-in-out infinite;
+}
