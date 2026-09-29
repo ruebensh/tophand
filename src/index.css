@@ -101,3 +101,27 @@
 .animate-badge-glow {
   animation: badge-gentle-glow 3s ease-in-out infinite;
 }
+
+/* Prevent horizontal scroll on all screens */
+html, body {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
+/* Hide scrollbar utility */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Scrollbar none for listings thumbnail row */
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}

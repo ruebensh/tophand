@@ -140,8 +140,11 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'E’lon sarlavhasi kamida 5 ta belgidan iborat bo‘lishi kerak' });
     }
 
-    if (!description || description.trim().length < 15) {
-      return res.status(400).json({ error: 'E’lon tavsifi kamida 15 ta belgidan iborat bo‘lishi kerak' });
+    // Auto-generate description if omitted or short (user doesn't need to manually type essays)
+    let finalDescription = (description || '').trim();
+    if (finalDescription.length < 15) {
+      const skillsPart = Array.isArray(skills) && skills.length > 0 ? ` Xususiyatlar: ${skills.join(', ')}.` : '';
+      finalDescription = `${title.trim()}.${skillsPart} Sifatli xizmat, ishonchli ijro va qulay shartlar.`;
     }
 
     if (!category_id) {
@@ -166,7 +169,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
     const listing = await createListing(req.user!.id, {
       type,
       title,
-      description,
+      description: finalDescription,
       category_id,
       region_id,
       district_id,

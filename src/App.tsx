@@ -215,7 +215,7 @@ const AppContent: React.FC = () => {
       />
 
       {/* Main Content Area */}
-      <main className="flex-1">{renderRoute()}</main>
+      <main className="flex-1 pb-16 sm:pb-0">{renderRoute()}</main>
 
       {/* Global Footer (conditionally hidden on mobile devices) */}
       <div className="hidden md:block">

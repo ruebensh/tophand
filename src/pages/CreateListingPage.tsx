@@ -1,5 +1,15 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { ListingType, PriceType, SalaryType, ContactTime, WorkFormat, Category, Region, District, Organization } from '../types/index.ts';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import {
+  ListingType,
+  PriceType,
+  SalaryType,
+  ContactTime,
+  WorkFormat,
+  Category,
+  Region,
+  District,
+  Organization,
+} from '../types/index.ts';
 import { apiRequest, uploadImageFile } from '../lib/api.ts';
 import { useAuth } from '../context/AuthContext.tsx';
 import {
@@ -15,12 +25,262 @@ import {
   ArrowRight,
   ArrowLeft,
   Navigation,
+  Check,
+  CheckCircle2,
+  ChevronRight,
+  Layers,
+  Tag,
+  ShieldCheck,
+  FileText,
+  DollarSign,
+  Building2,
+  ChevronDown,
 } from 'lucide-react';
 
 interface CreateListingPageProps {
   onNavigate: (route: string) => void;
   onCreated: (listingId: string) => void;
 }
+
+// Subcategory & service items dictionary per category slug
+const SUBCATEGORIES_BY_SLUG: Record<string, string[]> = {
+  santexnika: [
+    "Kran va smesitel almashtirish",
+    "Tyopliy pol (Issiq pol) montaji",
+    "Kanalizatsiya tozalash va ochish",
+    "Quvurlar montaji (Polipropilen)",
+    "Ariston va suv isitgich o'rnatish",
+    "Dush kabina va vanna montaji",
+    "Unitaz va rakovina o'rnatish",
+    "Suv nasoslari sozlash",
+    "Suv filtri o'rnatish",
+  ],
+  elektrik: [
+    "Simlar tortish (Razvodka)",
+    "Avtomat va shit yig'ish",
+    "Lyustra va chiroqlar montaji",
+    "Rozetka va viklyuchatel almashtirish",
+    "Generator va stabilizator ulash",
+    "Qisqa tutashuvni bartaraf qilish",
+    "LED yoritgichlar montaji",
+    "Uch fazali (380V) elektr ishlari",
+  ],
+  qurilish: [
+    "Kafel va terakota terish",
+    "Malyar va shpaklyovka ishlari",
+    "Gipsokarton shift va devorlar",
+    "Laminat va parket yotqizish",
+    "Eshik va romlar o'rnatish",
+    "Suvoqchilik va styajka",
+    "Tom yopish va tunukasozlik",
+    "Fasad va dekorativ ishlar",
+    "Naves va temirchilik ishlari",
+  ],
+  'it-dasturlash': [
+    "Veb-sayt yaratish (React / Next.js)",
+    "Telegram bot ishlab chiqish",
+    "Mobil ilova (Flutter / iOS / Android)",
+    "Kompyuter sozlash va Windows o'rnatish",
+    "Backend API va ma'lumotlar bazasi",
+    "WordPress va Tilda saytlar",
+    "SEO va qidiruv tizimi optimallashtirish",
+  ],
+  dizayn: [
+    "Logotip va brending",
+    "UI/UX veb va mobil dizayn",
+    "Banner va SMM postlar dizayni",
+    "Interer va eksterer dizayn (3ds Max)",
+    "Poligrafiya va kataloglar",
+    "3D modellashtirish",
+  ],
+  talim: [
+    "Ingliz tili (IELTS / CEFR / General)",
+    "Matematika va mental arifmetika",
+    "Rus tili so'zlashuv",
+    "Dasturlash asoslari darslari",
+    "Abituriyentlar tayyorlovi",
+    "Arab tili va tajvid",
+    "Fizika va kimyo fanlari",
+  ],
+  transport: [
+    "Kuryerlik xizmati (Shahar bo'ylab)",
+    "Yuk tashish (Labo / Gazel / Porter)",
+    "Taksi va shaharlararo qatnov",
+    "Shaxsiy haydovchilik xizmati",
+    "Uy va ofis ko'chirish (Yuk ortuvchilar bilan)",
+    "Evakuator xizmati",
+  ],
+  tozalash: [
+    "Kvartira va uylarni tozalash",
+    "Ta'mirdan keyingi klining",
+    "Gilam va yumshoq mebel yuvish",
+    "Deraza va vitrina yuvish",
+    "Ofis va tijorat joylarini tozalash",
+    "Hovli va fasadni bosim ostida yuvish",
+  ],
+  gozallik: [
+    "Erkaklar sartaroshi (Barber)",
+    "Ayollar soch turmagi va buyash",
+    "Makiyaj va visaj",
+    "Manikyur va pedikyur",
+    "Davolash va relaks massaji",
+    "Kosmetologiya va yuz tozalash",
+  ],
+  media: [
+    "To'y va marosimlar fotosessiyasi",
+    "Video montaj va Reels/Shorts",
+    "Dron orqali tasvirga olish",
+    "Ovoz yozish va diktorlik",
+    "SMM video kontent tayyorlash",
+  ],
+  savdo: [
+    "Do'kon sotuvchisi va maslahatchi",
+    "Kassir (1C bilimi bilan)",
+    "Savdo vakili (Savdo agenti)",
+    "Call-center operatori",
+    "Omborchi (Skladchi)",
+  ],
+  oshpazlik: [
+    "Marosim va to'ylar uchun osh pishirish",
+    "Uyga oshpaz (Banket / ziyofat)",
+    "Pishiriqlar, shirinliklar va tortlar",
+    "Ofitsiantlar brigadasi",
+    "Fast-food ustasi (Pitsa, lavash, burger)",
+  ],
+  avto: [
+    "Avtoelektrik va kompyuter diagnostika",
+    "Xodovoy (Shassi) qismini tuzatish",
+    "Dvigatel (Motor) ta'mirlash",
+    "Kuzov va bo'yash (Malyarka)",
+    "Vulkanizatsiya va balansirovka",
+    "Moy va filtrlar almashtirish",
+    "Konditsioner to'ldirish va tuzatish",
+  ],
+  boshqa: [
+    "Yuk tushiruvchi (Gruzchik)",
+    "Hovli va bog'bonlik xizmati",
+    "Tikuvchi va kiyim to'g'rilash",
+    "Qorovul va xavfsizlik",
+    "Tezkor usta (Har xil mayda ishlar)",
+  ],
+};
+
+// Preset quick-select feature chips
+const PRESET_FEATURES = [
+  "Kafolat beriladi (100%)",
+  "Tezkor yetib borish (30–60 daqiqa)",
+  "O'z professional asboblari bor",
+  "Rasmiy shartnoma va chek",
+  "Bepul maslahat va o'lchash",
+  "24/7 xizmat ko'rsatish",
+  "Tajribali mutaxassis (5+ yil)",
+  "Hamyonbop va kelishilgan narx",
+  "Ish joyi tozalab, saranjomlab ketiladi",
+  "Shahar bo'ylab yetib boriladi",
+  "Sifatli original ehtiyot qismlar",
+];
+
+// Keyword → category slug mapping for Uzbek terms
+const KEYWORD_MAP: Record<string, string[]> = {
+  santexnik: ['santexnika'],
+  suv: ['santexnika'],
+  kran: ['santexnika'],
+  ariston: ['santexnika'],
+  quvur: ['santexnika'],
+  truba: ['santexnika'],
+  kanalizatsiya: ['santexnika'],
+  tyopliy: ['santexnika'],
+  isitish: ['santexnika'],
+
+  elektr: ['elektrik'],
+  tok: ['elektrik'],
+  rozetka: ['elektrik'],
+  lyustra: ['elektrik'],
+  sim: ['elektrik'],
+  generator: ['elektrik'],
+
+  remont: ['qurilish'],
+  kafel: ['qurilish'],
+  malyar: ['qurilish'],
+  shpaklyovka: ['qurilish'],
+  gipsokarton: ['qurilish'],
+  laminat: ['qurilish'],
+  eshik: ['qurilish'],
+  rom: ['qurilish'],
+  quruvchi: ['qurilish'],
+  suvoq: ['qurilish'],
+
+  dastur: ['it-dasturlash'],
+  sayt: ['it-dasturlash'],
+  veb: ['it-dasturlash'],
+  bot: ['it-dasturlash'],
+  react: ['it-dasturlash'],
+  python: ['it-dasturlash'],
+  kompyuter: ['it-dasturlash'],
+  tizim: ['it-dasturlash'],
+
+  dizayn: ['dizayn'],
+  logo: ['dizayn'],
+  banner: ['dizayn'],
+  interer: ['dizayn'],
+  figma: ['dizayn'],
+
+  ingliz: ['talim'],
+  rus: ['talim'],
+  matematika: ['talim'],
+  repetitor: ['talim'],
+  dars: ['talim'],
+  arab: ['talim'],
+  ielts: ['talim'],
+
+  taksi: ['transport'],
+  kuryer: ['transport'],
+  yuk: ['transport'],
+  haydovchi: ['transport'],
+  labo: ['transport'],
+  gazel: ['transport'],
+  yetkazib: ['transport'],
+
+  tozalash: ['tozalash'],
+  klining: ['tozalash'],
+  gilam: ['tozalash'],
+  ximchistka: ['tozalash'],
+  uborka: ['tozalash'],
+
+  soch: ['gozallik'],
+  sartarosh: ['gozallik'],
+  barber: ['gozallik'],
+  makiyaj: ['gozallik'],
+  manikyur: ['gozallik'],
+  massaj: ['gozallik'],
+
+  foto: ['media'],
+  video: ['media'],
+  reels: ['media'],
+  montaj: ['media'],
+  dron: ['media'],
+  surat: ['media'],
+
+  sotuvchi: ['savdo'],
+  kassa: ['savdo'],
+  kassir: ['savdo'],
+  magazin: ['savdo'],
+  ombor: ['savdo'],
+
+  oshpaz: ['oshpazlik'],
+  tort: ['oshpazlik'],
+  shirinlik: ['oshpazlik'],
+  somsa: ['oshpazlik'],
+  osh: ['oshpazlik'],
+  ovqat: ['oshpazlik'],
+
+  avto: ['avto'],
+  mashina: ['avto'],
+  motor: ['avto'],
+  xodovoy: ['avto'],
+  moy: ['avto'],
+  balansirovka: ['avto'],
+};
 
 export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate, onCreated }) => {
   const { user } = useAuth();
@@ -36,12 +296,25 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
 
   // Form Fields
   const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [regionId, setRegionId] = useState(user?.region_id || '');
   const [districtId, setDistrictId] = useState(user?.district_id || '');
   const [latitude, setLatitude] = useState<number | undefined>(user?.latitude);
   const [longitude, setLongitude] = useState<number | undefined>(user?.longitude);
+
+  // Clickable Subcategory / Service items (1-tap selection)
+  const [selectedSubcategories, setSelectedSubcategories] = useState<string[]>([]);
+
+  // Clickable Feature Chips (1-tap selection)
+  const [selectedFeatures, setSelectedFeatures] = useState<string[]>([
+    "Kafolat beriladi (100%)",
+    "Tezkor yetib borish (30–60 daqiqa)",
+    "O'z professional asboblari bor",
+  ]);
+
+  // Optional manual description (user only expands if they want)
+  const [customDescription, setCustomDescription] = useState('');
+  const [isCustomDescOpen, setIsCustomDescOpen] = useState(false);
 
   // Pricing
   const [priceType, setPriceType] = useState<PriceType>('FIXED');
@@ -53,8 +326,7 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
   const [salaryMin, setSalaryMin] = useState<string>('');
   const [salaryMax, setSalaryMax] = useState<string>('');
   const [workFormat, setWorkFormat] = useState<WorkFormat>('ONSITE');
-  const [experienceLevel, setExperienceLevel] = useState('');
-  const [skillsText, setSkillsText] = useState('');
+  const [experienceLevel, setExperienceLevel] = useState('1-3');
 
   // Contact time
   const [contactTime, setContactTime] = useState<ContactTime>('ANY_TIME');
@@ -70,6 +342,121 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [isLocating, setIsLocating] = useState(false);
+
+  // Smart suggestions derived from Title
+  const [suggestedCategories, setSuggestedCategories] = useState<Category[]>([]);
+
+  // Find currently active category object
+  const activeCategory = useMemo(() => {
+    return categories.find((c) => c.id === categoryId);
+  }, [categories, categoryId]);
+
+  // Available subcategories for the active category
+  const availableSubcategories = useMemo(() => {
+    if (!activeCategory?.slug) return [];
+    return SUBCATEGORIES_BY_SLUG[activeCategory.slug] || [];
+  }, [activeCategory]);
+
+  // Auto-compose structured description from all selections
+  const autoGeneratedDescription = useMemo(() => {
+    const parts: string[] = [];
+    if (title.trim()) {
+      parts.push(title.trim());
+    }
+    if (activeCategory) {
+      parts.push(`Kategoriya: ${activeCategory.name_uz}`);
+    }
+    if (selectedSubcategories.length > 0) {
+      parts.push(`Ko'rsatiladigan xizmatlar: ${selectedSubcategories.join(', ')}`);
+    }
+    if (selectedFeatures.length > 0) {
+      parts.push(`Afzalliklar va shartlar: ${selectedFeatures.join(', ')}`);
+    }
+
+    const formatLabels: Record<string, string> = {
+      ONSITE: "Joyida (Mijoz xonadonida yoki ob'ektda)",
+      REMOTE: "Masofaviy (Online)",
+      HYBRID: "Gibrid (Aralash)",
+    };
+    parts.push(`Ish / xizmat shakli: ${formatLabels[workFormat] || 'Joyida'}`);
+
+    const expLabels: Record<string, string> = {
+      none: "Yangi boshlovchi (Tajribasiz)",
+      '1-3': "1–3 yil tajriba",
+      '3-5': "3–5 yil tajriba",
+      '5+': "5 yildan ortiq professional tajriba",
+    };
+    if (experienceLevel) {
+      parts.push(`Tajriba: ${expLabels[experienceLevel] || experienceLevel}`);
+    }
+
+    const contactLabels: Record<string, string> = {
+      ANY_TIME: "Istalgan vaqtda (24/7 aloqa)",
+      MORNING: "Ertalab (09:00 – 13:00)",
+      AFTERNOON: "Kunduzi (13:00 – 18:00)",
+      EVENING: "Kechqurun (18:00 – 21:00)",
+      CUSTOM: contactCustomText || "Kelishilgan vaqtda",
+    };
+    parts.push(`Bog'lanish: ${contactLabels[contactTime]}`);
+
+    if (customDescription.trim()) {
+      parts.push(`Qo'shimcha izoh: ${customDescription.trim()}`);
+    }
+
+    return parts.join('. ') + '.';
+  }, [
+    title,
+    activeCategory,
+    selectedSubcategories,
+    selectedFeatures,
+    workFormat,
+    experienceLevel,
+    contactTime,
+    contactCustomText,
+    customDescription,
+  ]);
+
+  // Compute smart category suggestions when title changes
+  useEffect(() => {
+    const words = title
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/gi, ' ')
+      .split(/\s+/)
+      .filter((w) => w.length > 2);
+
+    if (words.length === 0 || title.length < 3) {
+      setSuggestedCategories([]);
+      return;
+    }
+
+    const scored = categories.map((cat) => {
+      const catName = cat.name_uz.toLowerCase();
+      const catSlug = (cat.slug || '').toLowerCase();
+      let score = 0;
+
+      for (const word of words) {
+        if (catName.includes(word) || catSlug.includes(word)) score += 4;
+        const mapped = KEYWORD_MAP[word] || [];
+        for (const m of mapped) {
+          if (catSlug.includes(m) || catName.includes(m)) score += 5;
+        }
+      }
+      return { cat, score };
+    });
+
+    const top = scored
+      .filter((s) => s.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 4)
+      .map((s) => s.cat);
+
+    setSuggestedCategories(top);
+
+    // If user hasn't chosen category yet and top suggestion has a strong score, auto-highlight
+    if (!categoryId && top.length === 1) {
+      setCategoryId(top[0].id);
+    }
+  }, [title, categories, categoryId]);
 
   // Load initial data
   useEffect(() => {
@@ -88,6 +475,18 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
       .then(setDistricts)
       .catch(console.error);
   }, [regionId]);
+
+  const handleToggleSubcategory = (item: string) => {
+    setSelectedSubcategories((prev) =>
+      prev.includes(item) ? prev.filter((i) => i !== item) : [...prev, item]
+    );
+  };
+
+  const handleToggleFeature = (feat: string) => {
+    setSelectedFeatures((prev) =>
+      prev.includes(feat) ? prev.filter((f) => f !== feat) : [...prev, feat]
+    );
+  };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -118,7 +517,7 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
 
   const handleDetectGPS = () => {
     if (!navigator.geolocation) {
-      alert('Brauzeringiz geolokatsiyani qo‘llab-quvvatlamaydi');
+      alert("Brauzeringiz geolokatsiyani qo'llab-quvvatlamaydi");
       return;
     }
 
@@ -142,17 +541,12 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
     if (!selectedType) return;
 
     if (!title.trim() || title.trim().length < 5) {
-      setError('Sarlavha kamida 5 ta belgidan iborat bo‘lishi kerak');
-      return;
-    }
-
-    if (!description.trim() || description.trim().length < 15) {
-      setError('Tavsif kamida 15 ta belgidan iborat bo‘lishi kerak');
+      setError("Sarlavha kamida 5 ta belgidan iborat bo'lishi kerak");
       return;
     }
 
     if (!categoryId) {
-      setError('Kategoriyani tanlang');
+      setError('Iltimos, kategoriyani tanlang');
       return;
     }
 
@@ -164,10 +558,11 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
     setIsSubmitting(true);
     setError('');
 
-    const parsedSkills = skillsText
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean);
+    // Combine selected subcategories + selected features into the skills array
+    const combinedSkills = Array.from(new Set([...selectedSubcategories, ...selectedFeatures]));
+
+    // Auto description ensures the user never fails validation without writing long essays
+    const finalDescription = autoGeneratedDescription;
 
     try {
       const res = await apiRequest<any>('/api/listings', {
@@ -175,7 +570,7 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
         body: JSON.stringify({
           type: selectedType,
           title: title.trim(),
-          description: description.trim(),
+          description: finalDescription,
           category_id: categoryId,
           region_id: regionId,
           district_id: districtId,
@@ -184,12 +579,13 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
           price_type: priceType,
           price_min: priceMin ? parseFloat(priceMin) : undefined,
           price_max: priceMax ? parseFloat(priceMax) : undefined,
-          salary_type: selectedType === 'JOB_OPENING' || selectedType === 'JOB_SEEKER' ? salaryType : undefined,
+          salary_type:
+            selectedType === 'JOB_OPENING' || selectedType === 'JOB_SEEKER' ? salaryType : undefined,
           salary_min: salaryMin ? parseFloat(salaryMin) : undefined,
           salary_max: salaryMax ? parseFloat(salaryMax) : undefined,
           work_format: workFormat,
           experience_level: experienceLevel || undefined,
-          skills: parsedSkills,
+          skills: combinedSkills,
           contact_time: contactTime,
           contact_custom_text: contactCustomText || undefined,
           organization_id: organizationId || undefined,
@@ -199,144 +595,178 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
 
       onCreated(res.id);
     } catch (err: any) {
-      setError(err.message || 'E’lon joylashda xatolik yuz berdi');
+      setError(err.message || "E'lon joylashda xatolik yuz berdi");
       setIsSubmitting(false);
     }
   };
 
-  const TYPE_OPTIONS = [
-    {
-      type: 'SERVICE_OFFER' as ListingType,
-      label: 'Xizmat taklif qilaman',
-      desc: 'Siz ustasiz, mutaxassis yoki xizmat ko‘rsatuvchisiz. O‘z xizmatlaringizni reklama qiling.',
-      icon: Wrench,
-      color: 'border-blue-500 bg-blue-50/40 text-blue-700',
-      badgeColor: 'bg-blue-600',
-    },
-    {
-      type: 'SERVICE_REQUEST' as ListingType,
-      label: 'Xizmat kerak',
-      desc: 'Sizga usta, ta’mirlovchi yoki biror ishni bajarib beradigan mutaxassis zarur.',
-      icon: HelpCircle,
-      color: 'border-amber-500 bg-amber-50/40 text-amber-700',
-      badgeColor: 'bg-amber-600',
-    },
-    {
-      type: 'JOB_OPENING' as ListingType,
-      label: 'Ishchi qidiraman',
-      desc: 'Kompaniya, do‘kon yoki loyihangiz uchun yangi xodimlarni ishga taklif eting.',
-      icon: Briefcase,
-      color: 'border-purple-500 bg-purple-50/40 text-purple-700',
-      badgeColor: 'bg-purple-600',
-    },
-    {
-      type: 'JOB_SEEKER' as ListingType,
-      label: 'Ish qidiraman',
-      desc: 'Siz o‘z sohangizda yangi ish o‘rni yoki qulay vakansiya qidirayotgan mutaxassisiz.',
-      icon: UserCheck,
-      color: 'border-emerald-500 bg-emerald-50/40 text-emerald-700',
-      badgeColor: 'bg-emerald-600',
-    },
-  ];
-
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
-      {/* Step 1: Type Selection (Section 40) */}
+    <div className="max-w-3xl mx-auto px-4 py-6 sm:py-10 pb-28">
+      {/* ── STEP 1: Select Type ── */}
       {!selectedType ? (
-        <div className="bg-white rounded-3xl border border-gray-100 p-6 sm:p-10 shadow-xs">
-          <div className="text-center mb-8">
-            <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">
-              1-qadam / 2
+        <div className="space-y-6">
+          <div className="text-center max-w-lg mx-auto">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-bold mb-3 border border-blue-100">
+              <Sparkles className="w-3.5 h-3.5" />
+              Tezkor va qulay e'lon joylash
             </span>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-950 mt-1">
-              Qanday e’lon bermoqchisiz?
+            <h1 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">
+              Qanday e'lon bermoqchisiz?
             </h1>
-            <p className="text-xs sm:text-sm text-gray-500 mt-2 max-w-md mx-auto">
-              E’lon turiga qarab sizga mos maydonlar va qidiruv filtrlari avtomatik moslashadi.
+            <p className="text-xs sm:text-sm text-gray-500 mt-2">
+              Kerakli bo'limni tanlang. Barcha parametrlar taklif qilinadi, qo'lda uzun matn yozishingiz shart emas!
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {TYPE_OPTIONS.map((opt) => {
-              const IconComp = opt.icon;
-              return (
-                <button
-                  key={opt.type}
-                  onClick={() => setSelectedType(opt.type)}
-                  className="flex flex-col items-start p-5 rounded-2xl border-2 border-gray-100 hover:border-blue-500 hover:bg-blue-50/20 text-left transition-all group shadow-2xs hover:shadow-md"
-                >
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white mb-3 ${opt.badgeColor}`}>
-                    <IconComp className="w-5 h-5" />
-                  </div>
-                  <h3 className="font-bold text-base text-gray-900 group-hover:text-blue-600 transition-colors">
-                    {opt.label}
-                  </h3>
-                  <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-                    {opt.desc}
-                  </p>
-                  <div className="mt-4 flex items-center gap-1 text-xs font-bold text-blue-600 group-hover:translate-x-1 transition-transform">
-                    <span>Tanlash</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </div>
-                </button>
-              );
-            })}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+            {/* SERVICE_OFFER */}
+            <button
+              type="button"
+              onClick={() => setSelectedType('SERVICE_OFFER')}
+              className="p-5 rounded-2xl border-2 border-gray-100 bg-white hover:border-blue-500 hover:shadow-lg transition-all text-left group flex items-start gap-4 cursor-pointer"
+            >
+              <div className="p-3.5 rounded-2xl bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-all shrink-0">
+                <Wrench className="w-6 h-6" />
+              </div>
+              <div className="min-w-0">
+                <span className="font-bold text-sm text-gray-900 block group-hover:text-blue-600 transition-colors">
+                  Xizmat taklif qilish
+                </span>
+                <span className="text-xs text-gray-500 mt-1 block leading-relaxed">
+                  Santexnika, ta'mirlash, klining, repetitorlik kabi o'z xizmatlaringizni taklif qiling.
+                </span>
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 mt-3 group-hover:translate-x-1 transition-transform">
+                  Tanlash <ChevronRight className="w-3.5 h-3.5" />
+                </span>
+              </div>
+            </button>
+
+            {/* SERVICE_REQUEST */}
+            <button
+              type="button"
+              onClick={() => setSelectedType('SERVICE_REQUEST')}
+              className="p-5 rounded-2xl border-2 border-gray-100 bg-white hover:border-amber-500 hover:shadow-lg transition-all text-left group flex items-start gap-4 cursor-pointer"
+            >
+              <div className="p-3.5 rounded-2xl bg-amber-50 text-amber-600 group-hover:bg-amber-600 group-hover:text-white transition-all shrink-0">
+                <HelpCircle className="w-6 h-6" />
+              </div>
+              <div className="min-w-0">
+                <span className="font-bold text-sm text-gray-900 block group-hover:text-amber-600 transition-colors">
+                  Usta yoki xizmat qidirish
+                </span>
+                <span className="text-xs text-gray-500 mt-1 block leading-relaxed">
+                  Muammo yoki vazifani belgilang, mohir ustalar darhol siz bilan bog'lanishadi.
+                </span>
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-600 mt-3 group-hover:translate-x-1 transition-transform">
+                  Tanlash <ChevronRight className="w-3.5 h-3.5" />
+                </span>
+              </div>
+            </button>
+
+            {/* JOB_OPENING */}
+            <button
+              type="button"
+              onClick={() => setSelectedType('JOB_OPENING')}
+              className="p-5 rounded-2xl border-2 border-gray-100 bg-white hover:border-emerald-500 hover:shadow-lg transition-all text-left group flex items-start gap-4 cursor-pointer"
+            >
+              <div className="p-3.5 rounded-2xl bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-all shrink-0">
+                <Briefcase className="w-6 h-6" />
+              </div>
+              <div className="min-w-0">
+                <span className="font-bold text-sm text-gray-900 block group-hover:text-emerald-600 transition-colors">
+                  Xodim / Ishchi qidirish
+                </span>
+                <span className="text-xs text-gray-500 mt-1 block leading-relaxed">
+                  Kompaniya yoki shaxsiy ehtiyoj uchun xodim yollash (Vakansiya joylash).
+                </span>
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 mt-3 group-hover:translate-x-1 transition-transform">
+                  Tanlash <ChevronRight className="w-3.5 h-3.5" />
+                </span>
+              </div>
+            </button>
+
+            {/* JOB_SEEKER */}
+            <button
+              type="button"
+              onClick={() => setSelectedType('JOB_SEEKER')}
+              className="p-5 rounded-2xl border-2 border-gray-100 bg-white hover:border-purple-500 hover:shadow-lg transition-all text-left group flex items-start gap-4 cursor-pointer"
+            >
+              <div className="p-3.5 rounded-2xl bg-purple-50 text-purple-600 group-hover:bg-purple-600 group-hover:text-white transition-all shrink-0">
+                <UserCheck className="w-6 h-6" />
+              </div>
+              <div className="min-w-0">
+                <span className="font-bold text-sm text-gray-900 block group-hover:text-purple-600 transition-colors">
+                  Ish qidiryapman (Rezyume)
+                </span>
+                <span className="text-xs text-gray-500 mt-1 block leading-relaxed">
+                  O'z rezyumengizni joylab, qiziqarli takliflar va doimiy ish o'rniga ega bo'ling.
+                </span>
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-600 mt-3 group-hover:translate-x-1 transition-transform">
+                  Tanlash <ChevronRight className="w-3.5 h-3.5" />
+                </span>
+              </div>
+            </button>
           </div>
         </div>
       ) : (
-        /* Step 2: Form with contextual dynamic fields */
-        <div className="bg-white rounded-3xl border border-gray-100 p-6 sm:p-10 shadow-xs">
-          <div className="flex items-center justify-between border-b border-gray-100 pb-4 mb-6">
+        /* ── STEP 2: The Smart Form ── */
+        <div className="bg-white rounded-3xl border border-gray-100 p-5 sm:p-8 shadow-xs">
+          <div className="flex items-center justify-between pb-5 border-b border-gray-100 mb-6">
             <button
+              type="button"
               onClick={() => setSelectedType(null)}
-              className="inline-flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-blue-600 transition-colors"
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-gray-500 hover:text-blue-600 transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span>E’lon turini o‘zgartirish</span>
+              <span>Boshqa turga o'zgartirish</span>
             </button>
-
-            <span className="text-xs font-bold px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-              {TYPE_OPTIONS.find((t) => t.type === selectedType)?.label}
+            <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-bold border border-blue-100">
+              {selectedType === 'SERVICE_OFFER' && '🔧 Xizmat taklifi'}
+              {selectedType === 'SERVICE_REQUEST' && "🔍 Xizmat so'rovi"}
+              {selectedType === 'JOB_OPENING' && '💼 Ish o‘rni (Vakansiya)'}
+              {selectedType === 'JOB_SEEKER' && '👤 Ish qidiruvchi (Rezyume)'}
             </span>
           </div>
 
-          <h1 className="text-xl sm:text-2xl font-extrabold text-gray-950 mb-6">
-            E’lon ma’lumotlarini to‘ldiring
-          </h1>
-
           {error && (
-            <div className="mb-6 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
-              {error}
+            <div className="mb-6 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
+              <X className="w-4 h-4 shrink-0 text-rose-600" />
+              <span>{error}</span>
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* If user owns organizations and is posting a job opening or service offer, allow posting as org */}
-            {userOrgs.length > 0 && (selectedType === 'JOB_OPENING' || selectedType === 'SERVICE_OFFER') && (
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-                  Qaysi nomdan e’lon bermoqchisiz?
-                </label>
-                <select
-                  value={organizationId}
-                  onChange={(e) => setOrganizationId(e.target.value)}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">O‘zim nomimdan ({user?.name})</option>
-                  {userOrgs.map((org) => (
-                    <option key={org.id} value={org.id}>
-                      Tashkilot: {org.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
+            {/* If user owns organizations and is posting a job opening or service offer */}
+            {userOrgs.length > 0 &&
+              (selectedType === 'JOB_OPENING' || selectedType === 'SERVICE_OFFER') && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1.5 flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5 text-gray-500" />
+                    Qaysi nomdan e'lon bermoqchisiz?
+                  </label>
+                  <select
+                    value={organizationId}
+                    onChange={(e) => setOrganizationId(e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">O'zim nomimdan ({user?.name})</option>
+                    {userOrgs.map((org) => (
+                      <option key={org.id} value={org.id}>
+                        Tashkilot: {org.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
-            {/* Title */}
+            {/* 1. TITLE INPUT WITH REAL-TIME AI SUGGESTIONS */}
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-                Sarlavha <span className="text-rose-500">*</span>
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-bold text-gray-800">
+                  Xizmat yoki ish nomi <span className="text-rose-500">*</span>
+                </label>
+                <span className="text-[11px] text-gray-400">Masalan: Santexnik, Dasturchi, Malyar</span>
+              </div>
               <input
                 type="text"
                 required
@@ -344,27 +774,60 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder={
                   selectedType === 'SERVICE_OFFER'
-                    ? "Masalan: Professional santexnika va tyopliy pol ustasi (10 yillik tajriba)"
+                    ? "Masalan: Professional santexnika va tyopliy pol ustasi"
                     : selectedType === 'SERVICE_REQUEST'
-                    ? "Masalan: Suv quvuri yorildi, shoshilinch santexnik kerak"
+                    ? "Masalan: Kran almashtirish va quvur montaji uchun santexnik kerak"
                     : selectedType === 'JOB_OPENING'
-                    ? "Masalan: Iqtisodiyot mavzulari bo‘yicha tahlilchi jurnalist"
-                    : "Masalan: Frontend dasturchi (React, TypeScript) ish qidiryapman"
+                    ? "Masalan: Restoranga tajribali oshpaz va kassa operatori"
+                    : "Masalan: Frontend dasturchi (React / Next.js) ish qidiryapman"
                 }
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-medium focus:ring-2 focus:ring-blue-500"
+                className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 text-xs sm:text-sm font-medium focus:bg-white focus:ring-2 focus:ring-blue-500 transition-all"
               />
+
+              {/* Smart Category suggestion chips right under the title */}
+              {suggestedCategories.length > 0 && (
+                <div className="mt-2.5 p-3 rounded-2xl bg-blue-50/70 border border-blue-100 animate-fadeIn">
+                  <div className="flex items-center gap-1.5 text-[11px] font-bold text-blue-900 mb-2">
+                    <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Nomingizga mos topilgan kategoriyalar:</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {suggestedCategories.map((cat) => {
+                      const isSelected = categoryId === cat.id;
+                      return (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          onClick={() => setCategoryId(cat.id)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                            isSelected
+                              ? 'bg-blue-600 text-white shadow-xs'
+                              : 'bg-white border border-blue-200 text-blue-700 hover:bg-blue-50'
+                          }`}
+                        >
+                          {isSelected && <Check className="w-3.5 h-3.5" />}
+                          <span>{cat.name_uz}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Category */}
+            {/* 2. CATEGORY SELECTOR */}
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+              <label className="block text-xs font-bold text-gray-800 mb-1.5">
                 Kategoriya <span className="text-rose-500">*</span>
               </label>
               <select
                 required
                 value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:ring-2 focus:ring-blue-500"
+                onChange={(e) => {
+                  setCategoryId(e.target.value);
+                  setSelectedSubcategories([]);
+                }}
+                className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-3.5 py-2.5 text-xs font-medium focus:bg-white focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Kategoriyani tanlang...</option>
                 {categories.map((c) => (
@@ -375,32 +838,146 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
               </select>
             </div>
 
-            {/* Description */}
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-                Batafsil tavsif <span className="text-rose-500">*</span>
-              </label>
-              <textarea
-                required
-                rows={5}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Xizmat tafsilotlari, tajriba, shartlar yoki muammoni batafsil bayon qiling..."
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3.5 text-xs sm:text-sm font-medium focus:ring-2 focus:ring-blue-500 leading-relaxed"
-              />
+            {/* 3. SUBCATEGORIES / SERVICE ITEMS (Bir-bir.uz / Avito style 1-tap select) */}
+            {availableSubcategories.length > 0 && (
+              <div className="p-4 rounded-2xl bg-gray-50/70 border border-gray-100">
+                <div className="flex items-center justify-between mb-2.5">
+                  <label className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                    <Tag className="w-3.5 h-3.5 text-blue-600" />
+                    Yo'nalish va xizmat turlari (bir bosishda tanlang)
+                  </label>
+                  <span className="text-[11px] text-gray-400">
+                    {selectedSubcategories.length} ta tanlandi
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {availableSubcategories.map((item) => {
+                    const isSelected = selectedSubcategories.includes(item);
+                    return (
+                      <button
+                        key={item}
+                        type="button"
+                        onClick={() => handleToggleSubcategory(item)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer ${
+                          isSelected
+                            ? 'bg-blue-600 text-white font-bold shadow-xs'
+                            : 'bg-white border border-gray-200 text-gray-700 hover:border-blue-300 hover:text-blue-700'
+                        }`}
+                      >
+                        {isSelected && <Check className="w-3.5 h-3.5" />}
+                        <span>{item}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* 4. PRESET FEATURES & ADVANTAGES (Taklif qilingan parametrlar) */}
+            <div className="p-4 rounded-2xl bg-blue-50/40 border border-blue-100/70">
+              <div className="flex items-center justify-between mb-2.5">
+                <label className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  Qulayliklar va afzalliklar (qo'lda yozmasdan belgilang)
+                </label>
+                <span className="text-[11px] text-blue-600 font-semibold">
+                  {selectedFeatures.length} ta afzallik
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {PRESET_FEATURES.map((feat) => {
+                  const isSelected = selectedFeatures.includes(feat);
+                  return (
+                    <button
+                      key={feat}
+                      type="button"
+                      onClick={() => handleToggleFeature(feat)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer ${
+                        isSelected
+                          ? 'bg-emerald-600 text-white font-bold shadow-xs'
+                          : 'bg-white border border-gray-200 text-gray-700 hover:border-emerald-300 hover:text-emerald-700'
+                      }`}
+                    >
+                      {isSelected && <Check className="w-3.5 h-3.5" />}
+                      <span>{feat}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
-            {/* Pricing / Salary Contextual Block */}
+            {/* 5. WORK FORMAT & EXPERIENCE (Avito style segmented buttons) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Work format */}
+              <div>
+                <label className="block text-xs font-bold text-gray-800 mb-2">
+                  Ish / Xizmat joyi (Formati)
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'ONSITE', label: '🏠 Joyida' },
+                    { id: 'REMOTE', label: '💻 Masofaviy' },
+                    { id: 'HYBRID', label: '🔄 Gibrid' },
+                  ].map((f) => (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => setWorkFormat(f.id as WorkFormat)}
+                      className={`py-2 px-2 rounded-xl text-xs font-bold text-center border transition-all cursor-pointer ${
+                        workFormat === f.id
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                          : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Experience level */}
+              <div>
+                <label className="block text-xs font-bold text-gray-800 mb-2">
+                  Kerakli tajriba darajasi
+                </label>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {[
+                    { id: 'none', label: 'Yangi' },
+                    { id: '1-3', label: '1–3 yil' },
+                    { id: '3-5', label: '3–5 yil' },
+                    { id: '5+', label: '5+ yil' },
+                  ].map((exp) => (
+                    <button
+                      key={exp.id}
+                      type="button"
+                      onClick={() => setExperienceLevel(exp.id)}
+                      className={`py-2 px-1 text-center rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                        experienceLevel === exp.id
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                          : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      {exp.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* 6. PRICING / SALARY BLOCK */}
             {selectedType === 'JOB_OPENING' || selectedType === 'JOB_SEEKER' ? (
               <div className="p-4 rounded-2xl bg-purple-50/50 border border-purple-100 space-y-3">
-                <h4 className="font-bold text-xs text-purple-900 uppercase tracking-wider">
-                  Ish haqi (Maosh)
-                </h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-xs text-purple-900 uppercase tracking-wider flex items-center gap-1.5">
+                    <DollarSign className="w-3.5 h-3.5 text-purple-600" />
+                    Ish haqi (Maosh)
+                  </h4>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <select
                     value={salaryType}
                     onChange={(e) => setSalaryType(e.target.value as SalaryType)}
-                    className="bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium focus:ring-2 focus:ring-purple-500"
+                    className="bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-xs font-bold focus:ring-2 focus:ring-purple-500"
                   >
                     <option value="SALARY_FIXED">Aniq maosh</option>
                     <option value="SALARY_RANGE">Oraliq (Dan - Gacha)</option>
@@ -427,51 +1004,24 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
                     />
                   )}
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">
-                      Ish formati
-                    </label>
-                    <select
-                      value={workFormat}
-                      onChange={(e) => setWorkFormat(e.target.value as WorkFormat)}
-                      className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium"
-                    >
-                      <option value="ONSITE">Joyida (Ofis / Korxona)</option>
-                      <option value="REMOTE">Masofaviy (Remote)</option>
-                      <option value="HYBRID">Gibrid (Aralash)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">
-                      Kerakli tajriba
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Masalan: 2+ yil yoki Tajribasiz"
-                      value={experienceLevel}
-                      onChange={(e) => setExperienceLevel(e.target.value)}
-                      className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium"
-                    />
-                  </div>
-                </div>
               </div>
             ) : (
               <div className="p-4 rounded-2xl bg-blue-50/50 border border-blue-100 space-y-3">
-                <h4 className="font-bold text-xs text-blue-900 uppercase tracking-wider">
-                  Narx / Byudjet
-                </h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-xs text-blue-900 uppercase tracking-wider flex items-center gap-1.5">
+                    <DollarSign className="w-3.5 h-3.5 text-blue-600" />
+                    Narx / Byudjet
+                  </h4>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <select
                     value={priceType}
                     onChange={(e) => setPriceType(e.target.value as PriceType)}
-                    className="bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium focus:ring-2 focus:ring-blue-500"
+                    className="bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-xs font-bold focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="FIXED">Aniq narx</option>
                     <option value="FROM">...dan boshlanadi</option>
-                    <option value="RANGE">Narx oralig‘i</option>
+                    <option value="RANGE">Narx oralig'i</option>
                     <option value="NEGOTIABLE">Kelishiladi</option>
                     <option value="FREE">Bepul</option>
                   </select>
@@ -499,24 +1049,10 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
               </div>
             )}
 
-            {/* Skills & Experience */}
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-                Asosiy ko‘nikmalar yoki teglarni kiriting (vergul bilan ajrating)
-              </label>
-              <input
-                type="text"
-                value={skillsText}
-                onChange={(e) => setSkillsText(e.target.value)}
-                placeholder="Santexnika, Ekoplast, Montaj, Isitish tizimlari..."
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs font-medium"
-              />
-            </div>
-
-            {/* Location block */}
+            {/* 7. LOCATION (Viloyat & Tuman) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                <label className="block text-xs font-bold text-gray-800 mb-1.5">
                   Viloyat / Shahar <span className="text-rose-500">*</span>
                 </label>
                 <select
@@ -526,7 +1062,7 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
                     setRegionId(e.target.value);
                     setDistrictId('');
                   }}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs font-medium"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-3.5 py-2.5 text-xs font-medium"
                 >
                   <option value="">Tanlang...</option>
                   {regions.map((r) => (
@@ -538,7 +1074,7 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                <label className="block text-xs font-bold text-gray-800 mb-1.5">
                   Tuman <span className="text-rose-500">*</span>
                 </label>
                 <select
@@ -546,7 +1082,7 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
                   disabled={!regionId}
                   value={districtId}
                   onChange={(e) => setDistrictId(e.target.value)}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs font-medium disabled:opacity-50"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-3.5 py-2.5 text-xs font-medium disabled:opacity-50"
                 >
                   <option value="">Tanlang...</option>
                   {districts.map((d) => (
@@ -572,60 +1108,109 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
                 type="button"
                 onClick={handleDetectGPS}
                 disabled={isLocating}
-                className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer"
               >
                 <Navigation className={`w-3.5 h-3.5 ${isLocating ? 'animate-spin' : ''}`} />
                 <span>{isLocating ? 'Aniqlanmoqda...' : 'GPS-ni aniqlash'}</span>
               </button>
             </div>
 
-            {/* Contact time preference (Section 31) */}
+            {/* 8. CONTACT TIME PREFERENCE */}
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-                Bog‘lanish vaqti
+              <label className="block text-xs font-bold text-gray-800 mb-2">
+                Bog'lanish qulay vaqti
               </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <select
-                  value={contactTime}
-                  onChange={(e) => setContactTime(e.target.value as ContactTime)}
-                  className="bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs font-medium"
-                >
-                  <option value="ANY_TIME">Istalgan vaqtda</option>
-                  <option value="MORNING">Ertalab (09:00 – 13:00)</option>
-                  <option value="AFTERNOON">Kunduzi (13:00 – 18:00)</option>
-                  <option value="EVENING">Kechqurun (18:00 – 21:00)</option>
-                  <option value="CUSTOM">Boshqa vaqt</option>
-                </select>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {[
+                  { id: 'ANY_TIME', label: '🕒 24/7 (Istalgan)' },
+                  { id: 'MORNING', label: '☀️ 09:00 - 13:00' },
+                  { id: 'AFTERNOON', label: '🌤️ 13:00 - 18:00' },
+                  { id: 'EVENING', label: '🌙 18:00 - 21:00' },
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setContactTime(item.id as ContactTime)}
+                    className={`py-2 px-2 rounded-xl text-xs font-bold border transition-all text-center cursor-pointer ${
+                      contactTime === item.id
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                        : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-                {contactTime === 'CUSTOM' && (
-                  <input
-                    type="text"
-                    placeholder="Masalan: Dushanba-Juma 10:00 dan 17:00 gacha"
-                    value={contactCustomText}
-                    onChange={(e) => setContactCustomText(e.target.value)}
-                    className="bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs font-medium"
+            {/* 9. SMART AUTO-GENERATED SUMMARY (No manual typing required) */}
+            <div className="p-4 rounded-2xl bg-linear-to-br from-blue-50/60 to-indigo-50/60 border border-blue-100">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-blue-600" />
+                  <span className="text-xs font-bold text-blue-950">
+                    E'lon tafsilotlari (Avtomatik tuzildi)
+                  </span>
+                </div>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                  Qo'lda yozish shart emas
+                </span>
+              </div>
+              <p className="text-xs text-gray-700 leading-relaxed font-medium">
+                {autoGeneratedDescription}
+              </p>
+
+              {/* Optional custom text expander */}
+              <div className="mt-3 pt-3 border-t border-blue-100/70">
+                <button
+                  type="button"
+                  onClick={() => setIsCustomDescOpen(!isCustomDescOpen)}
+                  className="text-[11px] font-bold text-blue-700 hover:text-blue-900 flex items-center gap-1 cursor-pointer"
+                >
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 transition-transform ${isCustomDescOpen ? 'rotate-180' : ''}`}
                   />
+                  <span>
+                    {isCustomDescOpen
+                      ? "Qo'shimcha izoh maydonini yopish"
+                      : "✏️ O'z qo'lim bilan qo'shimcha izoh kiritish (ixtiyoriy)"}
+                  </span>
+                </button>
+
+                {isCustomDescOpen && (
+                  <div className="mt-2.5 animate-fadeIn">
+                    <textarea
+                      rows={3}
+                      value={customDescription}
+                      onChange={(e) => setCustomDescription(e.target.value)}
+                      placeholder="Ixtiyoriy: Agar alohida qo'shimcha shart yoki eslatmangiz bo'lsa bu yerga yozishingiz mumkin..."
+                      className="w-full bg-white border border-blue-200 rounded-xl p-3 text-xs font-medium focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
                 )}
               </div>
             </div>
 
-            {/* Images upload (Section 15: Up to 8 images, real uploads) */}
+            {/* 10. IMAGES UPLOAD (Up to 8 images) */}
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-semibold text-gray-700">
-                  Rasmlar (Ko‘pi bilan 8 ta)
+                <label className="text-xs font-bold text-gray-800">
+                  Rasmlar (Ko'pi bilan 8 ta)
                 </label>
                 <span className="text-[11px] text-gray-400">{images.length}/8 ta rasm</span>
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {images.map((url, idx) => (
-                  <div key={idx} className="relative aspect-square rounded-2xl overflow-hidden border border-gray-200 group">
+                  <div
+                    key={idx}
+                    className="relative aspect-square rounded-2xl overflow-hidden border border-gray-200 group"
+                  >
                     <img src={url} alt={`Upload ${idx}`} className="w-full h-full object-cover" />
                     <button
                       type="button"
                       onClick={() => handleRemoveImage(idx)}
-                      className="absolute top-1.5 right-1.5 p-1 rounded-full bg-rose-600 text-white shadow-md hover:bg-rose-700 transition-colors"
+                      className="absolute top-1.5 right-1.5 p-1 rounded-full bg-rose-600 text-white shadow-md hover:bg-rose-700 transition-colors cursor-pointer"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -642,11 +1227,15 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
                     type="button"
                     disabled={isUploadingImage}
                     onClick={() => fileInputRef.current?.click()}
-                    className="aspect-square rounded-2xl border-2 border-dashed border-gray-300 hover:border-blue-500 hover:bg-blue-50/30 flex flex-col items-center justify-center p-3 text-center transition-colors"
+                    className="aspect-square rounded-2xl border-2 border-dashed border-gray-300 hover:border-blue-500 hover:bg-blue-50/30 flex flex-col items-center justify-center p-3 text-center transition-colors cursor-pointer"
                   >
-                    <UploadCloud className={`w-6 h-6 text-gray-400 mb-1 ${isUploadingImage ? 'animate-bounce text-blue-600' : ''}`} />
-                    <span className="text-[11px] font-semibold text-gray-600">
-                      {isUploadingImage ? 'Yuklanmoqda...' : 'Rasm qo‘shish'}
+                    <UploadCloud
+                      className={`w-6 h-6 text-gray-400 mb-1 ${
+                        isUploadingImage ? 'animate-bounce text-blue-600' : ''
+                      }`}
+                    />
+                    <span className="text-[11px] font-bold text-gray-600">
+                      {isUploadingImage ? 'Yuklanmoqda...' : 'Rasm yuklash'}
                     </span>
                   </button>
                 )}
@@ -665,7 +1254,7 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
             <div className="p-3.5 rounded-2xl bg-blue-50/70 border border-blue-100 text-xs text-blue-900 leading-relaxed flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-blue-600 shrink-0" />
               <span>
-                E’lon joylangach, darhol faol holatga o‘tadi va 30 kun davomida amal qiladi. 30 kundan so‘ng uni bepul uzaytirishingiz mumkin.
+                E'lon joylangach, darhol faol holatga o'tadi va 30 kun davomida amal qiladi. 30 kundan so'ng uni bepul uzaytirishingiz mumkin.
               </span>
             </div>
 
@@ -674,7 +1263,7 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
               <button
                 type="button"
                 onClick={() => setSelectedType(null)}
-                className="py-3 px-6 rounded-full border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold text-xs"
+                className="py-3 px-6 rounded-full border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold text-xs cursor-pointer"
               >
                 Orqaga
               </button>
@@ -682,9 +1271,16 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="flex-1 py-3 rounded-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-xs sm:text-sm shadow-md transition-colors disabled:opacity-50"
+                className="flex-1 py-3.5 rounded-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-xs sm:text-sm shadow-md transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
               >
-                {isSubmitting ? 'Chop etilmoqda...' : 'E’lonni darhol chop etish'}
+                {isSubmitting ? (
+                  <span>Chop etilmoqda...</span>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>E'lonni darhol chop etish</span>
+                  </>
+                )}
               </button>
             </div>
           </form>

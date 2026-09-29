@@ -23,6 +23,12 @@ import {
   ChevronLeft,
   Star,
   Trash2,
+  Briefcase,
+  Layers,
+  Eye,
+  CheckCircle2,
+  Globe,
+  ChevronRight,
 } from 'lucide-react';
 import { VerifiedBadge } from '../components/common/VerifiedBadge.tsx';
 import { CallModal } from '../components/modals/CallModal.tsx';
@@ -47,6 +53,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
   const [selectedImageIdx, setSelectedImageIdx] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [isAdminDeleting, setIsAdminDeleting] = useState(false);
 
   // Modals state
   const [isCallModalOpen, setIsCallModalOpen] = useState(false);
@@ -68,7 +75,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
       setIsSaved(data.is_saved || false);
       setIsFollowed(data.is_followed || false);
     } catch (err: any) {
-      setError(err.message || 'E’lon yuklanmadi');
+      setError(err.message || "E'lon yuklanmadi");
     } finally {
       setIsLoading(false);
     }
@@ -106,25 +113,13 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
       openLoginModal();
       return;
     }
-    if (!listing || isFollowLoading) return;
-
     setIsFollowLoading(true);
     const next = !isFollowed;
     setIsFollowed(next);
     try {
-      const res = await apiRequest<{ followed: boolean }>(`/api/users/${listing.owner_user_id}/follow`, {
-        method: 'POST',
-      });
-      setIsFollowed(res.followed);
-      if (listing) {
-        setListing({
-          ...listing,
-          owner_followers_count: (listing.owner_followers_count || 0) + (res.followed ? 1 : -1),
-        });
-      }
-    } catch (err: any) {
+      await apiRequest(`/api/users/${listing?.owner_user_id}/follow`, { method: 'POST' });
+    } catch {
       setIsFollowed(!next);
-      alert(err.message || 'Obuna bo‘lishda xatolik');
     } finally {
       setIsFollowLoading(false);
     }
@@ -135,63 +130,48 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
       openLoginModal();
       return;
     }
-    if (!listing) return;
-
-    try {
-      const res = await apiRequest<{ phone: string }>(`/api/users/${listing.owner_user_id}/phone`);
-      setRevealedPhone(res.phone);
+    if (revealedPhone) {
       setIsCallModalOpen(true);
-    } catch (err: any) {
-      alert(err.message || 'Telefon raqamini ko‘rish imkoni bo‘lmadi');
+      return;
+    }
+    try {
+      const res = await apiRequest<{ phone: string }>(`/api/listings/${listingId}/contact`);
+      if (res.phone) {
+        setRevealedPhone(res.phone);
+        setIsCallModalOpen(true);
+      }
+    } catch {
+      // noop
+    }
+  };
+
+  const handleShare = async () => {
+    const url = `${window.location.origin}/listing/${listingId}`;
+    if (navigator.share) {
+      await navigator.share({ title: listing?.title, url });
+    } else {
+      await navigator.clipboard.writeText(url);
     }
   };
 
   const handleRenew = async () => {
-    if (!confirm('E’lon amal qilish muddatini yana 30 kunga uzaytirmoqchimisiz?')) return;
+    if (!user) return;
     setIsRenewing(true);
     try {
-      const res = await apiRequest<{ listing: Listing }>(`/api/listings/${listingId}/renew`, {
-        method: 'POST',
-      });
-      setListing(res.listing);
-      alert('E’loningiz muvaffaqiyatli uzaytirildi!');
-    } catch (err: any) {
-      alert(err.message || 'Uzaytirishda xatolik yuz berdi');
+      await apiRequest(`/api/listings/${listingId}/renew`, { method: 'POST' });
+      fetchDetail();
     } finally {
       setIsRenewing(false);
     }
   };
 
-  const handleShare = () => {
-    if (navigator.share) {
-      navigator.share({
-        title: listing?.title,
-        text: listing?.description?.slice(0, 100),
-        url: window.location.href,
-      }).catch(() => {});
-    } else {
-      navigator.clipboard.writeText(window.location.href);
-      alert('E’lon havolasi nusxalandi!');
-    }
-  };
-
-  const [isAdminDeleting, setIsAdminDeleting] = useState(false);
-
   const handleAdminDeleteListing = async () => {
-    const isSure = window.confirm(
-      "DIQQAT! Administrator sifatida ushbu e’lonni platformadan BUTUNLAY O‘CHIRIB tashlamoqchimisiz?\n\nBu amal qaytarilmaydi va barcha bog‘liq rasmlar ham o‘chiriladi."
-    );
-    if (!isSure) return;
-
+    if (!user || user.role !== 'ADMIN') return;
+    if (!window.confirm("Haqiqatan ham bu e'lonni butunlay o'chirmoqchimisiz? Bu amalni qaytarib bo'lmaydi!")) return;
     setIsAdminDeleting(true);
     try {
-      await apiRequest(`/api/listings/${listingId}?hard=true`, {
-        method: 'DELETE',
-      });
-      alert('E’lon ma’muriyat tomonidan platformadan butunlay muvaffaqiyatli o‘chirildi!');
-      onNavigate('/');
-    } catch (err: any) {
-      alert(err.message || 'E’lonni o‘chirishda xatolik yuz berdi');
+      await apiRequest(`/api/admin/listings/${listingId}`, { method: 'DELETE' });
+      onBack();
     } finally {
       setIsAdminDeleting(false);
     }
@@ -200,10 +180,16 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
   if (isLoading) {
     return (
       <div className="max-w-5xl mx-auto px-4 py-8 animate-pulse space-y-6">
-        <div className="w-32 h-6 bg-gray-200 rounded-md" />
-        <div className="w-full h-96 bg-gray-200 rounded-3xl" />
-        <div className="w-3/4 h-8 bg-gray-200 rounded-md" />
-        <div className="w-1/2 h-4 bg-gray-200 rounded-md" />
+        <div className="w-32 h-5 bg-gray-200 rounded-md" />
+        <div className="w-full h-72 md:h-96 bg-gray-200 rounded-2xl" />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-4">
+            <div className="w-3/4 h-7 bg-gray-200 rounded-md" />
+            <div className="w-1/2 h-4 bg-gray-100 rounded-md" />
+            <div className="w-full h-32 bg-gray-100 rounded-xl" />
+          </div>
+          <div className="h-60 bg-gray-100 rounded-2xl" />
+        </div>
       </div>
     );
   }
@@ -211,15 +197,10 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
   if (error || !listing) {
     return (
       <div className="max-w-lg mx-auto px-4 py-16 text-center">
-        <div className="w-16 h-16 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center text-3xl mx-auto mb-3">
-          ⚠️
-        </div>
-        <h2 className="text-lg font-bold text-gray-900">E’lon topilmadi yoki arxivlangan</h2>
-        <p className="text-xs text-gray-500 mt-1 mb-6">{error || 'Ushbu e’lon o‘chirilgan yoki muddati tugagan.'}</p>
-        <button
-          onClick={onBack}
-          className="px-6 py-2.5 rounded-full bg-blue-600 text-white font-bold text-xs shadow-md"
-        >
+        <div className="w-16 h-16 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center text-3xl mx-auto mb-3">⚠️</div>
+        <h2 className="text-lg font-bold text-gray-900">E'lon topilmadi yoki arxivlangan</h2>
+        <p className="text-xs text-gray-500 mt-1 mb-6">{error || "Ushbu e'lon o'chirilgan yoki muddati tugagan."}</p>
+        <button onClick={onBack} className="px-6 py-2.5 rounded-full bg-blue-600 text-white font-bold text-xs shadow-md">
           Orqaga qaytish
         </button>
       </div>
@@ -235,31 +216,105 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
       : listing.skills
     : [];
 
+  // Build structured "Подробности / Tafsilotlar" list
+  const typeLabels: Record<string, string> = {
+    SERVICE_OFFER: "Xizmat taklifi",
+    SERVICE_REQUEST: "Xizmat so'rovi (Buyurtma)",
+    JOB_OPENING: "Vakansiya / Ish o'rni",
+    JOB_SEEKER: "Rezyume / Mutaxassis",
+  };
+  const workFormatLabels: Record<string, string> = {
+    ONSITE: 'Joyida (Ofis / Xonadon)',
+    REMOTE: 'Masofaviy (Online)',
+    HYBRID: 'Gibrid (Aralash)',
+  };
+  const experienceLabels: Record<string, string> = {
+    none: 'Tajribasiz / Yangi boshlovchi',
+    '1-3': '1–3 yil',
+    '3-5': '3–5 yil',
+    '5+': '5 yildan ortiq',
+  };
+
+  const details: { label: string; value: string; icon?: React.ReactNode }[] = [
+    {
+      label: "E'lon turi",
+      value: typeLabels[listing.type] || listing.type,
+      icon: <Briefcase className="w-4 h-4 text-blue-600" />,
+    },
+    {
+      label: 'Kategoriya',
+      value: listing.category_name || '—',
+      icon: <Layers className="w-4 h-4 text-violet-500" />,
+    },
+    ...(listing.work_format
+      ? [
+          {
+            label: 'Ish / Xizmat formati',
+            value: workFormatLabels[listing.work_format] || listing.work_format,
+            icon: <Globe className="w-4 h-4 text-teal-500" />,
+          },
+        ]
+      : []),
+    ...(listing.experience_level
+      ? [
+          {
+            label: 'Tajriba darajasi',
+            value: experienceLabels[listing.experience_level] || listing.experience_level,
+            icon: <CheckCircle2 className="w-4 h-4 text-green-500" />,
+          },
+        ]
+      : []),
+    {
+      label: "E'lon holati",
+      value:
+        listing.status === 'ACTIVE'
+          ? 'Faol'
+          : listing.status === 'ARCHIVED'
+          ? 'Arxivlangan'
+          : listing.status === 'HIDDEN'
+          ? 'Yashirilgan'
+          : "O'chirilgan",
+      icon: <Eye className="w-4 h-4 text-gray-400" />,
+    },
+    {
+      label: "E'lon joylashtirildi",
+      value: formatDateAgo(listing.created_at),
+      icon: <Calendar className="w-4 h-4 text-gray-400" />,
+    },
+    {
+      label: "Bog'lanish vaqti",
+      value: getContactTimeLabel(listing.contact_time, listing.contact_custom_text),
+      icon: <Clock className="w-4 h-4 text-amber-500" />,
+    },
+  ];
+
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-      {/* Back button */}
-      <button
-        onClick={onBack}
-        className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-600 hover:text-blue-600 transition-colors mb-4 group"
-      >
-        <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-        <span>Barcha e’lonlarga qaytish</span>
-      </button>
+    <div className="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-24 sm:pb-6">
+      {/* Breadcrumb / Back */}
+      <div className="flex items-center gap-2 mb-4 text-xs text-gray-500">
+        <button
+          onClick={onBack}
+          className="inline-flex items-center gap-1 font-medium hover:text-blue-600 transition-colors group"
+        >
+          <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+          <span>Barcha e'lonlar</span>
+        </button>
+        <ChevronRight className="w-3 h-3 text-gray-300" />
+        <span className="truncate max-w-[200px] text-gray-400">{listing.category_name}</span>
+        <ChevronRight className="w-3 h-3 text-gray-300" />
+        <span className="truncate max-w-[160px] font-medium text-gray-700">{listing.title}</span>
+      </div>
 
       {/* Admin Action Banner */}
       {user?.role === 'ADMIN' && (
-        <div className="mb-6 p-4 rounded-2xl bg-rose-50 border border-rose-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-rose-900 shadow-2xs">
+        <div className="mb-4 p-4 rounded-2xl bg-rose-50 border border-rose-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-rose-900 shadow-xs">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-xl bg-rose-600 text-white shadow-xs">
               <Trash2 className="w-5 h-5" />
             </div>
             <div>
-              <span className="font-extrabold text-xs text-rose-950 block">
-                👑 Platforma Administratori amallari
-              </span>
-              <span className="text-[11px] text-rose-700">
-                Siz ushbu e’lonni istalgan vaqtda ma’lumotlar bazasidan butunlay va qaytarib bo‘lmaydigan qilib o‘chirish huquqiga egasiz.
-              </span>
+              <span className="font-extrabold text-xs text-rose-950 block">👑 Administrator amallari</span>
+              <span className="text-[11px] text-rose-700">Ushbu e'lonni butunlay o'chirish imkoniyati.</span>
             </div>
           </div>
           <button
@@ -269,19 +324,17 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
             className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
           >
             <Trash2 className="w-3.5 h-3.5" />
-            <span>{isAdminDeleting ? 'O‘chirilmoqda...' : 'E’lonni butunlay o‘chirish'}</span>
+            <span>{isAdminDeleting ? "O'chirilmoqda..." : "E'lonni o'chirish"}</span>
           </button>
         </div>
       )}
 
-      {/* Expiration warning banner if archived or nearing expiration */}
+      {/* Archived warning banner */}
       {listing.status === 'ARCHIVED' && (
-        <div className="mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-900 text-xs">
+        <div className="mb-4 p-4 rounded-2xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-900 text-xs">
           <div>
-            <p className="font-bold">Ushbu e’lonning 30 kunlik amal qilish muddati tugagan (Arxivda)</p>
-            <p className="text-amber-800 text-[11px] mt-0.5">
-              Hozirda qidiruvda ko‘rinmaydi. E’lon egasi uni bepul yangilashi mumkin.
-            </p>
+            <p className="font-bold">Ushbu e'lon arxivlangan (30 kunlik muddat tugagan)</p>
+            <p className="text-amber-700 text-[11px] mt-0.5">Hozirda qidiruvda ko'rinmaydi.</p>
           </div>
           {isOwner && (
             <button
@@ -296,55 +349,61 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Column: Gallery & Details */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* 1. Image Gallery (up to 8 images) */}
-          <div className="bg-white rounded-3xl border border-gray-100 p-3 shadow-xs overflow-hidden">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 lg:gap-8">
+        {/* ── Left Column ── */}
+        <div className="space-y-4">
+
+          {/* 1. Image Gallery */}
+          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-xs">
             {images.length > 0 ? (
               <div>
-                <div className="relative aspect-[16/10] w-full rounded-2xl overflow-hidden bg-gray-50 mb-3">
+                <div className="relative aspect-[4/3] sm:aspect-[16/9] w-full bg-gray-50">
                   <img
                     src={images[selectedImageIdx]}
                     alt={listing.title}
                     className="w-full h-full object-cover"
                   />
+                  {/* Type badge overlay */}
                   <div className="absolute top-3 left-3">
                     <ListingTypeBadge type={listing.type} size="md" />
                   </div>
+                  {/* Image counter */}
+                  {images.length > 1 && (
+                    <div className="absolute bottom-3 right-3 bg-black/50 text-white text-[11px] font-bold px-2.5 py-1 rounded-full backdrop-blur-sm">
+                      {selectedImageIdx + 1} / {images.length}
+                    </div>
+                  )}
                 </div>
-
-                {/* Thumbnails row */}
                 {images.length > 1 && (
-                  <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                  <div className="flex gap-2 p-3 overflow-x-auto scrollbar-none">
                     {images.map((img, idx) => (
                       <button
                         key={idx}
                         onClick={() => setSelectedImageIdx(idx)}
-                        className={`relative w-16 h-16 rounded-xl overflow-hidden shrink-0 border-2 transition-all ${
+                        className={`relative w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden shrink-0 border-2 transition-all ${
                           selectedImageIdx === idx
-                            ? 'border-blue-600 ring-2 ring-blue-600/20'
-                            : 'border-transparent opacity-70 hover:opacity-100'
+                            ? 'border-blue-600 ring-2 ring-blue-600/20 opacity-100'
+                            : 'border-transparent opacity-60 hover:opacity-90'
                         }`}
                       >
-                        <img src={img} alt={`Thumbnail ${idx}`} className="w-full h-full object-cover" />
+                        <img src={img} alt={`Rasm ${idx + 1}`} className="w-full h-full object-cover" />
                       </button>
                     ))}
                   </div>
                 )}
               </div>
             ) : (
-              <div className="aspect-[16/9] w-full rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 flex flex-col items-center justify-center text-gray-400 p-6 text-center">
-                <span className="text-4xl mb-2">📋</span>
+              <div className="aspect-[4/3] sm:aspect-[16/9] w-full bg-gradient-to-br from-blue-50 to-indigo-50 flex flex-col items-center justify-center text-gray-400 p-6 text-center">
+                <span className="text-5xl mb-3">📋</span>
                 <span className="font-semibold text-sm text-gray-600">{listing.category_name}</span>
                 <ListingTypeBadge type={listing.type} size="sm" className="mt-2" />
               </div>
             )}
           </div>
 
-          {/* 2. Main Title & Meta */}
-          <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-xs">
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+          {/* 2. Title & Price */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-xs">
+            <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
               <PriceDisplay
                 priceType={listing.price_type}
                 priceMin={listing.price_min}
@@ -354,128 +413,156 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                 salaryMin={listing.salary_min}
                 salaryMax={listing.salary_max}
                 isJob={isJob}
-                className="text-2xl text-blue-900 font-extrabold"
+                className="text-2xl sm:text-3xl text-[#172B4D] font-extrabold"
               />
 
+              {/* Action icons */}
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={handleSaveToggle}
-                  className={`p-2.5 rounded-full border transition-colors ${
+                  className={`p-2.5 rounded-full border-2 transition-all ${
                     isSaved
-                      ? 'bg-rose-50 text-rose-600 border-rose-200'
-                      : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                      ? 'bg-rose-50 text-rose-600 border-rose-300'
+                      : 'border-gray-200 text-gray-500 hover:border-rose-300 hover:text-rose-500'
                   }`}
                   title={isSaved ? 'Saqlangan' : 'Saqlash'}
-                  aria-label="Saqlash"
                 >
                   <Heart className={`w-4 h-4 ${isSaved ? 'fill-rose-500' : ''}`} />
                 </button>
-
                 <button
                   type="button"
                   onClick={handleShare}
-                  className="p-2.5 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+                  className="p-2.5 rounded-full border-2 border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700 transition-all"
                   title="Ulashish"
-                  aria-label="Ulashish"
                 >
                   <Share2 className="w-4 h-4" />
                 </button>
-
                 <button
                   type="button"
                   onClick={() => setIsReportModalOpen(true)}
-                  className="p-2.5 rounded-full border border-gray-200 text-gray-400 hover:text-amber-600 hover:bg-gray-50 transition-colors"
+                  className="p-2.5 rounded-full border-2 border-gray-200 text-gray-400 hover:border-amber-300 hover:text-amber-600 transition-all"
                   title="Shikoyat qilish"
-                  aria-label="Shikoyat qilish"
                 >
                   <AlertTriangle className="w-4 h-4" />
                 </button>
-
-                {user?.role === 'ADMIN' && (
-                  <button
-                    type="button"
-                    onClick={handleAdminDeleteListing}
-                    className="p-2.5 rounded-full border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 transition-colors cursor-pointer"
-                    title="Admin: E’lonni butunlay o‘chirish"
-                    aria-label="Admin: E’lonni o‘chirish"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                )}
               </div>
             </div>
 
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-950 leading-snug tracking-tight mb-4">
+            <h1 className="text-lg sm:text-xl font-bold text-gray-950 leading-snug tracking-tight">
               {listing.title}
             </h1>
 
-            {/* Quick badges */}
-            <div className="flex flex-wrap items-center gap-3 text-xs text-gray-600 border-t border-b border-gray-100 py-3">
-              <div className="flex items-center gap-1.5">
-                <MapPin className="w-4 h-4 text-blue-600" />
-                <span>
-                  {listing.district_name}, {listing.region_name}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-1.5 text-gray-400">
-                <Calendar className="w-4 h-4" />
-                <span>E’lon berildi: {formatDateAgo(listing.created_at)}</span>
-              </div>
-
-              {listing.work_format && (
-                <span className="px-2.5 py-0.5 rounded-md bg-gray-100 text-gray-700 font-medium">
-                  {listing.work_format === 'REMOTE' ? 'Masofaviy ish' : listing.work_format === 'HYBRID' ? 'Gibrid' : 'Ofis/Joyida'}
-                </span>
-              )}
-
-              {listing.experience_level && (
-                <span className="px-2.5 py-0.5 rounded-md bg-gray-100 text-gray-700 font-medium">
-                  Tajriba: {listing.experience_level}
-                </span>
-              )}
+            {/* Location line */}
+            <div className="flex items-center gap-1.5 mt-2 text-sm text-gray-500">
+              <MapPin className="w-4 h-4 text-blue-500 shrink-0" />
+              <span>
+                {[listing.district_name, listing.region_name].filter(Boolean).join(', ') || "Manzil ko'rsatilmagan"}
+              </span>
             </div>
 
-            {/* Contact Time Availability (Section 31) */}
-            <div className="mt-4 p-3.5 rounded-2xl bg-blue-50/60 border border-blue-100 flex items-center gap-2.5 text-xs text-blue-900">
-              <Clock className="w-4 h-4 text-blue-600 shrink-0" />
-              <div>
-                <span className="font-bold">Bog‘lanish vaqti: </span>
-                <span>{getContactTimeLabel(listing.contact_time, listing.contact_custom_text)}</span>
+            {/* Posted date */}
+            <div className="flex items-center gap-1.5 mt-1.5 text-xs text-gray-400">
+              <Calendar className="w-3.5 h-3.5" />
+              <span>E'lon joylashtirildi: {formatDateAgo(listing.created_at)}</span>
+            </div>
+          </div>
+
+          {/* 3. Tafsilotlar (Подробности) — Avito style */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-xs overflow-hidden">
+            <div className="px-4 sm:px-5 py-3.5 border-b border-gray-100 bg-gray-50/60">
+              <h2 className="font-bold text-sm text-gray-900">Tafsilotlar</h2>
+            </div>
+            <div className="divide-y divide-gray-50">
+              {details.map((d, i) => (
+                <div key={i} className="flex items-center justify-between px-4 sm:px-5 py-3 text-xs">
+                  <div className="flex items-center gap-2.5 text-gray-500 min-w-0">
+                    {d.icon}
+                    <span className="truncate">{d.label}</span>
+                  </div>
+                  <span className="font-semibold text-gray-900 text-right ml-4 shrink-0 max-w-[55%] leading-snug">
+                    {d.value}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 4. Ko'nikmalar / Skills */}
+          {skillsList.length > 0 && (
+            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-xs">
+              <h2 className="font-bold text-sm text-gray-900 mb-3">Ko'nikmalar va talablar</h2>
+              <div className="flex flex-wrap gap-2">
+                {skillsList.map((skill: string, idx: number) => (
+                  <span
+                    key={idx}
+                    className="px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-100 text-blue-800 text-xs font-semibold"
+                  >
+                    {skill}
+                  </span>
+                ))}
               </div>
             </div>
+          )}
 
-            {/* Skills / Tags */}
-            {skillsList.length > 0 && (
-              <div className="mt-4">
-                <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
-                  Ko‘nikmalar va talablar
-                </h4>
-                <div className="flex flex-wrap gap-1.5">
-                  {skillsList.map((skill: string, idx: number) => (
-                    <span
-                      key={idx}
-                      className="px-3 py-1 rounded-xl bg-gray-50 border border-gray-200 text-gray-800 text-xs font-medium"
-                    >
-                      {skill}
-                    </span>
-                  ))}
+          {/* 5. Joylashuv (Расположение) — Avito style */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-xs overflow-hidden">
+            <div className="px-4 sm:px-5 py-3.5 border-b border-gray-100 bg-gray-50/60">
+              <h2 className="font-bold text-sm text-gray-900">Joylashuv</h2>
+            </div>
+            <div className="p-4 sm:p-5">
+              <div className="flex items-start gap-3">
+                <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600 shrink-0">
+                  <MapPin className="w-5 h-5" />
+                </div>
+                <div>
+                  {listing.region_name && (
+                    <p className="font-bold text-sm text-gray-900">{listing.region_name}</p>
+                  )}
+                  {listing.district_name && (
+                    <p className="text-xs text-gray-500 mt-0.5">{listing.district_name}</p>
+                  )}
+                  {listing.organization_address && (
+                    <p className="text-xs text-gray-500 mt-1">📍 {listing.organization_address}</p>
+                  )}
+                  {!listing.region_name && !listing.district_name && (
+                    <p className="text-xs text-gray-400 italic">Manzil ko'rsatilmagan</p>
+                  )}
                 </div>
               </div>
-            )}
 
-            {/* Description */}
-            <div className="mt-6">
-              <h3 className="text-sm font-bold text-gray-900 mb-2.5">To‘liq tavsif</h3>
-              <div className="text-xs sm:text-sm text-gray-700 leading-relaxed whitespace-pre-wrap font-normal">
-                {listing.description}
+              {/* Fake map placeholder if lat/lng available */}
+              {listing.latitude && listing.longitude ? (
+                <a
+                  href={`https://www.google.com/maps?q=${listing.latitude},${listing.longitude}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border border-blue-200 bg-blue-50 text-blue-700 text-xs font-semibold hover:bg-blue-100 transition-colors"
+                >
+                  <MapPin className="w-4 h-4" />
+                  Xaritada ko'rish
+                </a>
+              ) : null}
+            </div>
+          </div>
+
+          {/* 6. Bog'lanish vaqti */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-xs">
+            <div className="flex items-center gap-2.5 text-sm text-gray-800">
+              <div className="p-2 rounded-xl bg-amber-50 text-amber-600 shrink-0">
+                <Clock className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="font-bold text-xs text-gray-500 uppercase tracking-wide">Bog'lanish vaqti</p>
+                <p className="font-semibold text-sm text-gray-900 mt-0.5">
+                  {getContactTimeLabel(listing.contact_time, listing.contact_custom_text)}
+                </p>
               </div>
             </div>
           </div>
 
-          {/* 4. Dedicated Reviews & Ratings Section (Variation 23 Feature) */}
-          <div id="reviews" className="mt-8 scroll-mt-28">
+          {/* 7. Reviews */}
+          <div id="reviews" className="scroll-mt-20">
             <ReviewsSection
               targetUserId={listing.owner_user_id}
               employerName={listing.organization_name || listing.owner_name || 'Ish beruvchi'}
@@ -483,11 +570,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
               onRatingUpdated={(newAvg, total) => {
                 setListing((prev) =>
                   prev
-                    ? {
-                        ...prev,
-                        employer_rating: newAvg > 0 ? newAvg : null,
-                        employer_review_count: total,
-                      }
+                    ? { ...prev, employer_rating: newAvg > 0 ? newAvg : null, employer_review_count: total }
                     : null
                 );
               }}
@@ -495,23 +578,23 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
           </div>
         </div>
 
-        {/* Right Column: Owner & Contact Actions */}
-        <div className="space-y-6">
-          {/* Safe Contact Panel (Section 26 & 71) */}
-          <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-xs">
+        {/* ── Right Column: Sticky Contact & Owner ── */}
+        <div className="space-y-4 lg:self-start lg:sticky lg:top-20">
+
+          {/* Contact Panel */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-xs">
             <h3 className="font-bold text-sm text-gray-900 mb-3">Aloqaga chiqish</h3>
 
-            {/* Safety recommendation */}
-            <div className="p-3 rounded-2xl bg-blue-50 border border-blue-100 text-[11px] text-blue-900 mb-4 flex items-start gap-2">
+            {/* Safety note */}
+            <div className="p-3 rounded-xl bg-blue-50 border border-blue-100 text-[11px] text-blue-900 mb-4 flex items-start gap-2">
               <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
               <span>
-                TopHand orqali yozish — xavfsizroq aloqa usuli. Begona havolalarga kirmang va ma’lumotlaringizni himoyalang.
+                TopHand orqali yozish — xavfsizroq aloqa usuli. Begona havolalarga kirmang.
               </span>
             </div>
 
-            {/* Actions list */}
             <div className="space-y-2.5">
-              {/* 1. TopHand Chat (Recommended Primary Contact) */}
+              {/* 1. Chat */}
               <button
                 onClick={() => {
                   if (!user) {
@@ -520,75 +603,72 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                     setIsChatOpen(true);
                   }
                 }}
-                className="w-full py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-xs sm:text-sm shadow-md transition-all flex items-center justify-center gap-2 group"
+                className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 group"
               >
                 <MessageSquare className="w-4 h-4 group-hover:scale-110 transition-transform" />
                 <span>TopHand Chat orqali yozish</span>
               </button>
 
-              {/* 2. Telegram username contact (if owner provided) */}
+              {/* 2. Telegram */}
               {listing.owner_username && (
                 <a
                   href={`https://t.me/${listing.owner_username}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full py-2.5 rounded-2xl bg-[#2AABEE]/10 hover:bg-[#2AABEE]/20 text-[#2AABEE] font-bold text-xs border border-[#2AABEE]/30 transition-colors flex items-center justify-center gap-2"
+                  className="w-full py-2.5 rounded-xl bg-[#2AABEE]/10 hover:bg-[#2AABEE]/20 text-[#2AABEE] font-bold text-xs border border-[#2AABEE]/30 transition-colors flex items-center justify-center gap-2"
                 >
                   <Send className="w-4 h-4 -rotate-45" />
                   <span>Telegram: @{listing.owner_username}</span>
                 </a>
               )}
 
-              {/* 3. Phone call (revealed safely) */}
+              {/* 3. Phone */}
               <button
                 onClick={handleRevealPhone}
-                className="w-full py-2.5 rounded-2xl border border-gray-200 hover:bg-gray-50 text-gray-800 font-semibold text-xs transition-colors flex items-center justify-center gap-2"
+                className="w-full py-2.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-colors flex items-center justify-center gap-2"
               >
                 <Phone className="w-4 h-4 text-blue-600" />
-                <span>Telefon raqamini ko‘rish</span>
+                <span>{revealedPhone ? revealedPhone : "Telefon raqamini ko'rish"}</span>
               </button>
             </div>
           </div>
 
-          {/* Owner Profile Card (Section 8 & 9) */}
-          <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-xs">
-            <div className="flex items-center gap-3.5 mb-4">
+          {/* Owner Profile Card */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-xs">
+            <div className="flex items-center gap-3 mb-4">
               <img
-                src={listing.owner_photo_url || `https://api.dicebear.com/7.x/initials/svg?seed=${listing.owner_name}`}
+                src={
+                  listing.owner_photo_url ||
+                  `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(listing.owner_name || 'U')}`
+                }
                 alt={listing.owner_name}
-                className="w-14 h-14 rounded-2xl object-cover ring-2 ring-blue-500/20"
+                className="w-14 h-14 rounded-2xl object-cover ring-2 ring-blue-500/20 shrink-0"
               />
               <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 flex-wrap">
                   <h4 className="font-bold text-sm text-gray-900 truncate">{listing.owner_name}</h4>
                   {listing.is_profile_complete && (
-                    <VerifiedBadge size="sm" tooltip="TopHand tomonidan to‘liq tasdiqlangan mutaxassis" />
+                    <VerifiedBadge size="sm" tooltip="TopHand tomonidan to'liq tasdiqlangan mutaxassis" />
                   )}
                 </div>
-                <p className="text-[11px] text-gray-400">
-                  {listing.owner_username ? `@${listing.owner_username}` : 'TopHand a’zosi'}
+                <p className="text-[11px] text-gray-400 mt-0.5">
+                  {listing.owner_username ? `@${listing.owner_username}` : "TopHand a'zosi"}
                 </p>
-                <p className="text-[10px] text-gray-400 mt-0.5">
-                  {listing.owner_registered_at && `A’zo: ${formatDateAgo(listing.owner_registered_at)}`}
-                </p>
-
-                {/* Employer Rating Summary */}
-                <div className="mt-1.5 flex items-center gap-1.5 text-xs">
-                  {listing.employer_review_count && listing.employer_review_count > 0 && listing.employer_rating ? (
-                    <a
-                      href="#reviews"
-                      className="flex items-center gap-1 text-amber-600 hover:underline font-bold"
-                    >
-                      <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                      <span>{listing.employer_rating.toFixed(1)}</span>
-                      <span className="text-gray-500 font-normal text-[11px]">
-                        ({listing.employer_review_count} ta sharh)
-                      </span>
-                    </a>
-                  ) : (
-                    <span className="text-gray-400 text-[11px] italic">Hali baholanmagan</span>
-                  )}
-                </div>
+                {listing.owner_registered_at && (
+                  <p className="text-[10px] text-gray-400">
+                    A'zo: {formatDateAgo(listing.owner_registered_at)}
+                  </p>
+                )}
+                {/* Rating */}
+                {listing.employer_review_count && listing.employer_review_count > 0 && listing.employer_rating ? (
+                  <a href="#reviews" className="mt-1 flex items-center gap-1 text-amber-600 hover:underline">
+                    <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                    <span className="text-xs font-bold">{listing.employer_rating.toFixed(1)}</span>
+                    <span className="text-[11px] text-gray-500">({listing.employer_review_count} ta)</span>
+                  </a>
+                ) : (
+                  <span className="text-[10px] text-gray-400 italic mt-0.5 block">Hali baholanmagan</span>
+                )}
               </div>
             </div>
 
@@ -598,13 +678,13 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
               </p>
             )}
 
-            {/* Owner Stats */}
+            {/* Stats */}
             <div className="grid grid-cols-2 gap-2 text-center text-xs py-3 border-t border-b border-gray-100 mb-4">
               <div>
                 <span className="block font-bold text-gray-900 text-sm">
                   {listing.owner_active_listing_count || 1}
                 </span>
-                <span className="text-[11px] text-gray-400">Faol e’lonlar</span>
+                <span className="text-[11px] text-gray-400">Faol e'lonlar</span>
               </div>
               <div>
                 <span className="block font-bold text-gray-900 text-sm">
@@ -619,7 +699,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
               <button
                 onClick={handleFollowToggle}
                 disabled={isFollowLoading}
-                className={`w-full py-2.5 rounded-2xl font-bold text-xs transition-colors flex items-center justify-center gap-1.5 ${
+                className={`w-full py-2.5 rounded-xl font-bold text-xs transition-colors flex items-center justify-center gap-1.5 ${
                   isFollowed
                     ? 'bg-gray-100 hover:bg-gray-200 text-gray-800'
                     : 'bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200'
@@ -633,7 +713,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                 ) : (
                   <>
                     <UserPlus className="w-4 h-4 text-blue-600" />
-                    <span>Obuna bo‘lish (Ustuvor ko‘rish)</span>
+                    <span>Obuna bo'lish</span>
                   </>
                 )}
               </button>
@@ -641,32 +721,32 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
 
             <button
               onClick={() => onNavigate(`/profile/${listing.owner_user_id}`)}
-              className="w-full mt-2 py-2 text-center text-xs font-semibold text-gray-500 hover:text-gray-900 transition-colors"
+              className="w-full mt-2 py-2 text-center text-xs font-semibold text-gray-500 hover:text-blue-600 transition-colors"
             >
-              Profilni to‘liq ko‘rish →
+              Profilni to'liq ko'rish →
             </button>
           </div>
 
-          {/* Organization Card (Section 4 & 5: if company listing) */}
+          {/* Organization Card */}
           {listing.organization_id && (
-            <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-xs">
+            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-xs">
               <div className="flex items-center gap-3 mb-3">
                 {listing.organization_logo_url ? (
                   <img
                     src={listing.organization_logo_url}
                     alt={listing.organization_name}
-                    className="w-12 h-12 rounded-xl object-cover border border-gray-100"
+                    className="w-12 h-12 rounded-xl object-cover border border-gray-100 shrink-0"
                   />
                 ) : (
-                  <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold text-lg">
+                  <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold text-lg shrink-0">
                     <Building2 className="w-6 h-6" />
                   </div>
                 )}
-                <div>
+                <div className="min-w-0">
                   <div className="flex items-center gap-1">
-                    <h4 className="font-bold text-sm text-gray-900">{listing.organization_name}</h4>
+                    <h4 className="font-bold text-sm text-gray-900 truncate">{listing.organization_name}</h4>
                     {listing.organization_verification_status === 'VERIFIED' && (
-                      <VerifiedBadge size="sm" variant="emerald" tooltip="TopHand tomonidan rasmiy tasdiqlangan tashkilot" />
+                      <VerifiedBadge size="sm" variant="emerald" tooltip="Rasmiy tasdiqlangan tashkilot" />
                     )}
                   </div>
                   <span className="text-[10px] text-gray-400">Rasmiy tashkilot profili</span>
@@ -715,3 +795,5 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
     </div>
   );
 };
+
+export default ListingDetailPage;
