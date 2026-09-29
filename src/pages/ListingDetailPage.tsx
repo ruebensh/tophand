@@ -31,6 +31,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { VerifiedBadge } from '../components/common/VerifiedBadge.tsx';
+import { MiniMap } from '../components/common/MiniMap.tsx';
 import { CallModal } from '../components/modals/CallModal.tsx';
 import { ReportModal } from '../components/modals/ReportModal.tsx';
 import { ChatDrawer } from '../components/chat/ChatDrawer.tsx';
@@ -531,17 +532,25 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                 </div>
               </div>
 
-              {/* Fake map placeholder if lat/lng available */}
+              {/* Inline mini-map when coordinates available */}
               {listing.latitude && listing.longitude ? (
-                <a
-                  href={`https://www.google.com/maps?q=${listing.latitude},${listing.longitude}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-3 flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border border-blue-200 bg-blue-50 text-blue-700 text-xs font-semibold hover:bg-blue-100 transition-colors"
-                >
-                  <MapPin className="w-4 h-4" />
-                  Xaritada ko'rish
-                </a>
+                <div className="mt-3">
+                  <MiniMap
+                    lat={listing.latitude}
+                    lon={listing.longitude}
+                    label={[listing.district_name, listing.region_name].filter(Boolean).join(', ')}
+                    height={180}
+                  />
+                  <a
+                    href={`https://www.google.com/maps?q=${listing.latitude},${listing.longitude}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 flex items-center justify-center gap-2 w-full py-2 rounded-xl border border-blue-200 bg-blue-50 text-blue-700 text-xs font-semibold hover:bg-blue-100 transition-colors"
+                  >
+                    <MapPin className="w-3.5 h-3.5" />
+                    Google Maps-da ochish
+                  </a>
+                </div>
               ) : null}
             </div>
           </div>

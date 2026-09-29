@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Listing, Category, ListingType, Region, District } from '../types/index.ts';
 import { apiRequest } from '../lib/api.ts';
 import { ListingCard } from '../components/listings/ListingCard.tsx';
 import { CategoryFilter } from '../components/listings/CategoryFilter.tsx';
 import { CategoryIcon } from '../components/common/CategoryIcon.tsx';
+import { NearbyMapModal } from '../components/modals/NearbyMapModal.tsx';
 import {
   Search,
   MapPin,
@@ -15,6 +16,8 @@ import {
   Briefcase,
   Star,
   Layers,
+  Navigation,
+  Loader2,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.tsx';
 
@@ -92,6 +95,54 @@ export const HomePage: React.FC<HomePageProps> = ({
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
   const [isTopCategoryOpen, setIsTopCategoryOpen] = useState(false);
   const topCategoryRef = useRef<HTMLDivElement>(null);
+
+  // GPS / Map state
+  const [isMapOpen, setIsMapOpen] = useState(false);
+  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
+  const [detectedLocation, setDetectedLocation] = useState<{
+    region_id: string; region_name: string;
+    district_id: string; district_name: string;
+    lat: number; lon: number;
+  } | null>(null);
+  const [locationError, setLocationError] = useState('');
+
+  const handleDetectAndOpenMap = useCallback(() => {
+    setLocationError('');
+    if (detectedLocation) {
+      setIsMapOpen(true);
+      return;
+    }
+    if (!navigator.geolocation) {
+      setLocationError("GPS qo'llab-quvvatlanmaydi");
+      return;
+    }
+    setIsDetectingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const loc = await apiRequest<{
+            region_id: string; region_name: string;
+            district_id: string; district_name: string;
+            lat: number; lon: number;
+          }>(`/api/locations/detect?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`);
+          setDetectedLocation(loc);
+          // Auto-apply region filter
+          setSelectedRegionId(loc.region_id);
+          setIsMapOpen(true);
+        } catch {
+          setLocationError('Joylashuv aniqlanmadi');
+        } finally {
+          setIsDetectingLocation(false);
+        }
+      },
+      (err) => {
+        if (err.code === 1) setLocationError("GPS ruxsati rad etildi");
+        else setLocationError("GPS signal topilmadi");
+        setIsDetectingLocation(false);
+      },
+      { timeout: 10000, enableHighAccuracy: true }
+    );
+  }, [detectedLocation]);
 
   // Close top category dropdown on click outside
   useEffect(() => {
@@ -375,6 +426,32 @@ export const HomePage: React.FC<HomePageProps> = ({
           <span className="font-mono text-[11px] uppercase tracking-wider text-[#5E6C84] font-semibold mb-2.5 block">
             Hudud va Tuman
           </span>
+
+          {/* GPS detect + map button */}
+          <button
+            type="button"
+            onClick={handleDetectAndOpenMap}
+            disabled={isDetectingLocation}
+            className="w-full flex items-center justify-center gap-2 py-2 px-3 mb-2 rounded-xl border border-dashed border-blue-300 bg-blue-50 text-blue-700 text-xs font-semibold hover:bg-blue-100 hover:border-blue-400 transition-all disabled:opacity-60 cursor-pointer"
+          >
+            {isDetectingLocation ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Aniqlanmoqda...
+              </>
+            ) : (
+              <>
+                <Navigation className="w-3.5 h-3.5" />
+                {detectedLocation
+                  ? `📍 ${detectedLocation.district_name} · Xaritada ko'rish`
+                  : 'GPS orqali aniqlash'}
+              </>
+            )}
+          </button>
+          {locationError && (
+            <p className="text-[10px] text-red-500 mb-2">⚠️ {locationError}</p>
+          )}
+
           <div className="space-y-2">
             <div className="relative">
               <select
@@ -414,6 +491,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             )}
           </div>
         </div>
+
 
         {/* Section: Kategoriyalar (Categories) */}
         <div className="mb-6">
@@ -1036,6 +1114,14 @@ export const HomePage: React.FC<HomePageProps> = ({
           </div>
         )}
       </div>
+
+      {/* Nearby Map Modal — fixed position, unaffected by layout */}
+      <NearbyMapModal
+        isOpen={isMapOpen}
+        onClose={() => setIsMapOpen(false)}
+        onOpenListing={onOpenListing}
+        initialLocation={detectedLocation}
+      />
     </div>
   );
 };

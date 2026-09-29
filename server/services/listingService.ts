@@ -85,7 +85,9 @@ export async function searchListings(filter: ListingFilter) {
       c.name_uz as category_name,
       c.icon as category_icon,
       r.name_uz as region_name,
-      d.name_uz as district_name
+      d.name_uz as district_name,
+      d.latitude,
+      d.longitude
     FROM listings l
     JOIN users u ON l.owner_user_id = u.id
     LEFT JOIN organizations o ON l.organization_id = o.id
@@ -408,7 +410,9 @@ export async function getListingById(id: string, current_user_id?: string) {
       c.name_uz as category_name,
       c.icon as category_icon,
       r.name_uz as region_name,
-      d.name_uz as district_name
+      d.name_uz as district_name,
+      d.latitude,
+      d.longitude
     FROM listings l
     JOIN users u ON l.owner_user_id = u.id
     LEFT JOIN organizations o ON l.organization_id = o.id

@@ -1,5 +1,6 @@
 import { pool } from './database.ts';
 import { CATALOGS_LIST, ALL_CATALOG_CATEGORIES } from './categoriesData.ts';
+import { UZBEKISTAN_DISTRICTS } from './districtsData.ts';
 
 // ─── Table creation helpers ────────────────────────────────────────────
 async function createTableIfNotExists(sql: string) {
@@ -529,25 +530,11 @@ async function seedInitialData() {
     );
   }
 
-  // Toshkent districts
-  const tashkentDistricts = [
-    { id: 'dis_yunusobod', name: 'Yunusobod tumani', lat: 41.37, lon: 69.35, order: 1 },
-    { id: 'dis_mirzo_ulugbek', name: 'Mirzo Ulug\'bek tumani', lat: 41.32, lon: 69.37, order: 2 },
-    { id: 'dis_chilonzor', name: 'Chilonzor tumani', lat: 41.28, lon: 69.19, order: 3 },
-    { id: 'dis_yakkasaroy', name: 'Yakkasaroy tumani', lat: 41.29, lon: 69.26, order: 4 },
-    { id: 'dis_shayxontohur', name: 'Shayxontohur tumani', lat: 41.32, lon: 69.27, order: 5 },
-    { id: 'dis_olmazor', name: 'Olmazor tumani', lat: 41.31, lon: 69.22, order: 6 },
-    { id: 'dis_uchtepa', name: 'Uchtepa tumani', lat: 41.28, lon: 69.24, order: 7 },
-    { id: 'dis_bektemir', name: 'Bektemir tumani', lat: 41.26, lon: 69.38, order: 8 },
-    { id: 'dis_mirobod', name: 'Mirobod tumani', lat: 41.31, lon: 69.30, order: 9 },
-    { id: 'dis_sirg_ali', name: "Sirg'ali tumani", lat: 41.37, lon: 69.20, order: 10 },
-    { id: 'dis_yashnobod', name: 'Yashnobod tumani', lat: 41.27, lon: 69.31, order: 11 },
-  ];
-
-  for (const d of tashkentDistricts) {
+  // Seed all districts of Uzbekistan with GPS coordinates
+  for (const d of UZBEKISTAN_DISTRICTS) {
     await pool.query(
-      'INSERT INTO districts (id, region_id, name_uz, latitude, longitude, sort_order) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (id) DO NOTHING',
-      [d.id, 'reg_toshkent_sh', d.name, d.lat, d.lon, d.order]
+      'INSERT INTO districts (id, region_id, name_uz, latitude, longitude, sort_order) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (id) DO UPDATE SET name_uz = EXCLUDED.name_uz, latitude = EXCLUDED.latitude, longitude = EXCLUDED.longitude',
+      [d.id, d.region_id, d.name_uz, d.lat, d.lon, d.order]
     );
   }
 
