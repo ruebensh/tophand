@@ -52,9 +52,12 @@ export const GoogleLoginModal: React.FC = () => {
     if (!isLoginModalOpen || mode !== 'login') return;
 
     const initGoogle = () => {
-      if (!window.google || !googleButtonRef.current) return;
+      const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || (window as any).__GOOGLE_CLIENT_ID__ || '';
+      if (!clientId) {
+        return;
+      }
       window.google.accounts.id.initialize({
-        client_id: (window as any).__GOOGLE_CLIENT_ID__ || '',
+        client_id: clientId,
         callback: handleGoogleCredentialResponse,
         auto_select: false,
         cancel_on_tap_outside: false,
