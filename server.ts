@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import dotenv from 'dotenv';
 import { initDatabase } from './server/db/init.ts';
 import { startExpirationCron } from './server/services/expirationService.ts';
@@ -110,9 +111,23 @@ async function startServer() {
       app.use(vite.middlewares);
     } else {
       const distDir = path.resolve(process.cwd(), 'dist');
-      app.use(express.static(distDir));
+      app.use(express.static(distDir, { index: false }));
       app.get('*', (_req, res) => {
-        res.sendFile(path.resolve(distDir, 'index.html'));
+        const htmlFile = path.resolve(distDir, 'index.html');
+        const googleClientId = process.env.VITE_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || '';
+        try {
+          let html = fs.readFileSync(htmlFile, 'utf8');
+          if (googleClientId) {
+            html = html.replace(
+              '</head>',
+              `<script>window.__GOOGLE_CLIENT_ID__ = ${JSON.stringify(googleClientId)};</script></head>`
+            );
+          }
+          res.setHeader('Content-Type', 'text/html; charset=utf-8');
+          res.send(html);
+        } catch {
+          res.sendFile(htmlFile);
+        }
       });
     }
 

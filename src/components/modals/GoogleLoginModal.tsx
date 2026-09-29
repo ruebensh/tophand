@@ -34,6 +34,23 @@ export const GoogleLoginModal: React.FC = () => {
   const [successMsg, setSuccessMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const googleButtonRef = useRef<HTMLDivElement>(null);
+  const [googleClientId, setGoogleClientId] = useState<string>(
+    import.meta.env.VITE_GOOGLE_CLIENT_ID || (window as any).__GOOGLE_CLIENT_ID__ || ''
+  );
+
+  // Fetch Google Client ID dynamically from backend if not yet present
+  useEffect(() => {
+    if (!googleClientId) {
+      fetch('/api/auth/config')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.googleClientId) {
+            setGoogleClientId(data.googleClientId);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [googleClientId]);
 
   // Reset form state when modal opens/closes
   useEffect(() => {
@@ -49,27 +66,32 @@ export const GoogleLoginModal: React.FC = () => {
 
   // Initialize Google Sign-In SDK
   useEffect(() => {
-    if (!isLoginModalOpen || mode !== 'login') return;
+    if (!isLoginModalOpen || (mode !== 'login' && mode !== 'register')) return;
 
     const initGoogle = () => {
-      const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || (window as any).__GOOGLE_CLIENT_ID__ || '';
-      if (!clientId) {
+      const clientId = googleClientId || import.meta.env.VITE_GOOGLE_CLIENT_ID || (window as any).__GOOGLE_CLIENT_ID__ || '';
+      if (!clientId || !window.google || !googleButtonRef.current) {
         return;
       }
-      window.google.accounts.id.initialize({
-        client_id: clientId,
-        callback: handleGoogleCredentialResponse,
-        auto_select: false,
-        cancel_on_tap_outside: false,
-      });
-      window.google.accounts.id.renderButton(googleButtonRef.current, {
-        theme: 'outline',
-        size: 'large',
-        text: 'continue_with',
-        shape: 'rectangular',
-        width: 320,
-        locale: 'uz',
-      });
+      try {
+        window.google.accounts.id.initialize({
+          client_id: clientId,
+          callback: handleGoogleCredentialResponse,
+          auto_select: false,
+          cancel_on_tap_outside: false,
+        });
+        googleButtonRef.current.innerHTML = '';
+        window.google.accounts.id.renderButton(googleButtonRef.current, {
+          theme: 'outline',
+          size: 'large',
+          text: mode === 'register' ? 'signup_with' : 'continue_with',
+          shape: 'rectangular',
+          width: 320,
+          locale: 'uz',
+        });
+      } catch (err) {
+        console.error('Error rendering Google button:', err);
+      }
     };
 
     if (!window.google) {
@@ -82,7 +104,7 @@ export const GoogleLoginModal: React.FC = () => {
     } else {
       initGoogle();
     }
-  }, [isLoginModalOpen, mode]);
+  }, [isLoginModalOpen, mode, googleClientId]);
 
   const handleGoogleCredentialResponse = async (response: any) => {
     setErrorMsg('');
@@ -210,8 +232,8 @@ export const GoogleLoginModal: React.FC = () => {
               </div>
 
               {/* Google Sign-in */}
-              <div>
-                <div ref={googleButtonRef} className="flex justify-center" />
+              <div className="flex justify-center min-h-[44px]">
+                <div ref={mode === 'login' ? googleButtonRef : undefined} className="flex justify-center" />
               </div>
 
               {/* Divider */}
@@ -327,6 +349,18 @@ export const GoogleLoginModal: React.FC = () => {
                   <h3 className="text-base font-extrabold text-gray-950">Yangi hisob yaratish</h3>
                   <p className="text-xs text-gray-500">TopHand oilasiga qo‘shiling</p>
                 </div>
+              </div>
+
+              {/* Google Sign-up */}
+              <div className="flex justify-center min-h-[44px]">
+                <div ref={mode === 'register' ? googleButtonRef : undefined} className="flex justify-center" />
+              </div>
+
+              {/* Divider */}
+              <div className="flex items-center gap-3 my-4">
+                <div className="flex-1 h-px bg-gray-100" />
+                <span className="text-[11px] font-medium text-gray-400">yoki email orqali</span>
+                <div className="flex-1 h-px bg-gray-100" />
               </div>
 
               <form onSubmit={handleRegisterSubmit} className="space-y-3">

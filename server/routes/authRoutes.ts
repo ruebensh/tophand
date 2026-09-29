@@ -7,7 +7,13 @@ import { sendVerificationCodeEmail } from '../services/emailService.ts';
 
 const router = Router();
 
-// ─── Unified Email + Password Login ─────────────────────────────────────
+// ─── Public Auth Config (Google Client ID, etc.) ────────────────────────
+router.get('/config', (_req, res) => {
+  res.json({
+    googleClientId: process.env.VITE_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || '',
+  });
+});
+
 // Checks if credentials match the .env Admin account, otherwise checks DB user account
 async function loginHandler(req: any, res: any) {
   try {
