@@ -31,7 +31,7 @@ export async function processListingExpirations() {
     );
   }
 
-  // 2. Check for listings expiring in 3 days (send warning notification once)
+  const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
   const expiringSoonListings = await queryAll<{ id: string; owner_user_id: string; title: string }>(
     `SELECT id, owner_user_id, title FROM listings 
      WHERE status = 'ACTIVE' 
@@ -39,9 +39,9 @@ export async function processListingExpirations() {
        AND expires_at > ?
        AND id NOT IN (
          SELECT link FROM notifications 
-         WHERE type = 'LISTING_EXPIRING' AND created_at >= date('now', '-3 days')
+         WHERE type = 'LISTING_EXPIRING' AND created_at >= ?
        )`,
-    [threeDaysFromNow, now]
+    [threeDaysFromNow, now, threeDaysAgo]
   );
 
   for (const l of expiringSoonListings) {

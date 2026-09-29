@@ -6,6 +6,12 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   isLoading: boolean;
+  loginWithEmail: (email: string, password: string) => Promise<any>;
+  registerWithEmail: (name: string, email: string, password: string) => Promise<any>;
+  sendPasswordResetCode: (email: string) => Promise<any>;
+  resetPasswordWithCode: (email: string, code: string, newPassword: string) => Promise<any>;
+  loginWithGoogle: (googleData: any) => Promise<void>;
+  loginWithAdminCredentials: (email: string, password: string) => Promise<any>;
   loginWithTelegram: (telegramData: any) => Promise<void>;
   loginWithDevPersona: (userId: string) => Promise<void>;
   logout: () => void;
@@ -56,56 +62,82 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     refreshUser();
   }, []);
 
-  const loginWithTelegram = async (telegramData: any) => {
+  const _afterLogin = (res: { token: string; user: User; is_new?: boolean }) => {
+    setStoredToken(res.token);
+    setToken(res.token);
+    setUser(res.user);
+    setIsLoginModalOpen(false);
+
+    if (res.is_new || !res.user.region_id) {
+      setIsOnboardingOpen(true);
+    }
+
+    if (loginSuccessCallback) {
+      loginSuccessCallback();
+      setLoginSuccessCallback(null);
+    }
+  };
+
+  const loginWithEmail = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      const res = await apiRequest<{ token: string; user: User; is_new: boolean }>('/api/auth/telegram', {
+      const res = await apiRequest<{ token: string; user: User; is_admin?: boolean }>('/api/auth/login', {
         method: 'POST',
-        body: JSON.stringify(telegramData),
+        body: JSON.stringify({ email, password }),
       });
-
-      setStoredToken(res.token);
-      setToken(res.token);
-      setUser(res.user);
-      setIsLoginModalOpen(false);
-
-      if (res.is_new || !res.user.region_id) {
-        setIsOnboardingOpen(true);
-      }
-
-      if (loginSuccessCallback) {
-        loginSuccessCallback();
-        setLoginSuccessCallback(null);
-      }
+      _afterLogin(res);
+      return res;
     } finally {
       setIsLoading(false);
     }
   };
 
-  const loginWithDevPersona = async (userId: string) => {
+  const registerWithEmail = async (name: string, email: string, password: string) => {
     setIsLoading(true);
     try {
-      const res = await apiRequest<{ token: string; user: User }>('/api/auth/dev-login', {
+      const res = await apiRequest<{ token: string; user: User; is_new?: boolean }>('/api/auth/register', {
         method: 'POST',
-        body: JSON.stringify({ userId }),
+        body: JSON.stringify({ name, email, password }),
       });
-
-      setStoredToken(res.token);
-      setToken(res.token);
-      setUser(res.user);
-      setIsLoginModalOpen(false);
-
-      if (!res.user.region_id) {
-        setIsOnboardingOpen(true);
-      }
-
-      if (loginSuccessCallback) {
-        loginSuccessCallback();
-        setLoginSuccessCallback(null);
-      }
+      _afterLogin(res);
+      return res;
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const sendPasswordResetCode = async (email: string) => {
+    return apiRequest<{ success: boolean; message: string; simulated?: boolean; demo_code?: string }>(
+      '/api/auth/forgot-password',
+      {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+      }
+    );
+  };
+
+  const resetPasswordWithCode = async (email: string, code: string, newPassword: string) => {
+    return apiRequest<{ success: boolean; message: string }>('/api/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ email, code, new_password: newPassword }),
+    });
+  };
+
+  const loginWithGoogle = async (googleData: any) => {
+    setIsLoading(true);
+    try {
+      const res = await apiRequest<{ token: string; user: User; is_new: boolean }>('/api/auth/google', {
+        method: 'POST',
+        body: JSON.stringify(googleData),
+      });
+      _afterLogin(res);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loginWithAdminCredentials = async (email: string, password: string) => {
+    return loginWithEmail(email, password);
   };
 
   const logout = () => {
@@ -133,8 +165,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user,
         token,
         isLoading,
-        loginWithTelegram,
-        loginWithDevPersona,
+        loginWithEmail,
+        registerWithEmail,
+        sendPasswordResetCode,
+        resetPasswordWithCode,
+        loginWithGoogle,
+        loginWithAdminCredentials,
+        loginWithTelegram: async () => {},
+        loginWithDevPersona: async () => {},
         logout,
         refreshUser,
         isLoginModalOpen,

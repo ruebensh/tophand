@@ -20,7 +20,7 @@ import { AdminDashboardPage } from './pages/AdminDashboardPage.tsx';
 import { CategoriesPage } from './pages/CategoriesPage.tsx';
 
 // Global Modals
-import { TelegramLoginModal } from './components/modals/TelegramLoginModal.tsx';
+import { GoogleLoginModal } from './components/modals/GoogleLoginModal.tsx';
 import { OnboardingModal } from './components/modals/OnboardingModal.tsx';
 
 const AppContent: React.FC = () => {
@@ -226,7 +226,7 @@ const AppContent: React.FC = () => {
       <MobileNav currentRoute={currentRoute} onNavigate={navigate} />
 
       {/* Global Modals */}
-      <TelegramLoginModal />
+      <GoogleLoginModal />
       <OnboardingModal />
     </div>
   );

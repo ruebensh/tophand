@@ -1,87 +1,62 @@
-import initSqlJs, { Database as SqlJsDatabase } from 'sql.js';
-import fs from 'fs';
-import path from 'path';
+import { Pool, PoolClient } from 'pg';
 
-let dbInstance: SqlJsDatabase | null = null;
-const DATA_DIR = path.resolve(process.cwd(), 'data');
-const DB_FILE = path.join(DATA_DIR, 'tophand.sqlite');
+// ─── Connection Pool ───────────────────────────────────────────────────
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL || 'postgresql://tophand:tophand123@127.0.0.1:5432/tophand',
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
+});
 
-export async function getDb(): Promise<SqlJsDatabase> {
-  if (dbInstance) {
-    return dbInstance;
-  }
+pool.on('error', (err) => {
+  console.error('PostgreSQL pool error:', err);
+});
 
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
+export { pool };
 
-  const SQL = await initSqlJs();
-
-  if (fs.existsSync(DB_FILE)) {
-    try {
-      const fileBuffer = fs.readFileSync(DB_FILE);
-      dbInstance = new SQL.Database(fileBuffer);
-    } catch (err) {
-      console.error('Error reading existing database file, creating fresh:', err);
-      dbInstance = new SQL.Database();
+function convertPlaceholders(sql: string): string {
+  if (!sql.includes('?')) return sql;
+  let idx = 1;
+  return sql.replace(/'(?:''|[^'])*'|\?/g, (match) => {
+    if (match === '?') {
+      return `$${idx++}`;
     }
-  } else {
-    dbInstance = new SQL.Database();
-  }
-
-  // Enable foreign keys
-  dbInstance.run('PRAGMA foreign_keys = ON;');
-
-  return dbInstance;
+    return match;
+  });
 }
 
-export function persistDb() {
-  if (!dbInstance) return;
-  try {
-    const data = dbInstance.export();
-    const buffer = Buffer.from(data);
-    fs.writeFileSync(DB_FILE, buffer);
-  } catch (err) {
-    console.error('Failed to persist database to disk:', err);
-  }
-}
-
-// Helper query wrappers for type safety and easy parameter binding
 export async function queryAll<T = any>(sql: string, params: any[] = []): Promise<T[]> {
-  const db = await getDb();
-  const stmt = db.prepare(sql);
-  if (params && params.length > 0) {
-    stmt.bind(params);
-  }
-  const results: T[] = [];
-  while (stmt.step()) {
-    results.push(stmt.getAsObject() as T);
-  }
-  stmt.free();
-  return results;
+  const convertedSql = convertPlaceholders(sql);
+  const res = await pool.query(convertedSql, params);
+  return res.rows as T[];
 }
 
 export async function queryOne<T = any>(sql: string, params: any[] = []): Promise<T | null> {
-  const rows = await queryAll<T>(sql, params);
-  return rows.length > 0 ? rows[0] : null;
+  const convertedSql = convertPlaceholders(sql);
+  const res = await pool.query(convertedSql, params);
+  return res.rows.length > 0 ? (res.rows[0] as T) : null;
 }
 
 export async function runQuery(sql: string, params: any[] = []): Promise<{ changes: number }> {
-  const db = await getDb();
-  db.run(sql, params);
-  persistDb();
-  return { changes: db.getRowsModified() };
+  const convertedSql = convertPlaceholders(sql);
+  const res = await pool.query(convertedSql, params);
+  return { changes: res.rowCount ?? 0 };
 }
 
-export async function runTransaction(fn: (db: SqlJsDatabase) => void | Promise<void>) {
-  const db = await getDb();
-  db.run('BEGIN TRANSACTION;');
+export async function runTransaction(fn: (client: PoolClient) => Promise<void>): Promise<void> {
+  const client = await pool.connect();
   try {
-    await fn(db);
-    db.run('COMMIT;');
-    persistDb();
+    await client.query('BEGIN');
+    await fn(client);
+    await client.query('COMMIT');
   } catch (err) {
-    db.run('ROLLBACK;');
+    await client.query('ROLLBACK');
     throw err;
+  } finally {
+    client.release();
   }
 }
+
+// Compat shim — no-op for PostgreSQL (no file persistence needed)
+export function persistDb() {}
+export async function getDb() { return pool; }

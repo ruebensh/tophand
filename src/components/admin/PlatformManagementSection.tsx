@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 
 export const PlatformManagementSection: React.FC = () => {
-  const { branding, updateBranding, refreshLogo, fullLogoSrc } = useLogo();
+  const { branding, updateBranding, updateActiveLogo, refreshLogo, fullLogoSrc } = useLogo();
 
   // Branding Form State
   const [prefixText, setPrefixText] = useState(branding.prefix_text || 'top');
@@ -61,6 +61,7 @@ export const PlatformManagementSection: React.FC = () => {
         domain_suffix: domainSuffix.trim(),
         domain_color: domainColor,
         tagline: tagline.trim(),
+        logo_url: branding.logo_url,
       };
 
       await apiRequest('/api/admin/branding', {
@@ -137,6 +138,9 @@ export const PlatformManagementSection: React.FC = () => {
       setUploadSuccess('Yangi logotip muvaffaqiyatli o‘rnatildi!');
       setFile(null);
       setFilePreview(null);
+      if (data.logo_url) {
+        updateActiveLogo(data.logo_url, data.version);
+      }
       await refreshLogo();
     } catch (err: any) {
       setUploadError(err.message || 'Yuklashda xatolik');

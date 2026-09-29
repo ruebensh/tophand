@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Listing, Category, ListingType, Region, District } from '../types/index.ts';
 import { apiRequest } from '../lib/api.ts';
 import { ListingCard } from '../components/listings/ListingCard.tsx';
+import { CategoryFilter } from '../components/listings/CategoryFilter.tsx';
+import { CategoryIcon } from '../components/common/CategoryIcon.tsx';
 import {
   Search,
   MapPin,
@@ -12,6 +14,7 @@ import {
   Users,
   Briefcase,
   Star,
+  Layers,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.tsx';
 
@@ -31,19 +34,21 @@ export const HomePage: React.FC<HomePageProps> = ({
   // Read URL params initially
   const getInitialParams = () => {
     if (typeof window === 'undefined') {
-      return { cat: undefined, kw: '', type: initialType };
+      return { cat: undefined, kw: '', type: initialType, catalog: undefined };
     }
     const params = new URLSearchParams(window.location.search);
     return {
       cat: params.get('category') || undefined,
       kw: params.get('search') || params.get('keyword') || '',
       type: (params.get('type') as ListingType) || initialType,
+      catalog: params.get('catalog') || undefined,
     };
   };
 
   const initialParams = getInitialParams();
 
   // Reference data
+  const [catalogs, setCatalogs] = useState<{ id: string; name_uz: string; icon: string; listings_count?: number }[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [regions, setRegions] = useState<Region[]>([]);
   const [districts, setDistricts] = useState<District[]>([]);
@@ -56,6 +61,14 @@ export const HomePage: React.FC<HomePageProps> = ({
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
 
+  const getInitialCatalogId = () => {
+    if (initialParams.catalog) return initialParams.catalog;
+    if (initialType === 'JOB_OPENING' || initialType === 'JOB_SEEKER') return 'jobs';
+    if (initialType === 'SERVICE_OFFER' || initialType === 'SERVICE_REQUEST') return 'services';
+    return undefined;
+  };
+
+  const [selectedCatalogId, setSelectedCatalogId] = useState<string | undefined>(getInitialCatalogId());
   const [selectedType, setSelectedType] = useState<ListingType | undefined>(initialParams.type);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | undefined>(initialParams.cat);
   const [selectedRegionId, setSelectedRegionId] = useState<string | undefined>(user?.region_id);
@@ -77,17 +90,43 @@ export const HomePage: React.FC<HomePageProps> = ({
 
   // Mobile filters toggle
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
+  const [isTopCategoryOpen, setIsTopCategoryOpen] = useState(false);
+  const topCategoryRef = useRef<HTMLDivElement>(null);
 
-  // Load initial reference data: Categories and Regions
+  // Close top category dropdown on click outside
   useEffect(() => {
-    apiRequest<Category[]>('/api/categories')
-      .then(setCategories)
+    const handleClickOutside = (e: MouseEvent) => {
+      if (topCategoryRef.current && !topCategoryRef.current.contains(e.target as Node)) {
+        setIsTopCategoryOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Load initial reference data: Catalogs and Regions
+  useEffect(() => {
+    apiRequest<{ id: string; name_uz: string; icon: string; listings_count?: number }[]>('/api/catalogs')
+      .then(setCatalogs)
       .catch(console.error);
 
     apiRequest<Region[]>('/api/locations/regions')
       .then(setRegions)
       .catch(console.error);
   }, []);
+
+  // Load categories whenever selectedCatalogId changes
+  useEffect(() => {
+    const url = selectedCatalogId ? `/api/categories?catalog_id=${selectedCatalogId}` : '/api/categories';
+    apiRequest<Category[]>(url)
+      .then((data) => {
+        setCategories(data);
+        if (selectedCategoryId && !data.some((c) => c.id === selectedCategoryId)) {
+          setSelectedCategoryId(undefined);
+        }
+      })
+      .catch(console.error);
+  }, [selectedCatalogId]);
 
   // Load districts when selectedRegionId changes
   useEffect(() => {
@@ -114,6 +153,7 @@ export const HomePage: React.FC<HomePageProps> = ({
       params.append('page', String(page));
       params.append('limit', '12');
 
+      if (selectedCatalogId) params.append('catalog_id', selectedCatalogId);
       if (selectedType) params.append('type', selectedType);
       if (selectedCategoryId) params.append('category_id', selectedCategoryId);
       if (selectedRegionId) params.append('region_id', selectedRegionId);
@@ -152,6 +192,7 @@ export const HomePage: React.FC<HomePageProps> = ({
   useEffect(() => {
     fetchListings(1, false);
   }, [
+    selectedCatalogId,
     selectedType,
     selectedCategoryId,
     selectedRegionId,
@@ -203,20 +244,16 @@ export const HomePage: React.FC<HomePageProps> = ({
     );
   };
 
-  // Helper title based on type
+  // Helper title based on type and catalog
   const getSectionTitle = () => {
-    switch (selectedType) {
-      case 'JOB_OPENING':
-        return 'Vakansiyalar va bo‘sh ish o‘rinlari';
-      case 'SERVICE_OFFER':
-        return 'Xizmatlar va mutaxassis ustalar';
-      case 'SERVICE_REQUEST':
-        return 'Buyurtmalar va xizmat so‘rovlari';
-      case 'JOB_SEEKER':
-        return 'Mutaxassislar va rezyumelar';
-      default:
-        return 'Barcha xizmat va ish e’lonlari';
-    }
+    const catSuffix = selectedCategory ? ` — ${selectedCategory.name_uz}` : '';
+    if (selectedType === 'JOB_OPENING') return `Vakansiyalar va bo‘sh ish o‘rinlari${catSuffix}`;
+    if (selectedType === 'SERVICE_OFFER') return `Xizmatlar va mutaxassis ustalar${catSuffix}`;
+    if (selectedType === 'SERVICE_REQUEST') return `Buyurtmalar va mijoz talablari${catSuffix}`;
+    if (selectedType === 'JOB_SEEKER') return `Mutaxassislar va rezyumelar${catSuffix}`;
+    if (selectedCatalogId === 'services') return `Barcha xizmatlar katalogi${catSuffix}`;
+    if (selectedCatalogId === 'jobs') return `Barcha ish e’lonlari katalogi${catSuffix}`;
+    return `Barcha e’lonlar${catSuffix}`;
   };
 
   const selectedCategory = categories.find((c) => c.id === selectedCategoryId);
@@ -225,7 +262,7 @@ export const HomePage: React.FC<HomePageProps> = ({
 
   // Count active filters (excluding default sort)
   const activeFiltersCount = [
-    Boolean(selectedType),
+    Boolean(selectedCatalogId || selectedType),
     Boolean(selectedCategoryId),
     Boolean(selectedRegionId),
     Boolean(selectedDistrictId),
@@ -237,18 +274,65 @@ export const HomePage: React.FC<HomePageProps> = ({
     onlyFollowed,
   ].filter(Boolean).length;
 
-  const TYPE_TABS: { type?: ListingType; label: string }[] = [
-    { type: undefined, label: 'Barchasi' },
-    { type: 'SERVICE_OFFER', label: 'Xizmatlar' },
-    { type: 'JOB_OPENING', label: 'Ish e’lonlari' },
-    { type: 'SERVICE_REQUEST', label: 'Buyurtmalar' },
-    { type: 'JOB_SEEKER', label: 'Rezyumelar' },
+  interface MainTab {
+    id: string;
+    label: string;
+    catalogId?: string;
+    type?: ListingType;
+  }
+
+  const MAIN_TABS: MainTab[] = [
+    { id: 'all', label: 'Barchasi', catalogId: undefined, type: undefined },
+    { id: 'services', label: 'Xizmatlar', catalogId: 'services', type: 'SERVICE_OFFER' },
+    { id: 'jobs', label: 'Ish e’lonlari', catalogId: 'jobs', type: 'JOB_OPENING' },
+    { id: 'orders', label: 'Buyurtmalar', catalogId: 'services', type: 'SERVICE_REQUEST' },
+    { id: 'resumes', label: 'Rezyumelar', catalogId: 'jobs', type: 'JOB_SEEKER' },
   ];
 
+  const isMainTabActive = (tab: MainTab) => {
+    if (tab.id === 'all') {
+      return !selectedCatalogId && !selectedType;
+    }
+    if (tab.id === 'orders') {
+      return selectedType === 'SERVICE_REQUEST';
+    }
+    if (tab.id === 'resumes') {
+      return selectedType === 'JOB_SEEKER';
+    }
+    if (tab.id === 'services') {
+      return (
+        selectedType === 'SERVICE_OFFER' ||
+        (selectedCatalogId === 'services' && !selectedType)
+      );
+    }
+    if (tab.id === 'jobs') {
+      return (
+        selectedType === 'JOB_OPENING' ||
+        (selectedCatalogId === 'jobs' && !selectedType)
+      );
+    }
+    return false;
+  };
+
+  const handleMainTabClick = (tab: MainTab) => {
+    if (tab.id === 'all') {
+      setSelectedCatalogId(undefined);
+      setSelectedType(undefined);
+      setSelectedCategoryId(undefined);
+    } else {
+      if (selectedCatalogId !== tab.catalogId) {
+        setSelectedCategoryId(undefined);
+      }
+      setSelectedCatalogId(tab.catalogId);
+      setSelectedType(tab.type);
+    }
+    setCurrentPage(1);
+  };
+
   return (
-    <div className="max-w-[1440px] mx-auto flex-1 w-full flex flex-col lg:grid lg:grid-cols-[300px_1fr] min-h-[calc(100vh-64px)]">
+    <div className="max-w-[1440px] mx-auto flex-1 w-full flex flex-col lg:grid lg:grid-cols-[300px_1fr] min-h-[calc(100vh-64px)] overflow-x-hidden">
       {/* Mobile Filters Toggle Button */}
-      <div className="lg:hidden px-3.5 py-2.5 sm:p-4 bg-white border-b border-[#EBECF0] flex items-center justify-between w-full max-w-full">
+      <div className="lg:hidden px-3 sm:px-4 py-2.5 sm:py-3 bg-white border-b border-[#EBECF0] flex items-center justify-between w-full max-w-full">
         <button
           onClick={() => setIsMobileFiltersOpen(!isMobileFiltersOpen)}
           className="flex items-center gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 border border-[#EBECF0] rounded-xl text-xs font-semibold text-[#172B4D] hover:bg-gray-50 shadow-2xs"
@@ -270,7 +354,7 @@ export const HomePage: React.FC<HomePageProps> = ({
       <aside
         className={`${
           isMobileFiltersOpen ? 'block fixed inset-0 z-50 overflow-y-auto bg-white p-6' : 'hidden'
-        } lg:block border-r border-[#EBECF0] p-6 lg:pl-8 bg-[#F9FAFB] shrink-0`}
+        } lg:block lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto border-r border-[#EBECF0] p-6 lg:pl-8 bg-[#F9FAFB] shrink-0`}
       >
         {/* Mobile close button */}
         <div className="lg:hidden flex items-center justify-between pb-4 mb-4 border-b border-[#EBECF0]">
@@ -334,37 +418,19 @@ export const HomePage: React.FC<HomePageProps> = ({
         {/* Section: Kategoriyalar (Categories) */}
         <div className="mb-6">
           <span className="font-mono text-[11px] uppercase tracking-wider text-[#5E6C84] font-semibold mb-2.5 block">
-            Kategoriyalar
+            {selectedCatalogId === 'jobs'
+              ? 'Ish sohalari'
+              : selectedCatalogId === 'services'
+              ? 'Xizmat kategoriyalari'
+              : 'Barcha kategoriyalar'}
           </span>
-          <div className="flex flex-col gap-2 max-h-56 overflow-y-auto pr-1">
-            <label className="flex items-center gap-2.5 text-xs text-[#172B4D] cursor-pointer hover:text-[#1673E6]">
-              <input
-                type="radio"
-                name="category_filter"
-                checked={!selectedCategoryId}
-                onChange={() => setSelectedCategoryId(undefined)}
-                className="w-3.5 h-3.5 text-[#1673E6] accent-[#1673E6]"
-              />
-              <span className={!selectedCategoryId ? 'font-bold text-[#1673E6]' : ''}>Barcha kategoriyalar</span>
-            </label>
-            {categories.map((cat) => (
-              <label
-                key={cat.id}
-                className="flex items-center gap-2.5 text-xs text-[#172B4D] cursor-pointer hover:text-[#1673E6] transition-colors"
-              >
-                <input
-                  type="radio"
-                  name="category_filter"
-                  checked={selectedCategoryId === cat.id}
-                  onChange={() => setSelectedCategoryId(cat.id)}
-                  className="w-3.5 h-3.5 text-[#1673E6] accent-[#1673E6]"
-                />
-                <span className={`truncate ${selectedCategoryId === cat.id ? 'font-bold text-[#1673E6]' : ''}`}>
-                  {cat.name_uz}
-                </span>
-              </label>
-            ))}
-          </div>
+          <CategoryFilter
+            categories={categories}
+            catalogId={selectedCatalogId}
+            selectedCategoryId={selectedCategoryId}
+            onSelectCategory={(catId) => setSelectedCategoryId(catId)}
+            onClose={() => setIsMobileFiltersOpen(false)}
+          />
         </div>
 
         {/* Section: Ish formati (Work Format) */}
@@ -584,9 +650,9 @@ export const HomePage: React.FC<HomePageProps> = ({
       </aside>
 
       {/* 2. Main Content */}
-      <div className="p-3.5 sm:p-6 lg:p-8 bg-white flex-1 flex flex-col justify-between overflow-y-auto w-full max-w-full min-w-0">
+      <div className="px-3 py-3.5 sm:p-6 lg:p-8 bg-white flex-1 flex flex-col justify-between lg:overflow-y-auto w-full max-w-full min-w-0">
         <div>
-          {/* Top Search Form */}
+          {/* Search Form */}
           <form
             onSubmit={handleSearchSubmit}
             className="flex flex-col sm:flex-row bg-[#F9FAFB] border border-[#EBECF0] rounded-2xl p-2 sm:p-1.5 mb-5 gap-2 sm:gap-1.5 shadow-2xs focus-within:border-[#1673E6]/60 transition-all w-full max-w-full"
@@ -613,6 +679,54 @@ export const HomePage: React.FC<HomePageProps> = ({
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
+              )}
+            </div>
+
+            {/* Top Bar Category Selector */}
+            <div className="relative" ref={topCategoryRef}>
+              <button
+                type="button"
+                onClick={() => setIsTopCategoryOpen(!isTopCategoryOpen)}
+                className="flex items-center gap-1.5 px-3 sm:px-3.5 h-8 sm:h-10 bg-white sm:bg-transparent rounded-xl sm:rounded-none py-1.5 sm:py-0 border border-[#EBECF0] sm:border-0 sm:border-r text-xs sm:text-sm font-medium text-[#172B4D] hover:text-[#1673E6] cursor-pointer transition-colors w-full sm:w-auto justify-between"
+              >
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <CategoryIcon
+                    name={selectedCategory?.icon}
+                    className={`w-4 h-4 shrink-0 ${selectedCategory ? 'text-[#1673E6]' : 'text-[#5E6C84]'}`}
+                  />
+                  <span className="truncate max-w-[130px] sm:max-w-[140px]">
+                    {selectedCategory ? selectedCategory.name_uz : (selectedCatalogId === 'jobs' ? 'Ish sohalari' : 'Kategoriyalar')}
+                  </span>
+                </div>
+                <ChevronDown className="w-3.5 h-3.5 text-gray-400 shrink-0 ml-1" />
+              </button>
+
+              {/* Popover Dropdown */}
+              {isTopCategoryOpen && (
+                <div className="absolute left-0 top-full mt-2 w-72 sm:w-96 bg-white rounded-2xl border border-gray-200 shadow-2xl p-3 z-50 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="flex items-center justify-between pb-2 mb-2 border-b border-gray-100">
+                    <span className="font-bold text-xs text-gray-900 flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-blue-600" />
+                      {selectedCatalogId === 'jobs' ? 'Ish e’lonlari katalogi' : 'Xizmatlar katalogi'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsTopCategoryOpen(false)}
+                      className="p-1 rounded-lg text-gray-400 hover:text-gray-600 cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <CategoryFilter
+                    categories={categories}
+                    catalogId={selectedCatalogId}
+                    selectedCategoryId={selectedCategoryId}
+                    onSelectCategory={(id) => {
+                      setSelectedCategoryId(id);
+                      setIsTopCategoryOpen(false);
+                    }}
+                  />
+                </div>
               )}
             </div>
 
@@ -664,16 +778,16 @@ export const HomePage: React.FC<HomePageProps> = ({
             </button>
           </form>
 
-          {/* Interactive Listing Type Tabs */}
+          {/* Main Catalog Tabs directly under Search Form */}
           <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-5 no-scrollbar border-b border-[#EBECF0] w-full max-w-full">
-            {TYPE_TABS.map((tab) => {
-              const isSelected = selectedType === tab.type;
+            {MAIN_TABS.map((tab) => {
+              const isSelected = isMainTabActive(tab);
               return (
                 <button
-                  key={tab.label}
+                  key={tab.id}
                   type="button"
-                  onClick={() => setSelectedType(tab.type)}
-                  className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all duration-150 shrink-0 cursor-pointer ${
+                  onClick={() => handleMainTabClick(tab)}
+                  className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap transition-all duration-150 shrink-0 cursor-pointer ${
                     isSelected
                       ? 'bg-blue-600 text-white shadow-xs'
                       : 'bg-gray-50 hover:bg-gray-100 text-gray-700'
@@ -690,19 +804,34 @@ export const HomePage: React.FC<HomePageProps> = ({
             <div className="flex flex-wrap items-center gap-2 p-3 bg-blue-50/50 border border-blue-100 rounded-2xl mb-5 text-xs">
               <span className="text-gray-500 font-medium">Faol filtrlar:</span>
 
-              {selectedType && (
+              {(selectedCatalogId || selectedType) && (
                 <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-100 text-blue-800 font-semibold text-[11px]">
-                  <span>{TYPE_TABS.find((t) => t.type === selectedType)?.label}</span>
-                  <button type="button" onClick={() => setSelectedType(undefined)} className="hover:text-blue-950">
+                  <span>
+                    {MAIN_TABS.find((t) => isMainTabActive(t))?.label ||
+                      (selectedCatalogId === 'jobs' ? 'Ish e’lonlari' : 'Xizmatlar')}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedCatalogId(undefined);
+                      setSelectedType(undefined);
+                    }}
+                    className="hover:text-blue-950 cursor-pointer"
+                  >
                     <X className="w-3 h-3" />
                   </button>
                 </span>
               )}
 
               {selectedCategory && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-100 text-blue-800 font-semibold text-[11px]">
-                  <span>Kategoriya: {selectedCategory.name_uz}</span>
-                  <button type="button" onClick={() => setSelectedCategoryId(undefined)} className="hover:text-blue-950">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-100 text-blue-800 font-semibold text-[11px]">
+                  <span>
+                    Kategoriya:{' '}
+                    {selectedCategory.parent_id
+                      ? `${categories.find((p) => p.id === selectedCategory.parent_id)?.name_uz || ''} → ${selectedCategory.name_uz}`
+                      : selectedCategory.name_uz}
+                  </span>
+                  <button type="button" onClick={() => setSelectedCategoryId(undefined)} className="hover:text-blue-950 cursor-pointer">
                     <X className="w-3 h-3" />
                   </button>
                 </span>
@@ -880,12 +1009,12 @@ export const HomePage: React.FC<HomePageProps> = ({
               </button>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-4">
               {listings.map((listing) => (
                 <ListingCard
                   key={listing.id}
                   listing={listing}
-                  variant="row"
+                  variant="grid"
                   onClick={() => onOpenListing(listing.id)}
                 />
               ))}

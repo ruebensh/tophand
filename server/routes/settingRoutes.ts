@@ -28,10 +28,16 @@ router.get('/logo', async (_req, res) => {
 // Public endpoint to retrieve active branding configuration
 router.get('/branding', async (_req, res) => {
   try {
-    const setting = await queryOne<{ value: string; updated_at: string }>(
-      'SELECT value, updated_at FROM system_settings WHERE key = ?',
-      ['platform_brand']
-    );
+    const [brandSetting, logoSetting] = await Promise.all([
+      queryOne<{ value: string; updated_at: string }>(
+        'SELECT value, updated_at FROM system_settings WHERE key = ?',
+        ['platform_brand']
+      ),
+      queryOne<{ value: string; updated_at: string }>(
+        'SELECT value, updated_at FROM system_settings WHERE key = ?',
+        ['active_logo_url']
+      ),
+    ]);
 
     let brand = {
       prefix_text: 'top',
@@ -41,15 +47,19 @@ router.get('/branding', async (_req, res) => {
       domain_suffix: '.uz',
       domain_color: '#1673E6',
       tagline: 'Mahalliy Xizmatlar va Ish Bozori Platformasi',
-      logo_url: '/TOPHAND.uz (1).png',
+      logo_url: logoSetting?.value || '/TOPHAND.uz (1).png',
     };
 
-    if (setting?.value) {
+    if (brandSetting?.value) {
       try {
-        brand = { ...brand, ...JSON.parse(setting.value) };
+        brand = { ...brand, ...JSON.parse(brandSetting.value) };
       } catch (e) {
         // fallback
       }
+    }
+
+    if (logoSetting?.value) {
+      brand.logo_url = logoSetting.value;
     }
 
     res.json(brand);

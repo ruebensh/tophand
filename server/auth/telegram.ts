@@ -55,11 +55,11 @@ export function verifyTelegramAuth(data: Record<string, any>): boolean {
   return calculatedHash === hash;
 }
 
-export function generateToken(user: { id: string; telegram_id: string; role: string }): string {
+export function generateToken(user: { id: string; telegram_id?: string | null; role: string }): string {
   return jwt.sign(
     {
       id: user.id,
-      telegram_id: user.telegram_id,
+      telegram_id: user.telegram_id || null,
       role: user.role,
     },
     JWT_SECRET,

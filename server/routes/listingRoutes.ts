@@ -26,6 +26,7 @@ router.get('/', optionalAuth, async (req: AuthRequest, res) => {
       : undefined;
 
     const filter = {
+      catalog_id: (req.query.catalog_id as string) || undefined,
       type: (req.query.type as string) || undefined,
       category_id: (req.query.category_id as string) || undefined,
       region_id: (req.query.region_id as string) || undefined,

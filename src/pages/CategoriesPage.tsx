@@ -1,52 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { Category, ListingType } from '../types/index.ts';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Category } from '../types/index.ts';
 import { apiRequest } from '../lib/api.ts';
-import {
-  Wrench,
-  Zap,
-  Hammer,
-  Code,
-  Palette,
-  GraduationCap,
-  Truck,
-  Sparkles,
-  HeartPulse,
-  Camera,
-  ShoppingBag,
-  UtensilsCrossed,
-  Car,
-  MoreHorizontal,
-  Search,
-  ArrowRight,
-  LayoutGrid,
-  ChevronLeft,
-  X,
-  Briefcase,
-  Layers,
-  LucideIcon,
-} from 'lucide-react';
+import { CategoryIcon } from '../components/common/CategoryIcon.tsx';
+import { Search, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { CATEGORIES_CATALOG } from '../../server/db/categoriesData.ts';
 
 interface CategoriesPageProps {
   onNavigate: (route: string) => void;
   onSelectCategory?: (categoryId: string) => void;
 }
-
-const ICON_MAP: Record<string, LucideIcon> = {
-  Wrench,
-  Zap,
-  Hammer,
-  Code,
-  Palette,
-  GraduationCap,
-  Truck,
-  Sparkles,
-  HeartPulse,
-  Camera,
-  ShoppingBag,
-  UtensilsCrossed,
-  Car,
-  MoreHorizontal,
-};
 
 export const CategoriesPage: React.FC<CategoriesPageProps> = ({
   onNavigate,
@@ -55,120 +17,103 @@ export const CategoriesPage: React.FC<CategoriesPageProps> = ({
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchTerm, setSearchTerm] = useState<string>('');
-  const [selectedType, setSelectedType] = useState<ListingType | 'ALL'>('ALL');
 
   useEffect(() => {
     setIsLoading(true);
     apiRequest<Category[]>('/api/categories')
-      .then((data) => {
-        setCategories(data);
-      })
-      .catch((err) => {
-        console.error('Kategoriyalarni yuklashda xatolik:', err);
-      })
-      .finally(() => {
-        setIsLoading(false);
-      });
+      .then((data) => setCategories(data))
+      .catch(console.error)
+      .finally(() => setIsLoading(false));
   }, []);
 
-  const handleCategoryClick = (cat: Category) => {
+  const handleCategoryClick = (catId: string) => {
     if (onSelectCategory) {
-      onSelectCategory(cat.id);
+      onSelectCategory(catId);
     } else {
-      const typeQuery = selectedType !== 'ALL' ? `&type=${selectedType}` : '';
-      onNavigate(`/?category=${cat.id}${typeQuery}`);
+      onNavigate(`/?category=${catId}`);
     }
   };
 
-  const filteredCategories = categories.filter((cat) => {
-    if (!searchTerm.trim()) return true;
-    return cat.name_uz.toLowerCase().includes(searchTerm.toLowerCase().trim());
-  });
+  // Build parent+subs map from API data
+  const { parents, subsByParent } = useMemo(() => {
+    const parents: Category[] = [];
+    const subsByParent: Record<string, Category[]> = {};
+    categories.forEach((cat) => {
+      if (!cat.parent_id) parents.push(cat);
+      else {
+        if (!subsByParent[cat.parent_id]) subsByParent[cat.parent_id] = [];
+        subsByParent[cat.parent_id].push(cat);
+      }
+    });
+    parents.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    Object.values(subsByParent).forEach((list) =>
+      list.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+    );
+    return { parents, subsByParent };
+  }, [categories]);
 
-  const totalListings = categories.reduce(
-    (acc, curr) => acc + (curr.active_count || 0),
-    0
-  );
+  // Search: match across parent and sub names
+  const searchResults = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return null;
+    const hits: { parentId: string; parentName: string; parentIcon: string; matchedSubs: Category[]; selfMatch: boolean }[] = [];
+    parents.forEach((parent) => {
+      const subs = subsByParent[parent.id] || [];
+      const selfMatch = parent.name_uz.toLowerCase().includes(q);
+      const matchedSubs = subs.filter((s) => s.name_uz.toLowerCase().includes(q));
+      if (selfMatch || matchedSubs.length > 0) {
+        hits.push({ parentId: parent.id, parentName: parent.name_uz, parentIcon: parent.icon, matchedSubs: selfMatch ? subs : matchedSubs, selfMatch });
+      }
+    });
+    return hits;
+  }, [searchTerm, parents, subsByParent]);
+
+  const displayGroups = searchResults !== null ? searchResults : parents.map((p) => ({
+    parentId: p.id,
+    parentName: p.name_uz,
+    parentIcon: p.icon,
+    matchedSubs: subsByParent[p.id] || [],
+    selfMatch: true,
+  }));
 
   return (
-    <div className="min-h-[calc(100vh-140px)] bg-gray-50/50 pb-24 sm:pb-16">
-      {/* Top Banner / Breadcrumb */}
-      <div className="bg-white border-b border-[#EBECF0]">
-        <div className="max-w-[1440px] mx-auto px-4 sm:px-8 py-5">
-          <div className="flex items-center gap-2 mb-2">
+    <div className="min-h-[calc(100vh-140px)] bg-white pb-24 sm:pb-16">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-[1440px] mx-auto px-4 sm:px-8 py-4">
+          {/* Breadcrumb */}
+          <div className="flex items-center gap-1.5 text-xs text-gray-500 mb-3">
             <button
               onClick={() => onNavigate('/')}
-              className="p-1 rounded-lg text-[#5E6C84] hover:text-[#172B4D] hover:bg-gray-100 transition-colors cursor-pointer"
-              title="Orqaga"
+              className="hover:text-blue-600 transition-colors cursor-pointer"
             >
-              <ChevronLeft className="w-5 h-5" />
+              Asosiy
             </button>
-            <div className="flex items-center gap-1.5 text-xs text-[#5E6C84]">
-              <button
-                onClick={() => onNavigate('/')}
-                className="hover:text-[#1673E6] transition-colors"
-              >
-                Asosiy
-              </button>
-              <span>/</span>
-              <span className="font-semibold text-[#172B4D]">Kategoriyalar</span>
-            </div>
+            <ChevronRight className="w-3.5 h-3.5" />
+            <span className="font-semibold text-gray-800">Xizmatlar</span>
           </div>
 
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-blue-50 text-[#1673E6] flex items-center justify-center">
-                  <LayoutGrid className="w-5 h-5" />
-                </div>
-                <h1 className="text-xl sm:text-2xl font-extrabold text-[#172B4D] tracking-tight">
-                  Kategoriyalar
-                </h1>
-              </div>
-              <p className="text-xs sm:text-sm text-[#5E6C84] mt-1">
-                Kerakli xizmat yoki ish sohasini tanlang ({categories.length} ta yo‘nalish, {totalListings} ta faol e’lon)
-              </p>
-            </div>
+          {/* Title row */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-2">
+              Xizmatlar
+              <ChevronRight className="w-5 h-5 text-gray-400" />
+            </h1>
 
-            {/* Quick Type Filter */}
-            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
-              {[
-                { id: 'ALL', label: 'Barchasi' },
-                { id: 'SERVICE_OFFER', label: 'Xizmatlar' },
-                { id: 'JOB_OPENING', label: 'Ish o‘rinlari' },
-                { id: 'SERVICE_REQUEST', label: 'Buyurtmalar' },
-                { id: 'JOB_SEEKER', label: 'Rezyumelar' },
-              ].map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => setSelectedType(t.id as any)}
-                  className={`text-xs font-semibold px-3 py-1.5 rounded-lg whitespace-nowrap transition-colors cursor-pointer ${
-                    selectedType === t.id
-                      ? 'bg-[#1673E6] text-white shadow-2xs'
-                      : 'bg-white text-[#5E6C84] hover:text-[#172B4D] border border-[#EBECF0]'
-                  }`}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Category Search Input */}
-          <div className="mt-4 relative max-w-xl">
-            <div className="flex items-center bg-[#F9FAFB] border border-[#EBECF0] rounded-xl px-3.5 py-2.5 focus-within:border-[#1673E6] focus-within:bg-white transition-all shadow-2xs">
-              <Search className="w-4 h-4 text-[#5E6C84] shrink-0 mr-2.5" />
+            {/* Search */}
+            <div className="relative sm:w-72">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Kategoriya yoki soha nomini kiriting..."
-                className="w-full bg-transparent text-xs sm:text-sm text-[#172B4D] placeholder-[#5E6C84] focus:outline-hidden"
+                placeholder="Kategoriya qidirish..."
+                className="w-full pl-9 pr-8 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
               />
               {searchTerm && (
                 <button
                   onClick={() => setSearchTerm('')}
-                  className="p-1 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -178,68 +123,60 @@ export const CategoriesPage: React.FC<CategoriesPageProps> = ({
         </div>
       </div>
 
-      {/* Categories Content */}
+      {/* Categories Grid */}
       <div className="max-w-[1440px] mx-auto px-4 sm:px-8 py-6">
         {isLoading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
-            {[...Array(10)].map((_, i) => (
-              <div
-                key={i}
-                className="bg-white border border-[#EBECF0] rounded-2xl p-4 animate-pulse flex flex-col items-center text-center space-y-3"
-              >
-                <div className="w-12 h-12 rounded-xl bg-gray-100" />
-                <div className="w-3/4 h-4 bg-gray-100 rounded" />
-                <div className="w-1/2 h-3 bg-gray-100 rounded" />
+          <div className="columns-2 sm:columns-3 lg:columns-4 gap-8 space-y-8">
+            {[...Array(12)].map((_, i) => (
+              <div key={i} className="break-inside-avoid mb-8 space-y-2">
+                <div className="h-5 bg-gray-200 rounded animate-pulse w-3/4" />
+                {[...Array(4)].map((_, j) => (
+                  <div key={j} className="h-3.5 bg-gray-100 rounded animate-pulse w-2/3" />
+                ))}
               </div>
             ))}
           </div>
-        ) : filteredCategories.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-[#EBECF0] p-12 text-center max-w-md mx-auto my-8">
-            <div className="w-14 h-14 rounded-full bg-blue-50 text-[#1673E6] flex items-center justify-center text-xl mx-auto mb-3">
-              <Search className="w-6 h-6" />
-            </div>
-            <h3 className="font-bold text-sm text-[#172B4D]">
-              Hech qanday kategoriya topilmadi
-            </h3>
-            <p className="text-xs text-[#5E6C84] mt-1 mb-4">
-              "{searchTerm}" so‘zi bo‘yicha mos yo‘nalish mavjud emas. Boshqa so‘z bilan qidiring.
-            </p>
+        ) : displayGroups.length === 0 ? (
+          <div className="text-center py-16">
+            <Search className="w-8 h-8 text-gray-300 mx-auto mb-3" />
+            <p className="text-sm text-gray-500">"{searchTerm}" bo'yicha kategoriya topilmadi</p>
             <button
               onClick={() => setSearchTerm('')}
-              className="px-4 py-2 rounded-lg bg-[#1673E6] text-white font-semibold text-xs cursor-pointer"
+              className="mt-3 text-blue-600 text-sm font-medium cursor-pointer hover:underline"
             >
-              Qidiruvni tozalash
+              Tozalash
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
-            {filteredCategories.map((cat) => {
-              const IconComponent = ICON_MAP[cat.icon] || MoreHorizontal;
-              return (
+          <div className="columns-2 sm:columns-3 lg:columns-4 gap-x-10 gap-y-2">
+            {displayGroups.map(({ parentId, parentName, parentIcon, matchedSubs }) => (
+              <div key={parentId} className="break-inside-avoid mb-7">
+                {/* Parent category title */}
                 <button
-                  key={cat.id}
-                  onClick={() => handleCategoryClick(cat)}
-                  className="group bg-white hover:bg-blue-50/40 border border-[#EBECF0] hover:border-[#1673E6]/40 rounded-2xl p-4 sm:p-5 flex flex-col items-center text-center transition-all duration-200 shadow-2xs hover:shadow-md cursor-pointer relative"
+                  onClick={() => handleCategoryClick(parentId)}
+                  className="group flex items-center gap-1 mb-2 cursor-pointer text-left w-full"
                 >
-                  <div className="w-12 h-12 rounded-2xl bg-blue-50 group-hover:bg-[#1673E6] text-[#1673E6] group-hover:text-white flex items-center justify-center mb-3 transition-colors duration-200 shadow-2xs">
-                    <IconComponent className="w-6 h-6 stroke-[2]" />
-                  </div>
-
-                  <h3 className="text-xs sm:text-sm font-bold text-[#172B4D] group-hover:text-[#1673E6] line-clamp-1 transition-colors">
-                    {cat.name_uz}
-                  </h3>
-
-                  <div className="mt-1.5 flex items-center gap-1">
-                    <span className="text-[11px] font-semibold text-[#5E6C84]">
-                      {cat.active_count !== undefined && cat.active_count > 0
-                        ? `${cat.active_count} ta e’lon`
-                        : '0 ta e’lon'}
-                    </span>
-                    <ArrowRight className="w-3 h-3 text-gray-300 group-hover:text-[#1673E6] group-hover:translate-x-0.5 transition-all" />
-                  </div>
+                  <span className="font-bold text-[15px] text-gray-900 group-hover:text-blue-700 transition-colors leading-tight">
+                    {parentName}
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-blue-700 shrink-0 transition-colors" />
                 </button>
-              );
-            })}
+
+                {/* Subcategories */}
+                <ul className="space-y-1">
+                  {matchedSubs.map((sub) => (
+                    <li key={sub.id}>
+                      <button
+                        onClick={() => handleCategoryClick(sub.id)}
+                        className="text-[13px] text-gray-600 hover:text-blue-700 transition-colors cursor-pointer text-left leading-snug w-full"
+                      >
+                        {sub.name_uz}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
           </div>
         )}
       </div>

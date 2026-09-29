@@ -14,6 +14,7 @@ import {
 } from '../services/moderationService.ts';
 import { getAdvancedAnalytics } from '../services/autoModerationService.ts';
 import { queryAll, queryOne, runQuery, persistDb } from '../db/database.ts';
+import { processAndStoreLogo } from '../services/storageService.ts';
 
 const router = Router();
 
@@ -159,7 +160,7 @@ router.get('/organizations', async (_req, res) => {
 // Category management: Create
 router.post('/categories', async (req: AuthRequest, res) => {
   try {
-    const { name_uz, slug, icon, sort_order } = req.body;
+    const { name_uz, slug, icon, catalog_id, parent_id, sort_order } = req.body;
     if (!name_uz || !slug) {
       return res.status(400).json({ error: 'Nomi va slug kiritilishi shart' });
     }
@@ -168,9 +169,9 @@ router.post('/categories', async (req: AuthRequest, res) => {
     const now = new Date().toISOString();
 
     await runQuery(
-      `INSERT INTO categories (id, name_uz, slug, icon, is_active, sort_order, created_at, updated_at)
-       VALUES (?, ?, ?, ?, 1, ?, ?, ?)`,
-      [id, name_uz.trim(), slug.trim(), icon || 'Briefcase', sort_order || 0, now, now]
+      `INSERT INTO categories (id, catalog_id, name_uz, slug, icon, parent_id, is_active, sort_order, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
+      [id, catalog_id || 'services', name_uz.trim(), slug.trim(), icon || 'Briefcase', parent_id || null, sort_order || 0, now, now]
     );
 
     const created = await queryOne('SELECT * FROM categories WHERE id = ?', [id]);
@@ -183,18 +184,31 @@ router.post('/categories', async (req: AuthRequest, res) => {
 // Category management: Update/Toggle
 router.put('/categories/:id', async (req: AuthRequest, res) => {
   try {
-    const { name_uz, icon, is_active, sort_order } = req.body;
+    const { name_uz, slug, icon, catalog_id, parent_id, is_active, sort_order } = req.body;
     const now = new Date().toISOString();
 
     await runQuery(
       `UPDATE categories 
        SET name_uz = COALESCE(?, name_uz),
+           slug = COALESCE(?, slug),
            icon = COALESCE(?, icon),
+           catalog_id = COALESCE(?, catalog_id),
+           parent_id = COALESCE(?, parent_id),
            is_active = COALESCE(?, is_active),
            sort_order = COALESCE(?, sort_order),
            updated_at = ?
        WHERE id = ?`,
-      [name_uz || null, icon || null, is_active !== undefined ? is_active : null, sort_order !== undefined ? sort_order : null, now, req.params.id]
+      [
+        name_uz || null,
+        slug || null,
+        icon || null,
+        catalog_id || null,
+        parent_id !== undefined ? parent_id : null,
+        is_active !== undefined ? is_active : null,
+        sort_order !== undefined ? sort_order : null,
+        now,
+        req.params.id
+      ]
     );
 
     const updated = await queryOne('SELECT * FROM categories WHERE id = ?', [req.params.id]);
@@ -349,24 +363,9 @@ router.post('/logo', (req: AuthRequest, res, next) => {
       });
     }
 
-    // 6. Secure and atomic storage
-    // Save original pristine raw buffer directly - no compression, no filtering, no modifications
-    const LOGO_DIR = path.resolve(process.cwd(), 'uploads', 'logo');
-    if (!fs.existsSync(LOGO_DIR)) {
-      fs.mkdirSync(LOGO_DIR, { recursive: true });
-    }
-
-    const uniqueId = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
-    const filename = `tophand-logo-${uniqueId}.png`;
-    const finalPath = path.join(LOGO_DIR, filename);
-    const tempPath = path.join(LOGO_DIR, `.tmp-${filename}`);
-
-    // Write pristine bytes to temporary file, then atomic rename
-    await fs.promises.writeFile(tempPath, file.buffer);
-    await fs.promises.rename(tempPath, finalPath);
-
-    // 7. Update active logo in system_settings database table
-    const relativeUrl = `/uploads/logo/${filename}`;
+    // 6. Process and store logo (Cloudflare R2 or local storage)
+    const logoResult = await processAndStoreLogo(file.buffer, file.originalname);
+    const relativeUrl = logoResult.url;
     const now = new Date().toISOString();
 
     const prevSetting = await queryOne<{ value: string }>(
@@ -380,6 +379,33 @@ router.post('/logo', (req: AuthRequest, res, next) => {
        VALUES ('active_logo_url', ?, ?, ?)
        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
       [relativeUrl, now, req.user!.id]
+    );
+
+    // Also sync logo_url directly into platform_brand configuration
+    const currentBrandSetting = await queryOne<{ value: string }>(
+      'SELECT value FROM system_settings WHERE key = ?',
+      ['platform_brand']
+    );
+    let brandObj: any = {
+      prefix_text: 'top',
+      prefix_color: '#111827',
+      suffix_text: 'hand',
+      suffix_color: '#1673E6',
+      domain_suffix: '.uz',
+      domain_color: '#1673E6',
+      tagline: 'Mahalliy Xizmatlar va Ish Bozori Platformasi',
+      logo_url: relativeUrl,
+    };
+    if (currentBrandSetting?.value) {
+      try {
+        brandObj = { ...brandObj, ...JSON.parse(currentBrandSetting.value), logo_url: relativeUrl };
+      } catch (e) {}
+    }
+    await runQuery(
+      `INSERT INTO system_settings (key, value, updated_at, updated_by)
+       VALUES ('platform_brand', ?, ?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
+      [JSON.stringify(brandObj), now, req.user!.id]
     );
 
     // 8. Record administrator logo replacement event in audit log
@@ -728,10 +754,16 @@ router.delete('/listings/:id', async (req: AuthRequest, res) => {
 // Platform Branding: GET
 router.get('/branding', async (_req, res) => {
   try {
-    const setting = await queryOne<{ value: string; updated_at: string }>(
-      'SELECT value, updated_at FROM system_settings WHERE key = ?',
-      ['platform_brand']
-    );
+    const [setting, logoSetting] = await Promise.all([
+      queryOne<{ value: string; updated_at: string }>(
+        'SELECT value, updated_at FROM system_settings WHERE key = ?',
+        ['platform_brand']
+      ),
+      queryOne<{ value: string; updated_at: string }>(
+        'SELECT value, updated_at FROM system_settings WHERE key = ?',
+        ['active_logo_url']
+      ),
+    ]);
 
     let brand = {
       prefix_text: 'top',
@@ -741,7 +773,7 @@ router.get('/branding', async (_req, res) => {
       domain_suffix: '.uz',
       domain_color: '#1673E6',
       tagline: 'Mahalliy Xizmatlar va Ish Bozori Platformasi',
-      logo_url: '/TOPHAND.uz (1).png',
+      logo_url: logoSetting?.value || '/TOPHAND.uz (1).png',
     };
 
     if (setting?.value) {
@@ -750,6 +782,10 @@ router.get('/branding', async (_req, res) => {
       } catch (e) {
         // fallback
       }
+    }
+
+    if (logoSetting?.value) {
+      brand.logo_url = logoSetting.value;
     }
 
     res.json(brand);
@@ -772,6 +808,23 @@ router.put('/branding', async (req: AuthRequest, res) => {
       logo_url,
     } = req.body;
 
+    const existingLogoSetting = await queryOne<{ value: string }>(
+      'SELECT value FROM system_settings WHERE key = ?',
+      ['active_logo_url']
+    );
+    const existingBrandSetting = await queryOne<{ value: string }>(
+      'SELECT value FROM system_settings WHERE key = ?',
+      ['platform_brand']
+    );
+    let existingBrandLogo = '';
+    if (existingBrandSetting?.value) {
+      try {
+        existingBrandLogo = JSON.parse(existingBrandSetting.value).logo_url;
+      } catch (e) {}
+    }
+
+    const resolvedLogoUrl = logo_url || existingLogoSetting?.value || existingBrandLogo || '/TOPHAND.uz (1).png';
+
     const brandData = {
       prefix_text: prefix_text || 'top',
       prefix_color: prefix_color || '#111827',
@@ -780,7 +833,7 @@ router.put('/branding', async (req: AuthRequest, res) => {
       domain_suffix: domain_suffix || '.uz',
       domain_color: domain_color || '#1673E6',
       tagline: tagline || 'Mahalliy Xizmatlar va Ish Bozori Platformasi',
-      logo_url: logo_url || '/TOPHAND.uz (1).png',
+      logo_url: resolvedLogoUrl,
     };
 
     const now = new Date().toISOString();
@@ -790,6 +843,15 @@ router.put('/branding', async (req: AuthRequest, res) => {
        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
       [JSON.stringify(brandData), now, req.user!.id]
     );
+
+    if (resolvedLogoUrl) {
+      await runQuery(
+        `INSERT INTO system_settings (key, value, updated_at, updated_by)
+         VALUES ('active_logo_url', ?, ?, ?)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
+        [resolvedLogoUrl, now, req.user!.id]
+      );
+    }
 
     // Audit log
     const auditId = `aud_${crypto.randomUUID().slice(0, 16)}`;

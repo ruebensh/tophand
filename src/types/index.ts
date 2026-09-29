@@ -56,8 +56,22 @@ export interface District {
   sort_order: number;
 }
 
+export interface Catalog {
+  id: string;
+  name_uz: string;
+  slug: string;
+  icon: string;
+  description?: string;
+  listing_types: string;
+  sort_order: number;
+  is_active: number;
+  categories_count?: number;
+  listings_count?: number;
+}
+
 export interface Category {
   id: string;
+  catalog_id?: string;
   name_uz: string;
   slug: string;
   icon: string;
@@ -65,12 +79,14 @@ export interface Category {
   is_active: number;
   sort_order: number;
   active_count?: number;
+  subs?: Category[];
 }
 
 export interface Listing {
   id: string;
   owner_user_id: string;
   organization_id?: string;
+  catalog_id?: string;
   type: ListingType;
   title: string;
   description: string;

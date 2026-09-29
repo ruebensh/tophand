@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { queryAll, queryOne, runQuery } from '../db/database.ts';
 
 export interface ListingFilter {
+  catalog_id?: string;
   type?: string;
   category_id?: string;
   region_id?: string;
@@ -96,14 +97,25 @@ export async function searchListings(filter: ListingFilter) {
 
   const params: any[] = [];
 
+  if (filter.catalog_id) {
+    if (filter.catalog_id === 'services') {
+      sql += ` AND (l.catalog_id = 'services' OR l.type IN ('SERVICE_OFFER', 'SERVICE_REQUEST'))`;
+    } else if (filter.catalog_id === 'jobs') {
+      sql += ` AND (l.catalog_id = 'jobs' OR l.type IN ('JOB_OPENING', 'JOB_SEEKER'))`;
+    } else {
+      sql += ` AND l.catalog_id = ?`;
+      params.push(filter.catalog_id);
+    }
+  }
+
   if (filter.type) {
     sql += ` AND l.type = ?`;
     params.push(filter.type);
   }
 
   if (filter.category_id) {
-    sql += ` AND l.category_id = ?`;
-    params.push(filter.category_id);
+    sql += ` AND (l.category_id = ? OR l.category_id IN (SELECT id FROM categories WHERE parent_id = ?))`;
+    params.push(filter.category_id, filter.category_id);
   }
 
   if (filter.region_id) {
@@ -471,17 +483,30 @@ export async function createListing(userId: string, data: any) {
   // Validate images count
   const images: string[] = Array.isArray(data.images) ? data.images.slice(0, 8) : [];
 
+  // Determine catalog_id
+  let catalogId = data.catalog_id;
+  if (!catalogId) {
+    if (['SERVICE_OFFER', 'SERVICE_REQUEST'].includes(data.type)) {
+      catalogId = 'services';
+    } else if (['JOB_OPENING', 'JOB_SEEKER'].includes(data.type)) {
+      catalogId = 'jobs';
+    } else {
+      catalogId = 'services';
+    }
+  }
+
   await runQuery(
     `INSERT INTO listings (
-      id, owner_user_id, organization_id, type, title, description, category_id,
+      id, owner_user_id, organization_id, catalog_id, type, title, description, category_id,
       region_id, district_id, latitude, longitude, price_type, price_min, price_max,
       currency, salary_type, salary_min, salary_max, work_format, experience_level,
       skills, contact_time, contact_custom_text, status, created_at, updated_at, expires_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?, ?)`,
     [
       id,
       userId,
       data.organization_id || null,
+      catalogId,
       data.type,
       data.title.trim(),
       data.description.trim(),

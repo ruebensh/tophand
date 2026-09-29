@@ -19,6 +19,8 @@ import adminRoutes from './server/routes/adminRoutes.ts';
 import uploadRoutes from './server/routes/uploadRoutes.ts';
 import settingRoutes from './server/routes/settingRoutes.ts';
 import reviewRoutes from './server/routes/reviewRoutes.ts';
+import catalogRoutes from './server/routes/catalogRoutes.ts';
+import aiRoutes from './server/routes/aiRoutes.ts';
 
 dotenv.config();
 
@@ -29,13 +31,32 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Static assets with permissive CORS & Cross-Origin-Resource-Policy for browser image loading
+app.use((_req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  next();
+});
+
 // Static uploads folder
 const uploadDir = path.resolve(process.cwd(), 'uploads');
-app.use('/uploads', express.static(uploadDir));
+app.use('/uploads', express.static(uploadDir, {
+  maxAge: '1d',
+  setHeaders: (res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+  }
+}));
 
 // Static public assets folder (logos, icons, favicons)
 const publicDir = path.resolve(process.cwd(), 'public');
-app.use(express.static(publicDir));
+app.use(express.static(publicDir, {
+  setHeaders: (res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  }
+}));
 
 // API Routes
 app.use('/api/auth', authRoutes);
@@ -44,12 +65,15 @@ app.use('/api/listings', listingRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/saved-listings', savedRoutes);
 app.use('/api/locations', locationRoutes);
+app.use('/api/catalogs', catalogRoutes);
 app.use('/api/categories', categoryRoutes);
+app.use('/api/ai', aiRoutes);
 app.use('/api/organizations', organizationRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/moderation', moderationRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/storage', uploadRoutes);
 app.use('/api/settings', settingRoutes);
 app.use('/api/reviews', reviewRoutes);
 

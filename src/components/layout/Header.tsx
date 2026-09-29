@@ -347,16 +347,6 @@ export const Header: React.FC<HeaderProps> = ({ onSearch, onNavigate, currentRou
                       <button
                         onClick={() => {
                           setIsUserMenuOpen(false);
-                          openLoginModal();
-                        }}
-                        className="w-full px-3.5 py-2 text-xs text-left font-medium text-blue-600 hover:bg-blue-50 flex items-center gap-2"
-                      >
-                        <span>🔄</span>
-                        Test hisobiga o‘tish
-                      </button>
-                      <button
-                        onClick={() => {
-                          setIsUserMenuOpen(false);
                           logout();
                         }}
                         className="w-full px-3.5 py-2 text-xs text-left font-medium text-rose-600 hover:bg-rose-50 flex items-center gap-2"
