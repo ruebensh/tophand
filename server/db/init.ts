@@ -494,16 +494,7 @@ export async function syncCategories() {
 
 // ─── Seed regions + districts ──────────────────────────────────────────
 async function seedInitialData() {
-  // Check if regions already seeded
-  const existing = await pool.query('SELECT COUNT(*) AS cnt FROM regions');
-  const count = parseInt(existing.rows[0]?.cnt ?? existing.rows[0]?.count ?? '0', 10);
-  if (count > 0) {
-    // Still sync categories in case new ones added
-    await syncCategories();
-    return;
-  }
-
-  console.log('Seeding initial reference data...');
+  console.log('Syncing regions and districts into database...');
 
   // Regions
   const regions = [
@@ -525,7 +516,7 @@ async function seedInitialData() {
 
   for (const r of regions) {
     await pool.query(
-      'INSERT INTO regions (id, name_uz, code, sort_order) VALUES ($1,$2,$3,$4) ON CONFLICT (id) DO NOTHING',
+      'INSERT INTO regions (id, name_uz, code, sort_order) VALUES ($1,$2,$3,$4) ON CONFLICT (id) DO UPDATE SET name_uz = EXCLUDED.name_uz, sort_order = EXCLUDED.sort_order',
       [r.id, r.name, r.code, r.order]
     );
   }
@@ -533,7 +524,14 @@ async function seedInitialData() {
   // Seed all districts of Uzbekistan with GPS coordinates
   for (const d of UZBEKISTAN_DISTRICTS) {
     await pool.query(
-      'INSERT INTO districts (id, region_id, name_uz, latitude, longitude, sort_order) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (id) DO UPDATE SET name_uz = EXCLUDED.name_uz, latitude = EXCLUDED.latitude, longitude = EXCLUDED.longitude',
+      `INSERT INTO districts (id, region_id, name_uz, latitude, longitude, sort_order)
+       VALUES ($1,$2,$3,$4,$5,$6)
+       ON CONFLICT (id) DO UPDATE SET
+         region_id = EXCLUDED.region_id,
+         name_uz = EXCLUDED.name_uz,
+         latitude = EXCLUDED.latitude,
+         longitude = EXCLUDED.longitude,
+         sort_order = EXCLUDED.sort_order`,
       [d.id, d.region_id, d.name_uz, d.lat, d.lon, d.order]
     );
   }
@@ -541,5 +539,5 @@ async function seedInitialData() {
   // Seed categories
   await syncCategories();
 
-  console.log('✅ Initial data seeded successfully.');
+  console.log(`✅ Reference data synced: ${regions.length} regions and ${UZBEKISTAN_DISTRICTS.length} districts.`);
 }

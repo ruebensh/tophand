@@ -14,8 +14,8 @@ router.get('/regions', async (_req, res) => {
 });
 
 router.get('/districts', async (req, res) => {
+  const regionId = req.query.region_id as string;
   try {
-    const regionId = req.query.region_id as string;
     let sql = 'SELECT * FROM districts';
     const params: any[] = [];
     if (regionId) {
@@ -24,9 +24,34 @@ router.get('/districts', async (req, res) => {
     }
     sql += ' ORDER BY sort_order ASC';
     const districts = await queryAll(sql, params);
-    res.json(districts);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    if (districts && districts.length > 0) {
+      return res.json(districts);
+    }
+
+    // Fallback if DB table has not seeded yet
+    const fallback = UZBEKISTAN_DISTRICTS
+      .filter((d) => !regionId || d.region_id === regionId)
+      .map((d) => ({
+        id: d.id,
+        region_id: d.region_id,
+        name_uz: d.name_uz,
+        latitude: d.lat,
+        longitude: d.lon,
+        sort_order: d.order,
+      }));
+    res.json(fallback);
+  } catch (_err: any) {
+    const fallback = UZBEKISTAN_DISTRICTS
+      .filter((d) => !regionId || d.region_id === regionId)
+      .map((d) => ({
+        id: d.id,
+        region_id: d.region_id,
+        name_uz: d.name_uz,
+        latitude: d.lat,
+        longitude: d.lon,
+        sort_order: d.order,
+      }));
+    res.json(fallback);
   }
 });
 

@@ -46,18 +46,42 @@ export const OnboardingModal: React.FC = () => {
     }
 
     setGeoLocating(true);
+    setError('');
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setLat(pos.coords.latitude);
-        setLng(pos.coords.longitude);
-        setGeoLocating(false);
+      async (pos) => {
+        const latitude = pos.coords.latitude;
+        const longitude = pos.coords.longitude;
+        setLat(latitude);
+        setLng(longitude);
+
+        try {
+          const detected = await apiRequest<{
+            region_id: string;
+            region_name: string;
+            district_id: string;
+            district_name: string;
+          }>(`/api/locations/detect?lat=${latitude}&lon=${longitude}`);
+
+          if (detected?.region_id) {
+            setSelectedRegionId(detected.region_id);
+            const dists = await apiRequest<District[]>(
+              `/api/locations/districts?region_id=${detected.region_id}`
+            );
+            setDistricts(dists);
+            setSelectedDistrictId(detected.district_id);
+          }
+        } catch (err) {
+          console.warn('Avtomatik tuman aniqlashda xatolik:', err);
+        } finally {
+          setGeoLocating(false);
+        }
       },
       (err) => {
         console.warn('Geolocation error:', err);
         setError('Joylashuvni aniqlashga ruxsat berilmadi');
         setGeoLocating(false);
       },
-      { timeout: 10000 }
+      { timeout: 10000, enableHighAccuracy: true }
     );
   };
 
