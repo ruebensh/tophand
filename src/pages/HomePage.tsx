@@ -108,14 +108,16 @@ export const HomePage: React.FC<HomePageProps> = ({
 
   const handleDetectAndOpenMap = useCallback(() => {
     setLocationError('');
+    setIsMapOpen(true);
+
     if (detectedLocation) {
-      setIsMapOpen(true);
       return;
     }
+
     if (!navigator.geolocation) {
-      setLocationError("GPS qo'llab-quvvatlanmaydi");
       return;
     }
+
     setIsDetectingLocation(true);
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
@@ -126,11 +128,9 @@ export const HomePage: React.FC<HomePageProps> = ({
             lat: number; lon: number;
           }>(`/api/locations/detect?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`);
           setDetectedLocation(loc);
-          // Auto-apply region filter
           setSelectedRegionId(loc.region_id);
-          setIsMapOpen(true);
         } catch {
-          setLocationError('Joylashuv aniqlanmadi');
+          console.warn('Joylashuv aniqlanmadi');
         } finally {
           setIsDetectingLocation(false);
         }
@@ -853,6 +853,17 @@ export const HomePage: React.FC<HomePageProps> = ({
             >
               <Search className="w-4 h-4" />
               <span>Topish</span>
+            </button>
+
+            {/* Xarita Button */}
+            <button
+              type="button"
+              onClick={handleDetectAndOpenMap}
+              className="w-full sm:w-auto bg-blue-50 hover:bg-blue-100 text-[#1673E6] font-semibold text-xs sm:text-sm px-4 py-2.5 rounded-xl border border-blue-200 transition-colors shrink-0 cursor-pointer flex items-center justify-center gap-1.5"
+              title="Barcha e'lonlarni xaritada ko'rish"
+            >
+              <Navigation className="w-4 h-4 text-blue-600" />
+              <span>Xarita</span>
             </button>
           </form>
 

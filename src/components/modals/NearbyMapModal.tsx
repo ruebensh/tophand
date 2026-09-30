@@ -1,20 +1,20 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { X, MapPin, Loader2, Navigation, RefreshCw, ExternalLink } from 'lucide-react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { X, MapPin, Loader2, Navigation, RefreshCw, Briefcase, Wrench, Layers } from 'lucide-react';
 import { apiRequest } from '../../lib/api.ts';
 
-interface NearbyListing {
+interface MapListing {
   id: string;
   title: string;
-  type: string;
+  type: 'SERVICE_OFFER' | 'SERVICE_REQUEST' | 'JOB_OPENING' | 'JOB_SEEKER' | string;
   district_name: string;
   region_name: string;
   category_name: string;
-  latitude: number;
-  longitude: number;
-  price_type: string;
-  price_min: number | null;
-  price_max: number | null;
-  currency: string;
+  latitude: number | string;
+  longitude: number | string;
+  price_type?: string;
+  price_min?: number | string | null;
+  price_max?: number | string | null;
+  currency?: string;
 }
 
 interface DetectedLocation {
@@ -34,6 +34,8 @@ interface NearbyMapModalProps {
   initialLocation?: DetectedLocation | null;
 }
 
+type FilterType = 'ALL' | 'SERVICES' | 'JOBS';
+
 export const NearbyMapModal: React.FC<NearbyMapModalProps> = ({
   isOpen,
   onClose,
@@ -42,148 +44,223 @@ export const NearbyMapModal: React.FC<NearbyMapModalProps> = ({
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
+  const leafletRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
   const userMarkerRef = useRef<any>(null);
 
   const [location, setLocation] = useState<DetectedLocation | null>(initialLocation || null);
-  const [listings, setListings] = useState<NearbyListing[]>([]);
+  const [listings, setListings] = useState<MapListing[]>([]);
+  const [filterType, setFilterType] = useState<FilterType>('ALL');
   const [isDetecting, setIsDetecting] = useState(false);
   const [isLoadingListings, setIsLoadingListings] = useState(false);
-  const [error, setError] = useState('');
-  const [selectedListing, setSelectedListing] = useState<NearbyListing | null>(null);
+  const [selectedListing, setSelectedListing] = useState<MapListing | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  // Initialize Leaflet map
-  const initMap = useCallback((lat: number, lon: number) => {
-    if (!mapContainerRef.current) return;
+  // Sync initialLocation
+  useEffect(() => {
+    if (initialLocation) {
+      setLocation(initialLocation);
+    }
+  }, [initialLocation]);
 
-    // If map already exists, just set view
-    if (mapRef.current) {
-      mapRef.current.setView([lat, lon], 11);
-      return;
+  // Helper to check if a listing is a job
+  const isJob = (type: string) => type === 'JOB_OPENING' || type === 'JOB_SEEKER';
+
+  // Filtered listings
+  const filteredListings = useMemo(() => {
+    return listings.filter((item) => {
+      // Type filter
+      if (filterType === 'SERVICES' && isJob(item.type)) return false;
+      if (filterType === 'JOBS' && !isJob(item.type)) return false;
+
+      // Text search filter
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchesTitle = item.title?.toLowerCase().includes(q);
+        const matchesCat = item.category_name?.toLowerCase().includes(q);
+        const matchesLoc = `${item.district_name} ${item.region_name}`.toLowerCase().includes(q);
+        if (!matchesTitle && !matchesCat && !matchesLoc) return false;
+      }
+
+      return true;
+    });
+  }, [listings, filterType, searchQuery]);
+
+  // Statistics
+  const servicesCount = useMemo(() => listings.filter((l) => !isJob(l.type)).length, [listings]);
+  const jobsCount = useMemo(() => listings.filter((l) => isJob(l.type)).length, [listings]);
+
+  // Format price
+  const formatPrice = (l: MapListing) => {
+    if (l.price_type === 'FREE') return "Tekin / Bepul";
+    if (l.price_type === 'NEGOTIABLE') return "Kelishilgan";
+    if (l.price_min) {
+      const min = Number(l.price_min).toLocaleString('uz-UZ');
+      if (l.price_max && Number(l.price_max) > Number(l.price_min)) {
+        return `${min} - ${Number(l.price_max).toLocaleString('uz-UZ')} ${l.currency || "so'm"}`;
+      }
+      return `${min} ${l.currency || "so'm"}`;
+    }
+    return "Kelishilgan";
+  };
+
+  // Place markers on the map
+  const renderMarkers = useCallback(() => {
+    const map = mapRef.current;
+    const L = leafletRef.current;
+    if (!map || !L) return;
+
+    // Clear old markers
+    markersRef.current.forEach((m) => m.remove());
+    markersRef.current = [];
+
+    // Group items by district base coords to offset overlaps
+    const coordGroups = new Map<string, MapListing[]>();
+    filteredListings.forEach((item) => {
+      const lat = parseFloat(String(item.latitude));
+      const lon = parseFloat(String(item.longitude));
+      if (isNaN(lat) || isNaN(lon)) return;
+      const key = `${lat.toFixed(4)},${lon.toFixed(4)}`;
+      const list = coordGroups.get(key) || [];
+      list.push(item);
+      coordGroups.set(key, list);
+    });
+
+    coordGroups.forEach((items, key) => {
+      const [baseLat, baseLon] = key.split(',').map(Number);
+      const count = items.length;
+
+      items.forEach((item, index) => {
+        // If multiple items at the same coordinates, offset them in a circle
+        let lat = baseLat;
+        let lon = baseLon;
+        if (count > 1) {
+          const angle = (2 * Math.PI * index) / count;
+          const radiusOffset = 0.007; // ~700 meters spread
+          lat = baseLat + radiusOffset * Math.cos(angle);
+          lon = baseLon + (radiusOffset / Math.cos((baseLat * Math.PI) / 180)) * Math.sin(angle);
+        }
+
+        const isJobItem = isJob(item.type);
+        // Red dot for Jobs, Blue dot for Services
+        const dotColor = isJobItem ? '#EF4444' : '#2563EB';
+        const typeLabel = isJobItem
+          ? (item.type === 'JOB_OPENING' ? '💼 Ish oʻrni' : '👤 Mutaxassis / Rezyume')
+          : (item.type === 'SERVICE_OFFER' ? '🛠️ Xizmat taklifi' : '📋 Buyurtma');
+
+        const circleMarker = L.circleMarker([lat, lon], {
+          radius: 8,
+          fillColor: dotColor,
+          color: '#FFFFFF',
+          weight: 2,
+          opacity: 1,
+          fillOpacity: 0.9,
+        });
+
+        // Hover animations
+        circleMarker.on('mouseover', () => {
+          circleMarker.setRadius(11);
+          circleMarker.setStyle({ weight: 3 });
+        });
+        circleMarker.on('mouseout', () => {
+          circleMarker.setRadius(8);
+          circleMarker.setStyle({ weight: 2 });
+        });
+
+        // Popup HTML
+        const popupHtml = `
+          <div style="font-family: system-ui, sans-serif; min-width: 190px; max-width: 240px; padding: 2px;">
+            <div style="display: inline-block; padding: 2px 7px; border-radius: 9999px; font-size: 10px; font-weight: 700; background: ${isJobItem ? '#FEE2E2' : '#DBEAFE'}; color: ${isJobItem ? '#B91C1C' : '#1D4ED8'}; margin-bottom: 6px;">
+              ${typeLabel}
+            </div>
+            <h4 style="font-size: 12px; font-weight: 700; color: #111827; margin: 0 0 4px; line-height: 1.3;">
+              ${item.title.replace(/"/g, '&quot;')}
+            </h4>
+            <div style="font-size: 11px; color: #4B5563; margin-bottom: 4px;">
+              <span>📁 ${item.category_name || "Kategoriya"}</span>
+            </div>
+            <div style="font-size: 11px; color: #6B7280; margin-bottom: 8px;">
+              <span>📍 ${item.district_name}, ${item.region_name}</span>
+            </div>
+            <div style="font-size: 11px; font-weight: 700; color: ${isJobItem ? '#DC2626' : '#2563EB'}; margin-bottom: 8px;">
+              ${formatPrice(item)}
+            </div>
+            <button
+              id="map-btn-${item.id}"
+              style="width: 100%; padding: 6px 10px; border-radius: 8px; background: #2563EB; color: #ffffff; font-size: 11px; font-weight: 700; border: none; cursor: pointer; text-align: center;"
+            >
+              E'lonni ko'rish →
+            </button>
+          </div>
+        `;
+
+        circleMarker.bindPopup(popupHtml, { maxWidth: 260, offset: [0, -6] });
+
+        // Add event listener to popup button once opened
+        circleMarker.on('popupopen', () => {
+          setSelectedListing(item);
+          setTimeout(() => {
+            const btn = document.getElementById(`map-btn-${item.id}`);
+            if (btn) {
+              btn.onclick = () => {
+                onClose();
+                onOpenListing(item.id);
+              };
+            }
+          }, 50);
+        });
+
+        circleMarker.addTo(map);
+        markersRef.current.push(circleMarker);
+      });
+    });
+  }, [filteredListings, onClose, onOpenListing]);
+
+  // Load all platform listings
+  const loadAllListings = useCallback(async () => {
+    setIsLoadingListings(true);
+    try {
+      const res = await apiRequest<{ items: MapListing[] }>('/api/locations/all-listings');
+      setListings(res.items || []);
+    } catch (err) {
+      console.error("Xarita e'lonlarini yuklashda xatolik:", err);
+    } finally {
+      setIsLoadingListings(false);
+    }
+  }, []);
+
+  // Update user marker on map
+  const updateUserMarker = useCallback((lat: number, lon: number) => {
+    const map = mapRef.current;
+    const L = leafletRef.current;
+    if (!map || !L) return;
+
+    if (userMarkerRef.current) {
+      userMarkerRef.current.remove();
     }
 
-    // Dynamic import leaflet
-    import('leaflet').then((L) => {
-      if (!mapContainerRef.current || mapRef.current) return;
-
-      // Fix default marker icon path issue
-      delete (L.Icon.Default.prototype as any)._getIconUrl;
-      L.Icon.Default.mergeOptions({
-        iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-      });
-
-      const map = L.map(mapContainerRef.current, {
-        center: [lat, lon],
-        zoom: 11,
-        zoomControl: true,
-        attributionControl: false,
-      });
-
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 18,
-        attribution: '© OpenStreetMap',
-      }).addTo(map);
-
-      // User location marker (blue pin)
-      const userIcon = L.divIcon({
-        html: `<div style="
-          width:20px;height:20px;border-radius:50%;
-          background:linear-gradient(135deg,#1673E6,#0f4fa8);
-          border:3px solid white;
-          box-shadow:0 2px 8px rgba(22,115,230,0.6);
-          animation: pulse 2s infinite;
-        "></div>`,
-        className: '',
-        iconSize: [20, 20],
-        iconAnchor: [10, 10],
-      });
-
-      userMarkerRef.current = L.marker([lat, lon], { icon: userIcon })
-        .addTo(map)
-        .bindPopup('<b>📍 Sizning joylashuvingiz</b>')
-        .openPopup();
-
-      mapRef.current = map;
+    const userIcon = L.divIcon({
+      html: `
+        <div style="position:relative; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">
+          <div style="position: absolute; width: 28px; height: 28px; border-radius: 50%; background: #3B82F6; opacity: 0.35; animation: pulse 1.5s cubic-bezier(0,0,0.2,1) infinite;"></div>
+          <div style="position: relative; width: 18px; height: 18px; border-radius: 50%; background: #2563EB; border: 3px solid #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.35);"></div>
+        </div>
+      `,
+      className: '',
+      iconSize: [28, 28],
+      iconAnchor: [14, 14],
     });
+
+    userMarkerRef.current = L.marker([lat, lon], { icon: userIcon, zIndexOffset: 1000 })
+      .addTo(map)
+      .bindPopup('<b style="font-size:12px">📍 Sizning joylashuvingiz</b>');
   }, []);
 
-  // Place listing markers on the map
-  const placeMarkers = useCallback((items: NearbyListing[]) => {
-    if (!mapRef.current) return;
-
-    import('leaflet').then((L) => {
-      // Clear old markers
-      markersRef.current.forEach((m) => m.remove());
-      markersRef.current = [];
-
-      // Group listings by district (lat/lon)
-      const grouped: Record<string, NearbyListing[]> = {};
-      items.forEach((item) => {
-        if (!item.latitude || !item.longitude) return;
-        const key = `${item.latitude},${item.longitude}`;
-        if (!grouped[key]) grouped[key] = [];
-        grouped[key].push(item);
-      });
-
-      Object.entries(grouped).forEach(([key, group]) => {
-        const [lat, lon] = key.split(',').map(Number);
-
-        const count = group.length;
-        const icon = L.divIcon({
-          html: `<div style="
-            min-width:32px;height:32px;padding:0 8px;border-radius:16px;
-            background:linear-gradient(135deg,#FF6B35,#E8441E);
-            border:2px solid white;
-            box-shadow:0 2px 8px rgba(255,107,53,0.5);
-            display:flex;align-items:center;justify-content:center;
-            color:white;font-size:11px;font-weight:700;font-family:sans-serif;
-            cursor:pointer;white-space:nowrap;
-          ">${count > 1 ? `${count} ta` : '📋'}</div>`,
-          className: '',
-          iconSize: [count > 1 ? 52 : 32, 32],
-          iconAnchor: [count > 1 ? 26 : 16, 16],
-        });
-
-        const popupContent = group
-          .slice(0, 3)
-          .map(
-            (l) =>
-              `<div style="padding:4px 0;border-bottom:1px solid #eee;cursor:pointer" data-id="${l.id}">
-                <b style="font-size:12px">${l.title}</b>
-                <span style="display:block;font-size:10px;color:#888">${l.category_name}</span>
-              </div>`
-          )
-          .join('');
-
-        const marker = L.marker([lat, lon], { icon }).addTo(mapRef.current);
-        marker.bindPopup(
-          `<div style="min-width:160px;max-width:220px;">
-            <p style="font-size:11px;font-weight:700;color:#888;margin-bottom:6px">${group[0].district_name}</p>
-            ${popupContent}
-            ${group.length > 3 ? `<p style="font-size:10px;color:#1673E6;margin-top:4px">va yana ${group.length - 3} ta...</p>` : ''}
-          </div>`,
-          { maxWidth: 240 }
-        );
-
-        // Click on marker → select first listing
-        marker.on('click', () => {
-          setSelectedListing(group[0]);
-        });
-
-        markersRef.current.push(marker);
-      });
-    });
-  }, []);
-
-  // Detect user location via browser GPS
+  // Detect GPS
   const detectLocation = useCallback(() => {
     setIsDetecting(true);
-    setError('');
-
     if (!navigator.geolocation) {
-      setError("Brauzer GPS-ni qo'llab-quvvatlamaydi");
+      alert("Brauzeringiz GPS-ni qo'llab-quvvatlamaydi");
       setIsDetecting(false);
       return;
     }
@@ -196,219 +273,349 @@ export const NearbyMapModal: React.FC<NearbyMapModalProps> = ({
             `/api/locations/detect?lat=${latitude}&lon=${longitude}`
           );
           setLocation(detected);
-          initMap(detected.lat, detected.lon);
-        } catch {
-          setError("Joylashuvni aniqlab bo'lmadi");
+          updateUserMarker(latitude, longitude);
+
+          if (mapRef.current) {
+            mapRef.current.flyTo([latitude, longitude], 12, { duration: 1.2 });
+          }
+        } catch (err) {
+          console.error('Joylashuvni aniqlashda xatolik:', err);
         } finally {
           setIsDetecting(false);
         }
       },
-      (geoErr) => {
-        if (geoErr.code === 1) {
-          setError("GPS ruxsati berilmadi. Brauzer sozlamalarini tekshiring.");
-        } else {
-          setError("GPS signal topilmadi. Qayta urinib ko'ring.");
-        }
+      () => {
+        alert("Joylashuvni aniqlashga ruxsat berilmadi yoki signal topilmadi");
         setIsDetecting(false);
       },
       { timeout: 10000, enableHighAccuracy: true }
     );
-  }, [initMap]);
+  }, [updateUserMarker]);
 
-  // Load nearby listings when location changes
+  // Initialize Map
   useEffect(() => {
-    if (!location) return;
-    setIsLoadingListings(true);
-    apiRequest<{ items: NearbyListing[] }>(
-      `/api/locations/nearby-listings?lat=${location.lat}&lon=${location.lon}&radius=40`
-    )
-      .then((res) => {
-        setListings(res.items);
-        placeMarkers(res.items);
-      })
-      .catch(() => setError("E'lonlar yuklanmadi"))
-      .finally(() => setIsLoadingListings(false));
-  }, [location, placeMarkers]);
+    if (!isOpen || !mapContainerRef.current) return;
 
-  // Init map when modal opens with initial location
-  useEffect(() => {
-    if (!isOpen) return;
-    if (initialLocation && !location) {
-      setLocation(initialLocation);
-    }
-    if (location) {
-      setTimeout(() => initMap(location.lat, location.lon), 100);
-    }
+    let isCancelled = false;
+
+    import('leaflet').then((L) => {
+      if (isCancelled || !mapContainerRef.current) return;
+      leafletRef.current = L;
+
+      // Fix default marker icon path issue
+      delete (L.Icon.Default.prototype as any)._getIconUrl;
+      L.Icon.Default.mergeOptions({
+        iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+      });
+
+      if (!mapRef.current) {
+        // Default center: Uzbekistan center
+        const defaultCenter: [number, number] = location
+          ? [location.lat, location.lon]
+          : [41.3775, 64.5853];
+        const defaultZoom = location ? 11 : 6;
+
+        const map = L.map(mapContainerRef.current, {
+          center: defaultCenter,
+          zoom: defaultZoom,
+          zoomControl: true,
+          attributionControl: false,
+        });
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 18,
+          attribution: '© OpenStreetMap',
+        }).addTo(map);
+
+        mapRef.current = map;
+
+        if (location) {
+          updateUserMarker(location.lat, location.lon);
+        }
+      }
+
+      loadAllListings();
+    });
+
+    return () => {
+      isCancelled = true;
+    };
   }, [isOpen]);
 
-  // Update markers when listings change and map is ready
-  useEffect(() => {
-    if (listings.length > 0 && mapRef.current) {
-      placeMarkers(listings);
-    }
-  }, [listings, placeMarkers]);
-
-  // Cleanup map on close
+  // Clean up map when modal closes
   useEffect(() => {
     if (!isOpen && mapRef.current) {
       mapRef.current.remove();
       mapRef.current = null;
+      leafletRef.current = null;
       markersRef.current = [];
       userMarkerRef.current = null;
     }
   }, [isOpen]);
+
+  // Re-render markers whenever filteredListings or map instance changes
+  useEffect(() => {
+    if (mapRef.current && leafletRef.current && listings.length > 0) {
+      renderMarkers();
+    }
+  }, [filteredListings, renderMarkers]);
+
+  // Focus a specific listing on the map
+  const handleFocusListing = (item: MapListing) => {
+    setSelectedListing(item);
+    const lat = parseFloat(String(item.latitude));
+    const lon = parseFloat(String(item.longitude));
+    if (!isNaN(lat) && !isNaN(lon) && mapRef.current) {
+      mapRef.current.flyTo([lat, lon], 14, { duration: 1 });
+    }
+  };
 
   if (!isOpen) return null;
 
   return (
     <div
       className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4"
-      style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
+      style={{ background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(5px)' }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
-        className="bg-white rounded-t-3xl sm:rounded-2xl w-full sm:max-w-3xl"
-        style={{ maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
+        className="bg-white rounded-t-3xl sm:rounded-2xl w-full sm:max-w-5xl shadow-2xl flex flex-col overflow-hidden"
+        style={{ height: '92vh', maxHeight: '860px' }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <div>
-            <h2 className="font-bold text-gray-900 text-base">
-              📍 Yaqin atrofdagi e'lonlar
-            </h2>
-            {location && (
-              <p className="text-xs text-gray-500 mt-0.5">
-                {location.district_name}, {location.region_name}
-              </p>
-            )}
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 border-b border-gray-100 bg-white">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
+              <MapPin className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="font-bold text-gray-900 text-sm sm:text-base flex items-center gap-2">
+                O'zbekiston bo'yicha e'lonlar xaritasi
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                  {listings.length} ta
+                </span>
+              </h2>
+              <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
+                <span className="inline-flex items-center gap-1">
+                  <span className="w-2.5 h-2.5 rounded-full bg-blue-600 inline-block"></span>
+                  Ko'k — Xizmatlar ({servicesCount})
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block"></span>
+                  Qizil — Ishlar ({jobsCount})
+                </span>
+              </div>
+            </div>
           </div>
+
           <div className="flex items-center gap-2">
             <button
               onClick={detectLocation}
               disabled={isDetecting}
-              title="Joylashuvni yangilash"
-              className="p-2 rounded-xl border border-gray-200 text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-all disabled:opacity-50"
+              title="Joylashuvimni aniqlash"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-all disabled:opacity-50 cursor-pointer"
             >
               {isDetecting ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Aniqlanmoqda...</span>
+                </>
               ) : (
-                <RefreshCw className="w-4 h-4" />
+                <>
+                  <Navigation className="w-3.5 h-3.5 text-blue-600" />
+                  <span className="hidden sm:inline">Mening joylashuvim</span>
+                </>
               )}
             </button>
+
+            <button
+              onClick={loadAllListings}
+              disabled={isLoadingListings}
+              title="Xaritani yangilash"
+              className="p-2 rounded-xl border border-gray-200 text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-all disabled:opacity-50 cursor-pointer"
+            >
+              <RefreshCw className={`w-4 h-4 ${isLoadingListings ? 'animate-spin' : ''}`} />
+            </button>
+
             <button
               onClick={onClose}
-              className="p-2 rounded-xl border border-gray-200 text-gray-600 hover:border-gray-300 hover:text-gray-800 transition-all"
+              className="p-2 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition-all cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-hidden flex flex-col sm:flex-row min-h-0">
-          {/* Map */}
-          <div className="relative flex-1 min-h-[240px] sm:min-h-0">
-            {!location ? (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-gradient-to-br from-blue-50 to-indigo-50 p-6 text-center">
-                <div className="w-16 h-16 rounded-2xl bg-blue-100 flex items-center justify-center">
-                  <Navigation className="w-8 h-8 text-blue-600" />
-                </div>
-                <div>
-                  <p className="font-bold text-gray-800 text-sm">GPS joylashuvni aniqlash</p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Yaqin atrofdagi e'lonlarni xaritada ko'rish uchun joylashuvingizni aniqlang
-                  </p>
-                </div>
-                {error && (
-                  <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
-                    ⚠️ {error}
-                  </p>
-                )}
-                <button
-                  onClick={detectLocation}
-                  disabled={isDetecting}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-blue-600 text-white font-bold text-sm hover:bg-blue-700 transition-all shadow-md disabled:opacity-60"
-                >
-                  {isDetecting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Aniqlanmoqda...
-                    </>
-                  ) : (
-                    <>
-                      <Navigation className="w-4 h-4" />
-                      Joylashuvni aniqlash
-                    </>
-                  )}
-                </button>
+        {/* Filter Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-6 py-2.5 bg-gray-50 border-b border-gray-100">
+          {/* Type Filter Pills */}
+          <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
+            <button
+              type="button"
+              onClick={() => setFilterType('ALL')}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                filterType === 'ALL'
+                  ? 'bg-gray-900 text-white shadow-xs'
+                  : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-100'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              Barchasi ({listings.length})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setFilterType('SERVICES')}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                filterType === 'SERVICES'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'bg-white text-blue-700 border border-blue-200 hover:bg-blue-50'
+              }`}
+            >
+              <Wrench className="w-3.5 h-3.5" />
+              🔵 Xizmatlar ({servicesCount})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setFilterType('JOBS')}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                filterType === 'JOBS'
+                  ? 'bg-red-600 text-white shadow-xs'
+                  : 'bg-white text-red-700 border border-red-200 hover:bg-red-50'
+              }`}
+            >
+              <Briefcase className="w-3.5 h-3.5" />
+              🔴 Bo'sh ishlar ({jobsCount})
+            </button>
+          </div>
+
+          {/* Quick text filter */}
+          <div className="w-full sm:w-60">
+            <input
+              type="text"
+              placeholder="Qidirish (shahar, mutaxassislik)..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-white border border-gray-200 rounded-lg px-2.5 py-1 text-xs text-gray-800 focus:outline-hidden focus:border-blue-500"
+            />
+          </div>
+        </div>
+
+        {/* Content: Map (left/center) + Sidebar (right) */}
+        <div className="flex-1 overflow-hidden flex flex-col md:flex-row min-h-0 relative">
+          {/* Map Area */}
+          <div className="relative flex-1 min-h-[300px] md:min-h-0 bg-gray-100">
+            <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
+
+            {/* Map overlay legend */}
+            <div className="absolute bottom-4 left-4 z-[400] bg-white/95 backdrop-blur-xs rounded-xl p-2.5 shadow-md border border-gray-200 text-xs space-y-1.5 hidden sm:block pointer-events-auto">
+              <div className="font-bold text-gray-800 text-[11px] mb-1">Xarita belgisi:</div>
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full bg-blue-600 inline-block border border-white shadow-xs"></span>
+                <span className="text-gray-700 font-medium">Ko'k nuqta — Xizmatlar</span>
               </div>
-            ) : (
-              <>
-                <div ref={mapContainerRef} style={{ width: '100%', height: '100%', minHeight: 240 }} />
-                {isLoadingListings && (
-                  <div className="absolute inset-0 bg-white/70 flex items-center justify-center backdrop-blur-sm">
-                    <div className="flex items-center gap-2 text-sm text-gray-700">
-                      <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
-                      E'lonlar yuklanmoqda...
-                    </div>
-                  </div>
-                )}
-              </>
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full bg-red-500 inline-block border border-white shadow-xs"></span>
+                <span className="text-gray-700 font-medium">Qizil nuqta — Bo'sh ish o'rinlari</span>
+              </div>
+              {location && (
+                <div className="flex items-center gap-2 pt-1 border-t border-gray-100">
+                  <span className="text-blue-600">📍</span>
+                  <span className="text-gray-600 font-medium">Sizning hududingiz</span>
+                </div>
+              )}
+            </div>
+
+            {/* Loading Indicator */}
+            {isLoadingListings && (
+              <div className="absolute inset-0 bg-white/70 backdrop-blur-xs flex items-center justify-center z-[500]">
+                <div className="flex items-center gap-2 bg-white px-4 py-2.5 rounded-2xl shadow-lg border border-gray-100 text-sm text-gray-800 font-semibold">
+                  <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                  E'lonlar yuklanmoqda...
+                </div>
+              </div>
             )}
           </div>
 
-          {/* Right panel: Listing list */}
-          {location && (
-            <div className="sm:w-[260px] border-t sm:border-t-0 sm:border-l border-gray-100 overflow-y-auto max-h-[260px] sm:max-h-none">
-              <div className="p-3">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-2">
-                  {isLoadingListings ? 'Yuklanmoqda...' : `${listings.length} ta e'lon topildi`}
-                </p>
-
-                {listings.length === 0 && !isLoadingListings ? (
-                  <div className="text-center py-8 text-gray-400 text-xs">
-                    <MapPin className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                    Bu tumanda aktiv e'lonlar yo'q
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {listings.slice(0, 20).map((item) => (
-                      <button
-                        key={item.id}
-                        onClick={() => {
-                          onClose();
-                          onOpenListing(item.id);
-                        }}
-                        className={`w-full text-left p-2.5 rounded-xl border transition-all ${
-                          selectedListing?.id === item.id
-                            ? 'border-blue-400 bg-blue-50'
-                            : 'border-gray-100 hover:border-blue-200 hover:bg-blue-50/30'
-                        }`}
-                      >
-                        <p className="font-semibold text-xs text-gray-900 leading-tight line-clamp-2">
-                          {item.title}
-                        </p>
-                        <div className="flex items-center gap-1 mt-1">
-                          <MapPin className="w-3 h-3 text-blue-400 shrink-0" />
-                          <span className="text-[10px] text-gray-500 truncate">
-                            {item.district_name}
-                          </span>
-                        </div>
-                        <span className="text-[10px] text-blue-600 font-medium mt-0.5 block">
-                          {item.category_name}
-                        </span>
-                      </button>
-                    ))}
-                    {listings.length > 20 && (
-                      <p className="text-[10px] text-gray-400 text-center py-1">
-                        va yana {listings.length - 20} ta e'lon...
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
+          {/* Right side: Listings list */}
+          <div className="md:w-80 border-t md:border-t-0 md:border-l border-gray-200 bg-white flex flex-col h-[220px] md:h-full overflow-hidden">
+            <div className="p-3 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
+              <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                E'lonlar ro'yxati ({filteredListings.length})
+              </span>
+              {location && (
+                <span className="text-[11px] text-blue-600 font-medium truncate max-w-[140px]">
+                  📍 {location.district_name}
+                </span>
+              )}
             </div>
-          )}
+
+            <div className="flex-1 overflow-y-auto p-2.5 space-y-2">
+              {filteredListings.length === 0 && !isLoadingListings ? (
+                <div className="text-center py-10 text-gray-400 text-xs">
+                  <MapPin className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                  E'lonlar topilmadi
+                </div>
+              ) : (
+                filteredListings.map((item) => {
+                  const isJobItem = isJob(item.type);
+                  const isSelected = selectedListing?.id === item.id;
+                  return (
+                    <div
+                      key={item.id}
+                      onClick={() => handleFocusListing(item)}
+                      className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                        isSelected
+                          ? isJobItem
+                            ? 'border-red-400 bg-red-50/40 shadow-xs'
+                            : 'border-blue-400 bg-blue-50/40 shadow-xs'
+                          : 'border-gray-100 hover:border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-1 mb-1">
+                        <span
+                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+                            isJobItem
+                              ? 'bg-red-100 text-red-700'
+                              : 'bg-blue-100 text-blue-700'
+                          }`}
+                        >
+                          {isJobItem ? '🔴 Ish' : '🔵 Xizmat'}
+                        </span>
+                        <span className="text-[10px] font-bold text-gray-700">
+                          {formatPrice(item)}
+                        </span>
+                      </div>
+
+                      <h4 className="font-semibold text-xs text-gray-900 line-clamp-1 leading-snug">
+                        {item.title}
+                      </h4>
+
+                      <div className="flex items-center justify-between text-[10px] text-gray-500 mt-1">
+                        <span className="truncate max-w-[120px]">
+                          📍 {item.district_name || item.region_name}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onClose();
+                            onOpenListing(item.id);
+                          }}
+                          className="text-blue-600 font-bold hover:underline"
+                        >
+                          Ko'rish →
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>

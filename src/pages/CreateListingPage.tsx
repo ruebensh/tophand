@@ -605,16 +605,39 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
 
     setIsLocating(true);
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setLatitude(pos.coords.latitude);
-        setLongitude(pos.coords.longitude);
-        setIsLocating(false);
-        alert('Aniq koordinatalar muvaffaqiyatli belgilandi');
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+        setLatitude(lat);
+        setLongitude(lon);
+
+        try {
+          const detected = await apiRequest<{
+            region_id: string;
+            region_name: string;
+            district_id: string;
+            district_name: string;
+          }>(`/api/locations/detect?lat=${lat}&lon=${lon}`);
+
+          if (detected?.region_id) {
+            setRegionId(detected.region_id);
+            const dists = await apiRequest<District[]>(
+              `/api/locations/districts?region_id=${detected.region_id}`
+            );
+            setDistricts(dists);
+            setDistrictId(detected.district_id);
+          }
+        } catch (err) {
+          console.warn('Avtomatik tuman aniqlashda xatolik:', err);
+        } finally {
+          setIsLocating(false);
+        }
       },
       () => {
         setIsLocating(false);
         alert('Joylashuvni aniqlashga ruxsat berilmadi');
-      }
+      },
+      { timeout: 10000, enableHighAccuracy: true }
     );
   };
 
@@ -713,7 +736,7 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
               </div>
               <div className="min-w-0">
                 <span className="font-bold text-sm text-gray-900 block group-hover:text-blue-600 transition-colors">
-                  Xizmat taklif qilish
+                  O'z xizmatlaringizni taklif qilish
                 </span>
                 <span className="text-xs text-gray-500 mt-1 block leading-relaxed">
                   Santexnika, ta'mirlash, klining, repetitorlik kabi o'z xizmatlaringizni taklif qiling.
@@ -757,10 +780,10 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
               </div>
               <div className="min-w-0">
                 <span className="font-bold text-sm text-gray-900 block group-hover:text-emerald-600 transition-colors">
-                  Xodim / Ishchi qidirish
+                  Vakansiya / Ish o'rni joylash
                 </span>
                 <span className="text-xs text-gray-500 mt-1 block leading-relaxed">
-                  Kompaniya yoki shaxsiy ehtiyoj uchun xodim yollash (Vakansiya joylash).
+                  Kompaniya yoki shaxsiy biznes uchun rasmiy xodim yollash (Vakansiya joylash).
                 </span>
                 <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 mt-3 group-hover:translate-x-1 transition-transform">
                   Tanlash <ChevronRight className="w-3.5 h-3.5" />

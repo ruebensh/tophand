@@ -138,4 +138,33 @@ router.get('/nearby-listings', async (req, res) => {
   }
 });
 
+// Get all active listings with coordinates for the full interactive map
+router.get('/all-listings', async (_req, res) => {
+  try {
+    const sql = `
+      SELECT l.id, l.title, l.type, l.price_type, l.price_min, l.price_max, l.currency,
+             COALESCE(l.latitude, d.latitude) AS latitude,
+             COALESCE(l.longitude, d.longitude) AS longitude,
+             d.name_uz AS district_name,
+             r.name_uz AS region_name,
+             c.name_uz AS category_name,
+             l.created_at
+      FROM listings l
+      LEFT JOIN districts d ON l.district_id = d.id
+      LEFT JOIN regions r ON l.region_id = r.id
+      LEFT JOIN categories c ON l.category_id = c.id
+      WHERE l.status = 'ACTIVE'
+        AND (COALESCE(l.latitude, d.latitude) IS NOT NULL)
+        AND (COALESCE(l.longitude, d.longitude) IS NOT NULL)
+      ORDER BY l.created_at DESC
+      LIMIT 1000
+    `;
+    const result = await pool.query(sql);
+    res.json({ items: result.rows });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
+
