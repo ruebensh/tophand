@@ -10,7 +10,7 @@ declare global {
   }
 }
 
-type AuthViewMode = 'login' | 'register' | 'forgot_password' | 'enter_code';
+type AuthViewMode = 'login' | 'register' | 'register_code' | 'forgot_password' | 'enter_code';
 
 export const GoogleLoginModal: React.FC = () => {
   const {
@@ -18,6 +18,7 @@ export const GoogleLoginModal: React.FC = () => {
     closeLoginModal,
     loginWithGoogle,
     loginWithEmail,
+    sendRegisterCode,
     registerWithEmail,
     sendPasswordResetCode,
     resetPasswordWithCode,
@@ -141,15 +142,36 @@ export const GoogleLoginModal: React.FC = () => {
     }
   };
 
-  // Submit Registration
+  // Step 1: send a verification code to the email before registering
+  const handleSendRegisterCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim()) return;
+    setErrorMsg('');
+    setSuccessMsg('');
+    setIsSubmitting(true);
+
+    try {
+      const res = await sendRegisterCode(email.trim());
+      setSuccessMsg(res.message || 'Tasdiqlash kodi emailingizga yuborildi');
+      if (res.demo_code) setVerificationCode(res.demo_code);
+      setPassword('');
+      setMode('register_code');
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Kodni yuborishda xatolik yuz berdi');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Step 2: confirm code + choose password → create account
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !email.trim() || !password) return;
+    if (!email.trim() || !verificationCode.trim() || !password) return;
     setErrorMsg('');
     setIsSubmitting(true);
 
     try {
-      await registerWithEmail(name.trim(), email.trim(), password);
+      await registerWithEmail(email.trim(), verificationCode.trim(), password);
     } catch (err: any) {
       setErrorMsg(err.message || "Ro'yxatdan o'tishda xatolik yuz berdi");
     } finally {
@@ -334,7 +356,7 @@ export const GoogleLoginModal: React.FC = () => {
           )}
 
           {/* ════════════════════════════════════════════════════════════════
-              2. REGISTER VIEW
+              2. REGISTER VIEW (step 1: email → send code)
           ════════════════════════════════════════════════════════════════ */}
           {mode === 'register' && (
             <div className="space-y-4">
@@ -364,19 +386,7 @@ export const GoogleLoginModal: React.FC = () => {
                 <div className="flex-1 h-px bg-gray-100" />
               </div>
 
-              <form onSubmit={handleRegisterSubmit} className="space-y-3">
-                <div className="relative">
-                  <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Ism va familiyangiz"
-                    required
-                    className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-hidden focus:bg-white focus:border-blue-600 transition-all font-medium"
-                  />
-                </div>
-
+              <form onSubmit={handleSendRegisterCode} className="space-y-3">
                 <div className="relative">
                   <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <input
@@ -386,6 +396,83 @@ export const GoogleLoginModal: React.FC = () => {
                     placeholder="Email manzilingiz"
                     required
                     className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-hidden focus:bg-white focus:border-blue-600 transition-all font-medium"
+                  />
+                </div>
+
+                <p className="text-[11px] text-gray-500">
+                  Email manzilingizga tasdiqlash kodi yuboramiz, so‘ng parol o‘rnatasiz.
+                </p>
+
+                {errorMsg && (
+                  <p className="text-xs text-rose-600 font-medium bg-rose-50 px-3 py-2 rounded-xl border border-rose-100">
+                    {errorMsg}
+                  </p>
+                )}
+
+                {successMsg && (
+                  <p className="text-xs text-emerald-600 font-medium bg-emerald-50 px-3 py-2 rounded-xl border border-emerald-100">
+                    {successMsg}
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting || isLoading}
+                  className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all shadow-xs disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  {isSubmitting || isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                  <span>Tasdiqlash kodini yuborish</span>
+                </button>
+              </form>
+
+              <div className="text-center pt-2 border-t border-gray-100">
+                <p className="text-xs text-gray-500">
+                  Hisobingiz bormi?{' '}
+                  <button
+                    type="button"
+                    onClick={() => setMode('login')}
+                    className="font-bold text-blue-600 hover:text-blue-700 cursor-pointer"
+                  >
+                    Kirish
+                  </button>
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* ════════════════════════════════════════════════════════════════
+              2b. REGISTER CODE (step 2: confirm code + set password)
+          ════════════════════════════════════════════════════════════════ */}
+          {mode === 'register_code' && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 mb-2">
+                <button
+                  type="button"
+                  onClick={() => setMode('register')}
+                  className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 cursor-pointer"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
+                <div>
+                  <h3 className="text-base font-extrabold text-gray-950">Kodni kiriting</h3>
+                  <p className="text-xs text-gray-500">
+                    <strong>{email}</strong> manziliga 6 xonali kod yuborildi
+                  </p>
+                </div>
+              </div>
+
+              <form onSubmit={handleRegisterSubmit} className="space-y-3">
+                <div className="relative">
+                  <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-600" />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={verificationCode}
+                    onChange={(e) => setVerificationCode(e.target.value.replace(/[^0-9]/g, ''))}
+                    placeholder="6 xonali kod"
+                    required
+                    className="w-full pl-10 pr-4 py-2.5 bg-blue-50/40 border border-blue-200 rounded-xl text-sm font-mono tracking-widest text-blue-900 font-bold focus:outline-hidden focus:border-blue-600 text-center"
                   />
                 </div>
 
@@ -421,22 +508,18 @@ export const GoogleLoginModal: React.FC = () => {
                   className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all shadow-xs disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {isSubmitting || isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                  <span>Ro‘yxatdan o‘tish</span>
+                  <span>Hisob yaratish</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSendRegisterCode}
+                  disabled={isSubmitting}
+                  className="w-full text-center text-[11px] font-semibold text-gray-500 hover:text-gray-900 cursor-pointer"
+                >
+                  Kodni qayta yuborish
                 </button>
               </form>
-
-              <div className="text-center pt-2 border-t border-gray-100">
-                <p className="text-xs text-gray-500">
-                  Hisobingiz bormi?{' '}
-                  <button
-                    type="button"
-                    onClick={() => setMode('login')}
-                    className="font-bold text-blue-600 hover:text-blue-700 cursor-pointer"
-                  >
-                    Kirish
-                  </button>
-                </p>
-              </div>
             </div>
           )}
 

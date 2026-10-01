@@ -24,7 +24,7 @@ import { RegionCategoryPage } from './pages/RegionCategoryPage.tsx';
 
 // Global Modals
 import { GoogleLoginModal } from './components/modals/GoogleLoginModal.tsx';
-import { OnboardingModal } from './components/modals/OnboardingModal.tsx';
+import { ProfileCompletionModal } from './components/modals/ProfileCompletionModal.tsx';
 import { ThemeAtmosphere } from './components/theme/ThemeAtmosphere.tsx';
 
 const AppContent: React.FC = () => {
@@ -262,7 +262,7 @@ const AppContent: React.FC = () => {
 
       {/* Global Modals */}
       <GoogleLoginModal />
-      <OnboardingModal />
+      <ProfileCompletionModal />
     </div>
   );
 };

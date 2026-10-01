@@ -38,6 +38,11 @@ export interface User {
   following_count?: number;
   is_profile_complete?: boolean;
   is_followed?: boolean;
+  // Auth / account-linking state
+  email?: string;
+  email_verified?: boolean;
+  has_password?: boolean;
+  has_google?: boolean;
   // Tasdiq nishoni (Verified badge) — pasport/ID tekshiruvi holati
   verification_status?: 'UNVERIFIED' | 'PENDING' | 'VERIFIED' | 'REJECTED';
   verification_rejection_reason?: string | null;

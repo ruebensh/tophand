@@ -10,7 +10,8 @@ router.get('/:id', optionalAuth, async (req: AuthRequest, res) => {
   try {
     const user = await queryOne<any>(
       `SELECT 
-        u.id, u.telegram_username, u.name, u.profile_photo_url, u.bio,
+        u.id, u.telegram_username, u.name, u.profile_photo_url, u.bio, u.phone,
+        u.region_id, u.district_id,
         u.created_at, u.role, u.is_banned, u.verification_status,
         r.name_uz as region_name, d.name_uz as district_name
        FROM users u
@@ -41,7 +42,11 @@ router.get('/:id', optionalAuth, async (req: AuthRequest, res) => {
     user.active_listing_count = activeListingsRes?.count || 0;
     user.follower_count = followersRes?.count || 0;
     user.following_count = followingRes?.count || 0;
-    user.is_profile_complete = Boolean(user.profile_photo_url && user.bio && user.bio.trim().length >= 15);
+    user.is_profile_complete = Boolean(
+      user.name && user.name.trim().length >= 2 &&
+      user.phone && user.phone.trim().length >= 6 &&
+      user.profile_photo_url && user.region_id && user.district_id
+    );
 
     // Follow status for viewer
     user.is_followed = false;

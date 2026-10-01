@@ -21,6 +21,7 @@ export async function runMigrations() {
   console.log('Running idempotent schema migrations...');
 
   // ── Faza 16: users passport/legal columns (referenced by adminRoutes) ──
+  await addColumnIfNotExists('users', 'email_verified', 'INTEGER DEFAULT 0');
   await addColumnIfNotExists('users', 'pinfl', 'TEXT');
   await addColumnIfNotExists('users', 'full_legal_name', 'TEXT');
   await addColumnIfNotExists('users', 'birth_date', 'TEXT');
@@ -29,6 +30,11 @@ export async function runMigrations() {
   await addColumnIfNotExists('users', 'verification_rejection_reason', 'TEXT');
   await addColumnIfNotExists('users', 'verified_by', 'TEXT REFERENCES users(id)');
   await addColumnIfNotExists('users', 'ban_start_date', 'TIMESTAMPTZ');
+
+  // ── Auth rework: existing accounts are treated as email-verified so the new
+  //    mandatory email-code flow only applies to NEW registrations. In the new
+  //    model `email` is only written after a code check, so email present ⇒ verified.
+  await pool.query(`UPDATE users SET email_verified = 1 WHERE email IS NOT NULL AND email_verified = 0`);
 
   // ── Faza 17: expand role hierarchy (drop old CHECK, add new) ──
   await pool.query(`

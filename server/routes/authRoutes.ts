@@ -7,6 +7,65 @@ import { sendVerificationCodeEmail } from '../services/emailService.ts';
 
 const router = Router();
 
+// ─── Auth helpers (email codes + profile state) ─────────────────────────
+const EMAIL_CODE_TTL_MS = 15 * 60 * 1000; // 15 minutes
+
+/** Generate a 6-digit code, persist it and email it to the address. */
+async function issueEmailCode(email: string, type: string, subject: string) {
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  const codeId = `otp_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + EMAIL_CODE_TTL_MS).toISOString();
+
+  await runQuery('DELETE FROM email_verification_codes WHERE email = ? AND type = ?', [email, type]);
+  await runQuery(
+    `INSERT INTO email_verification_codes (id, email, code, type, expires_at, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [codeId, email, code, type, expiresAt, now.toISOString()]
+  );
+
+  const emailRes = await sendVerificationCodeEmail(email, code, subject);
+  return { code, simulated: Boolean(emailRes.simulated) };
+}
+
+/** Validate a pending code (does not delete it). */
+async function matchEmailCode(email: string, code: string, type: string) {
+  return queryOne<any>(
+    `SELECT * FROM email_verification_codes
+     WHERE email = ? AND code = ? AND type = ? AND expires_at > NOW()
+     ORDER BY created_at DESC LIMIT 1`,
+    [email, code.trim(), type]
+  );
+}
+
+async function clearEmailCodes(email: string, type: string) {
+  await runQuery('DELETE FROM email_verification_codes WHERE email = ? AND type = ?', [email, type]);
+}
+
+/** Mandatory profile = real name + phone + photo + region + district. */
+function computeProfileComplete(u: any): boolean {
+  return Boolean(
+    u &&
+      u.name && u.name.trim().length >= 2 &&
+      u.phone && u.phone.trim().length >= 6 &&
+      u.profile_photo_url &&
+      u.region_id && u.district_id
+  );
+}
+
+/** Strip secrets and attach computed auth/profile flags before sending to client. */
+function serializeUser(u: any) {
+  if (!u) return u;
+  const { password_hash, ...rest } = u;
+  return {
+    ...rest,
+    email_verified: Boolean(u.email) && Number(u.email_verified || 0) === 1,
+    has_password: Boolean(u.password_hash),
+    has_google: Boolean(u.telegram_id && String(u.telegram_id).startsWith('google:')),
+    is_profile_complete: computeProfileComplete(u),
+  };
+}
+
 // ─── Public Auth Config (Google Client ID, etc.) ────────────────────────
 router.get('/config', (_req, res) => {
   res.json({
@@ -53,7 +112,7 @@ async function loginHandler(req: any, res: any) {
       }
 
       const token = generateToken(adminUser);
-      return res.json({ token, user: adminUser, is_admin: true });
+      return res.json({ token, user: serializeUser(adminUser), is_admin: true });
     }
 
     // 2. Regular User Login from DB
@@ -85,7 +144,7 @@ async function loginHandler(req: any, res: any) {
     }
 
     const token = generateToken(user);
-    res.json({ token, user, is_admin: user.role === 'ADMIN' });
+    res.json({ token, user: serializeUser(user), is_admin: user.role === 'ADMIN' });
   } catch (err: any) {
     console.error('Login error:', err);
     res.status(500).json({ error: err.message || 'Tizimga kirishda xatolik yuz berdi' });
@@ -95,46 +154,85 @@ async function loginHandler(req: any, res: any) {
 router.post('/login', loginHandler);
 router.post('/admin-login', loginHandler);
 
-// ─── User Registration via Email + Password ─────────────────────────────
-router.post('/register', async (req, res) => {
+// ─── Step 1: Start email registration → send verification code ──────────
+router.post('/register/send-code', async (req, res) => {
   try {
-    const { name, email, password } = req.body;
-
-    if (!name || !email || !password) {
-      return res.status(400).json({ error: "Barcha maydonlarni to'ldirish shart" });
+    const { email } = req.body;
+    if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) {
+      return res.status(400).json({ error: "To'g'ri email manzil kiriting" });
     }
 
     const cleanEmail = email.trim().toLowerCase();
     const adminEmail = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
-
     if (cleanEmail === adminEmail) {
       return res.status(400).json({ error: "Ushbu email tizim ma'muri uchun band qilingan" });
     }
 
+    const existing = await queryOne<any>('SELECT id FROM users WHERE LOWER(email) = ?', [cleanEmail]);
+    if (existing) {
+      return res.status(400).json({ error: 'Ushbu email bilan hisob allaqachon mavjud. Tizimga kiring.' });
+    }
+
+    const { code, simulated } = await issueEmailCode(
+      cleanEmail,
+      'EMAIL_VERIFICATION',
+      "TopHand - Ro'yxatdan o'tish tasdiqlash kodi"
+    );
+
+    res.json({
+      success: true,
+      message: 'Tasdiqlash kodi emailingizga yuborildi',
+      simulated,
+      demo_code: simulated ? code : undefined,
+    });
+  } catch (err: any) {
+    console.error('Register send-code error:', err);
+    res.status(500).json({ error: err.message || 'Kodni yuborishda xatolik yuz berdi' });
+  }
+});
+
+// ─── Step 2: Confirm code + set password → create account ───────────────
+router.post('/register', async (req, res) => {
+  try {
+    const { email, code, password } = req.body;
+
+    if (!email || !code || !password) {
+      return res.status(400).json({ error: "Email, tasdiqlash kodi va parol kiritilishi shart" });
+    }
     if (password.length < 6) {
       return res.status(400).json({ error: "Parol kamida 6 ta belgidan iborat bo'lishi kerak" });
     }
 
-    // Check if user already exists
+    const cleanEmail = email.trim().toLowerCase();
+
     const existing = await queryOne<any>('SELECT id FROM users WHERE LOWER(email) = ?', [cleanEmail]);
     if (existing) {
-      return res.status(400).json({ error: "Ushbu email bilan hisob allaqachon mavjud" });
+      return res.status(400).json({ error: 'Ushbu email bilan hisob allaqachon mavjud' });
+    }
+
+    const codeRecord = await matchEmailCode(cleanEmail, code, 'EMAIL_VERIFICATION');
+    if (!codeRecord) {
+      return res.status(400).json({ error: "Tasdiqlash kodi noto'g'ri yoki uning muddati o'tgan" });
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
     const userId = `usr_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
     const now = new Date().toISOString();
+    // name is a placeholder; the mandatory profile step collects the real name.
+    const placeholderName = cleanEmail.split('@')[0];
 
     await runQuery(
-      `INSERT INTO users (id, email, password_hash, name, role, is_banned, created_at, updated_at)
-       VALUES (?, ?, ?, ?, 'USER', 0, ?, ?)`,
-      [userId, cleanEmail, passwordHash, name.trim(), now, now]
+      `INSERT INTO users (id, email, password_hash, name, role, email_verified, is_banned, created_at, updated_at)
+       VALUES (?, ?, ?, ?, 'USER', 1, 0, ?, ?)`,
+      [userId, cleanEmail, passwordHash, placeholderName, now, now]
     );
+
+    await clearEmailCodes(cleanEmail, 'EMAIL_VERIFICATION');
 
     const newUser = await queryOne<any>('SELECT * FROM users WHERE id = ?', [userId]);
     const token = generateToken(newUser);
 
-    res.status(201).json({ token, user: newUser, is_new: true });
+    res.status(201).json({ token, user: serializeUser(newUser), is_new: true });
   } catch (err: any) {
     console.error('Register error:', err);
     res.status(500).json({ error: err.message || "Ro'yxatdan o'tishda xatolik yuz berdi" });
@@ -263,20 +361,24 @@ router.post('/google', async (req, res) => {
       [lookupId, cleanEmail]
     );
     const now = new Date().toISOString();
+    let created = false;
 
     if (!user) {
+      created = true;
       const newId = `usr_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
       await runQuery(
-        `INSERT INTO users (id, telegram_id, email, name, profile_photo_url, role, is_banned, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, 'USER', 0, ?, ?)`,
+        `INSERT INTO users (id, telegram_id, email, name, profile_photo_url, role, email_verified, is_banned, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, 'USER', 1, 0, ?, ?)`,
         [newId, lookupId, cleanEmail, displayName, photoUrl, now, now]
       );
       user = await queryOne<any>('SELECT * FROM users WHERE id = ?', [newId]);
     } else {
+      // Google-verified email → mark verified when we attach/refresh it here.
       await runQuery(
         `UPDATE users 
          SET profile_photo_url = COALESCE(?, profile_photo_url),
              email = COALESCE(?, email),
+             email_verified = CASE WHEN email IS NOT NULL THEN 1 ELSE email_verified END,
              updated_at = ? 
          WHERE id = ?`,
         [photoUrl, cleanEmail, now, user.id]
@@ -293,7 +395,8 @@ router.post('/google', async (req, res) => {
     }
 
     const token = generateToken(user);
-    res.json({ token, user, is_new: !user.region_id, is_admin: user.role === 'ADMIN' });
+    const safe = serializeUser(user);
+    res.json({ token, user: safe, is_new: created, needs_profile: !safe.is_profile_complete, is_admin: user.role === 'ADMIN' });
   } catch (err: any) {
     console.error('Google login error:', err);
     res.status(500).json({ error: err.message || 'Google orqali kirishda xatolik' });
@@ -319,9 +422,8 @@ router.get('/me', requireAuth, async (req: AuthRequest, res) => {
 
     user.active_listing_count = activeListingsRes?.count || 0;
     user.archived_listing_count = archivedListingsRes?.count || 0;
-    user.is_profile_complete = Boolean(user.profile_photo_url && user.bio && user.bio.trim().length >= 15);
 
-    res.json(user);
+    res.json(serializeUser(user));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -346,8 +448,140 @@ router.post('/onboarding', requireAuth, async (req: AuthRequest, res) => {
     );
 
     const updatedUser = await queryOne('SELECT * FROM users WHERE id = ?', [req.user!.id]);
-    res.json({ success: true, user: updatedUser });
+    res.json({ success: true, user: serializeUser(updatedUser) });
   } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Mandatory profile completion (name + phone + photo + location) ─────
+router.post('/profile/complete', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const {
+      first_name,
+      last_name,
+      name,
+      phone,
+      profile_photo_url,
+      region_id,
+      district_id,
+      bio,
+      latitude,
+      longitude,
+    } = req.body || {};
+
+    const fullName =
+      (name && name.trim()) ||
+      [first_name, last_name].filter(Boolean).map((s) => String(s).trim()).join(' ').trim();
+    const cleanPhone = (phone || '').trim();
+
+    if (fullName.split(/\s+/).length < 2) {
+      return res.status(400).json({ error: 'Ism va familiyangizni to‘liq kiriting' });
+    }
+    if (!cleanPhone || cleanPhone.replace(/\D/g, '').length < 9) {
+      return res.status(400).json({ error: 'Telefon raqami majburiy va to‘liq bo‘lishi kerak' });
+    }
+    if (!profile_photo_url) {
+      return res.status(400).json({ error: 'Profil rasmi yuklang yoki Google rasmini saqlang' });
+    }
+    if (!region_id || !district_id) {
+      return res.status(400).json({ error: 'Viloyat va tumanni tanlang' });
+    }
+
+    const now = new Date().toISOString();
+    await runQuery(
+      `UPDATE users
+       SET name = ?, phone = ?, profile_photo_url = ?, region_id = ?, district_id = ?,
+           bio = COALESCE(?, bio), latitude = COALESCE(?, latitude), longitude = COALESCE(?, longitude),
+           updated_at = ?
+       WHERE id = ?`,
+      [fullName, cleanPhone, profile_photo_url, region_id, district_id, (bio || '').trim() || null,
+        latitude || null, longitude || null, now, req.user!.id]
+    );
+
+    const updated = await queryOne<any>('SELECT * FROM users WHERE id = ?', [req.user!.id]);
+    res.json({ success: true, user: serializeUser(updated) });
+  } catch (err: any) {
+    console.error('Profile complete error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Link an email to the current (e.g. Google) account: send code ──────
+router.post('/email/send-code', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { email } = req.body;
+    if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) {
+      return res.status(400).json({ error: "To'g'ri email manzil kiriting" });
+    }
+    const cleanEmail = email.trim().toLowerCase();
+
+    const clash = await queryOne<any>('SELECT id FROM users WHERE LOWER(email) = ? AND id <> ?', [cleanEmail, req.user!.id]);
+    if (clash) {
+      return res.status(400).json({ error: 'Ushbu email boshqa hisobga biriktirilgan' });
+    }
+
+    const { code, simulated } = await issueEmailCode(cleanEmail, 'EMAIL_VERIFICATION', 'TopHand - Email tasdiqlash kodi');
+    res.json({ success: true, message: 'Tasdiqlash kodi emailingizga yuborildi', simulated, demo_code: simulated ? code : undefined });
+  } catch (err: any) {
+    console.error('Link email send-code error:', err);
+    res.status(500).json({ error: err.message || 'Kodni yuborishda xatolik yuz berdi' });
+  }
+});
+
+// ─── Confirm the code and attach the (verified) email to current account ─
+router.post('/email/verify', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { email, code } = req.body;
+    if (!email || !code) {
+      return res.status(400).json({ error: 'Email va kod kiritilishi shart' });
+    }
+    const cleanEmail = email.trim().toLowerCase();
+
+    const codeRecord = await matchEmailCode(cleanEmail, code, 'EMAIL_VERIFICATION');
+    if (!codeRecord) {
+      return res.status(400).json({ error: "Tasdiqlash kodi noto'g'ri yoki uning muddati o'tgan" });
+    }
+
+    const now = new Date().toISOString();
+    await runQuery('UPDATE users SET email = ?, email_verified = 1, updated_at = ? WHERE id = ?', [
+      cleanEmail, now, req.user!.id,
+    ]);
+    await clearEmailCodes(cleanEmail, 'EMAIL_VERIFICATION');
+
+    const updated = await queryOne<any>('SELECT * FROM users WHERE id = ?', [req.user!.id]);
+    res.json({ success: true, user: serializeUser(updated) });
+  } catch (err: any) {
+    console.error('Link email verify error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Link a Google account to the current (e.g. email) account ──────────
+router.post('/google/link', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { googleId, email, picture } = req.body;
+    if (!googleId && !email) {
+      return res.status(400).json({ error: "Google ma'lumotlari noto'g'ri" });
+    }
+    const googleUserId = googleId || `google_${crypto.createHash('md5').update(email).digest('hex').slice(0, 16)}`;
+    const lookupId = `google:${googleUserId}`;
+
+    const already = await queryOne<any>('SELECT id FROM users WHERE telegram_id = ? AND id <> ?', [lookupId, req.user!.id]);
+    if (already) {
+      return res.status(400).json({ error: 'Ushbu Google hisob allaqachon boshqa akkauntga ulangan' });
+    }
+
+    const now = new Date().toISOString();
+    await runQuery(
+      `UPDATE users SET telegram_id = ?, profile_photo_url = COALESCE(profile_photo_url, ?), updated_at = ? WHERE id = ?`,
+      [lookupId, picture || null, now, req.user!.id]
+    );
+
+    const updated = await queryOne<any>('SELECT * FROM users WHERE id = ?', [req.user!.id]);
+    res.json({ success: true, user: serializeUser(updated) });
+  } catch (err: any) {
+    console.error('Link google error:', err);
     res.status(500).json({ error: err.message });
   }
 });
