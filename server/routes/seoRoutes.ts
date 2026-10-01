@@ -4,10 +4,14 @@ import { queryAll } from '../db/database.ts';
 const router = Router();
 
 /**
- * Request'dan kanonik sayt bazasini hisoblaymiz.
- * Render/Cloudflare ortida X-Forwarded-* sarlavhalari birinchi bo'ladi.
+ * Kanonik sayt bazasi.
+ * 1. SITE_URL env (eng ishonchli — Render/Cloudflare host header muammolarini aylanib o'tadi)
+ * 2. Request headers (fallback)
  */
 function siteBase(req: any): string {
+  // Env birinchi — aniq kanonik URL
+  const envUrl = process.env.SITE_URL?.trim();
+  if (envUrl) return envUrl.replace(/\/$/, '');
   const proto = (req.headers['x-forwarded-proto'] as string) || req.protocol || 'https';
   const host = (req.headers['x-forwarded-host'] as string) || req.get('host');
   return `${proto}://${host}`.replace(/\/$/, '');
@@ -65,7 +69,6 @@ router.get('/sitemap.xml', async (req, res) => {
     const all = [...staticUrls, ...listingUrls];
     const body =
       `<?xml version="1.0" encoding="UTF-8"?>\n` +
-      `<!-- generated ${now} • ${listingUrls.length} listings -->\n` +
       `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
       all
         .map(

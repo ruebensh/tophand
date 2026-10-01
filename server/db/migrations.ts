@@ -27,6 +27,7 @@ export async function runMigrations() {
   await addColumnIfNotExists('users', 'passport_issued_by', 'TEXT');
   await addColumnIfNotExists('users', 'passport_issued_date', 'TEXT');
   await addColumnIfNotExists('users', 'verification_rejection_reason', 'TEXT');
+  await addColumnIfNotExists('users', 'verified_by', 'TEXT REFERENCES users(id)');
   await addColumnIfNotExists('users', 'ban_start_date', 'TIMESTAMPTZ');
 
   // ── Faza 17: expand role hierarchy (drop old CHECK, add new) ──
