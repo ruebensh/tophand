@@ -155,8 +155,8 @@ export const ChatPage: React.FC<ChatPageProps> = ({
   );
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 h-[80vh] min-h-[550px]">
+    <div className="max-w-7xl mx-auto px-0 sm:px-6 lg:px-8 py-0 sm:py-6">
+      <div className="bg-white border border-gray-100 shadow-sm overflow-hidden grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 sm:rounded-3xl h-[calc(100dvh-182px)] sm:h-[80vh] sm:min-h-[550px]">
         {/* Left Column: Conversations List */}
         <div className={`border-r border-gray-100 flex flex-col ${selectedConvId ? 'hidden md:flex' : 'flex'}`}>
           <div className="p-4 border-b border-gray-100">

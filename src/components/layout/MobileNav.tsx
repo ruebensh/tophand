@@ -29,12 +29,12 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentRoute, onNavigate }
   };
 
   return (
-    <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-gray-200 px-2 py-1.5 shadow-lg">
+    <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-gray-200 px-1 pt-1.5 pb-safe shadow-lg">
       <div className="flex items-center justify-around">
         {/* Asosiy */}
         <button
           onClick={() => onNavigate('/')}
-          className={`flex flex-col items-center py-1 px-3 text-[10px] font-medium transition-colors ${
+          className={`flex flex-col items-center justify-center min-h-[46px] px-3 text-[10px] font-medium transition-colors ${
             currentRoute === '/' ? 'text-blue-600' : 'text-gray-500 hover:text-gray-900'
           }`}
         >

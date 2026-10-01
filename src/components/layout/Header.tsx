@@ -16,6 +16,7 @@ import {
   ChevronDown,
   LayoutGrid,
   Map as MapIcon,
+  X,
 } from 'lucide-react';
 import { formatDateAgo } from '../../lib/utils.ts';
 import { TopHandLogo } from '../common/TopHandLogo.tsx';
@@ -108,7 +109,7 @@ export const Header: React.FC<HeaderProps> = ({ onSearch, onNavigate, currentRou
   const regionLabel = region?.region_name || "Butun O‘zbekiston";
 
   return (
-    <header className="sticky top-0 z-40 bg-white">
+    <header className="sticky top-0 z-40 bg-white pt-safe">
       {/* ── Tier 1: Utility bar (desktop only) ── */}
       <div className="hidden md:block border-b border-[#EBECF0] bg-[#F9FAFB]">
         <div className="max-w-[1440px] w-full mx-auto px-4 sm:px-8 h-9 flex items-center justify-between text-[11px] font-medium text-[#5E6C84]">
@@ -402,6 +403,39 @@ export const Header: React.FC<HeaderProps> = ({ onSearch, onNavigate, currentRou
               </button>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* ── Mobil qidiruv qatori (telefonlarda doim ko'rinadi) ── */}
+      <div className="md:hidden px-3 pb-2.5 bg-white">
+        <div className="flex items-center gap-2">
+          <form
+            onSubmit={handleSearchSubmit}
+            className="flex items-center flex-1 min-w-0 bg-[#F2F3F5] focus-within:bg-white border border-transparent focus-within:border-[#1673E6] rounded-full px-3.5 h-11 transition-all"
+          >
+            <Search className="w-5 h-5 shrink-0 text-[#5E6C84]" />
+            <input
+              type="text"
+              inputMode="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Kasb, usta yoki xizmat qidirish..."
+              className="w-full bg-transparent text-[15px] text-[#172B4D] placeholder-[#5E6C84] focus:outline-hidden mx-2 min-w-0"
+            />
+            {searchQuery && (
+              <button type="button" onClick={() => setSearchQuery('')} aria-label="Tozalash" className="shrink-0 text-[#5E6C84] p-1">
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </form>
+          <button
+            type="button"
+            onClick={() => onNavigate('/categories')}
+            aria-label="Kategoriyalar"
+            className="shrink-0 flex items-center justify-center h-11 w-11 rounded-full border border-[#EBECF0] bg-white text-[#1673E6] active:bg-blue-50"
+          >
+            <LayoutGrid className="w-5 h-5" />
+          </button>
         </div>
       </div>
 

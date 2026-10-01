@@ -145,7 +145,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
   return (
     <div
       onClick={onClick}
-      className="group relative th-card flex flex-col bg-white rounded-xl border border-gray-100 hover:shadow-md transition-all duration-200 cursor-pointer overflow-hidden"
+      className="group relative th-card flex flex-col bg-white rounded-xl border border-gray-100 hover:shadow-md active:scale-[.99] transition-all duration-200 cursor-pointer overflow-hidden"
     >
       {/* ── PHOTO ── */}
       <div className="relative w-full overflow-hidden bg-gray-100" style={{ paddingBottom: '75%' }}>
@@ -189,23 +189,30 @@ export const ListingCard: React.FC<ListingCardProps> = ({
           </div>
         )}
 
-        {/* Heart save button — top right, like Avito */}
+        {/* Heart save button — top right, like Avito (mobil uchun katta tap) */}
         <button
           type="button"
           onClick={handleSave}
-          className={`absolute top-2 right-2 p-1.5 rounded-full transition-all z-10 cursor-pointer ${
+          className={`absolute top-1.5 right-1.5 h-9 w-9 flex items-center justify-center rounded-full transition-all z-10 cursor-pointer active:scale-110 ${
             isSaved
               ? 'bg-white text-rose-500 shadow-sm'
-              : 'bg-white/75 text-gray-500 hover:bg-white hover:text-rose-500 shadow-sm'
+              : 'bg-white/80 text-gray-500 hover:bg-white hover:text-rose-500 shadow-sm'
           }`}
           aria-label="Saqlash"
         >
           <Heart
-            className={`w-4 h-4 transition-transform active:scale-125 ${
+            className={`w-[18px] h-[18px] transition-transform ${
               isSaved ? 'fill-rose-500 text-rose-500' : ''
             }`}
           />
         </button>
+
+        {/* Promo belgisi — grid kartada (top-left) */}
+        {isPromoted && (
+          <div className="absolute top-1.5 left-1.5 flex items-center gap-0.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md shadow-sm pointer-events-none z-10">
+            <Flame className="w-3 h-3" /> Promo
+          </div>
+        )}
 
         {/* Distance badge if available */}
         {listing.distance_km !== null && listing.distance_km !== undefined && (

@@ -39,6 +39,14 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+    -webkit-text-size-adjust: 100%;
+  }
+  /* Mobil: yoqimsiz ko'k tap-yorug'ligi va 300ms kechikishni olib tashlash */
+  a, button, [role="button"], input, select, label, summary {
+    -webkit-tap-highlight-color: transparent;
+  }
+  button, [role="button"], a {
+    touch-action: manipulation;
   }
 }
 
@@ -248,3 +256,42 @@ html, body {
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }
+
+/* ── Mobil-first UX yordamchilari ─────────────────────────────── */
+/* iOS/Android notch va home-indikator uchun xavfsi maydonlar */
+.pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+.pt-safe { padding-top: env(safe-area-inset-top, 0px); }
+.mb-safe { margin-bottom: env(safe-area-inset-bottom, 0px); }
+
+/* iOS kichik shriftli maydonga fokusda avtomatik zoom qiladi —
+   telefonlarda kiritish maydonlarini kamida 16px qilamiz. */
+@media (max-width: 640px) {
+  input[type="text"], input[type="search"], input[type="number"],
+  input[type="tel"], input[type="email"], input[type="password"],
+  select, textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Filtrlar bottom-sheet va backdrop animatsiyalari */
+@keyframes th-sheet-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+@keyframes th-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.th-sheet {
+  animation: th-sheet-up .28s cubic-bezier(.22,1,.36,1);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.th-backdrop {
+  animation: th-fade-in .2s ease-out;
+  background: rgba(17, 24, 39, .45);
+  backdrop-filter: blur(1px);
+}
+
+/* Bosilganda nozik qisqarish (tap feedback) */
+.tap-scale { transition: transform .12s ease; }
+.tap-scale:active { transform: scale(.97); }

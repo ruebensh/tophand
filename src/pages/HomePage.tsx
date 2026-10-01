@@ -166,6 +166,14 @@ export const HomePage: React.FC<HomePageProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Mobil filtr sheet ochiq paytda orqa fon skrollini bloklash
+  useEffect(() => {
+    if (!isMobileFiltersOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [isMobileFiltersOpen]);
+
   // Load initial reference data: Catalogs and Regions
   useEffect(() => {
     apiRequest<{ id: string; name_uz: string; icon: string; listings_count?: number }[]>('/api/catalogs')
@@ -458,24 +466,39 @@ export const HomePage: React.FC<HomePageProps> = ({
         </span>
       </div>
 
-      {/* 1. Left Sidebar Filter */}
+      {/* Backdrop (mobil sheet orqasida) */}
+      {isMobileFiltersOpen && (
+        <div
+          className="lg:hidden th-backdrop fixed inset-0 z-40"
+          onClick={() => setIsMobileFiltersOpen(false)}
+          aria-hidden
+        />
+      )}
+
+      {/* 1. Left Sidebar Filter — desktop'da ustun, mobil'da bottom-sheet */}
       <aside
         className={`${
-          isMobileFiltersOpen ? 'block fixed inset-0 z-50 overflow-y-auto bg-white p-6' : 'hidden'
-        } lg:block lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto border-r border-[#EBECF0] p-6 lg:pl-8 bg-[#F9FAFB] shrink-0`}
+          isMobileFiltersOpen
+            ? 'block fixed left-0 right-0 bottom-0 top-[8%] z-50 overflow-y-auto bg-white rounded-t-3xl th-sheet'
+            : 'hidden'
+        } lg:block lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:overflow-y-auto lg:rounded-none border-r border-[#EBECF0] px-5 pt-0 pb-24 lg:pl-8 lg:pr-6 lg:pb-6 bg-white lg:bg-[#F9FAFB] shrink-0`}
       >
-        {/* Mobile close button */}
-        <div className="lg:hidden flex items-center justify-between pb-4 mb-4 border-b border-[#EBECF0]">
-          <div className="flex items-center gap-2">
-            <SlidersHorizontal className="w-4 h-4 text-[#1673E6]" />
-            <span className="font-bold text-sm text-[#172B4D]">Filtrlar</span>
+        {/* Mobil sheet: tortish dastasi + sarlavha (yuqorida qotib turadi) */}
+        <div className="lg:hidden sticky top-0 z-10 -mx-5 px-5 pt-2.5 pb-3 mb-3 bg-white border-b border-[#EBECF0]">
+          <div className="mx-auto mb-2.5 h-1.5 w-10 rounded-full bg-gray-300" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <SlidersHorizontal className="w-4 h-4 text-[#1673E6]" />
+              <span className="font-bold text-base text-[#172B4D]">Filtrlar</span>
+            </div>
+            <button
+              onClick={() => setIsMobileFiltersOpen(false)}
+              className="p-2 -mr-2 rounded-lg text-gray-500 hover:bg-gray-100 cursor-pointer"
+              aria-label="Yopish"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
-          <button
-            onClick={() => setIsMobileFiltersOpen(false)}
-            className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
         </div>
 
         {/* Section: Hudud va Tuman (Region and District) */}
@@ -782,6 +805,26 @@ export const HomePage: React.FC<HomePageProps> = ({
             <span>Filtrlarni tozalash ({activeFiltersCount})</span>
           </button>
         )}
+
+        {/* Mobil sheet: pastdagi qotib turuvcha “qo'llash” paneli */}
+        <div className="lg:hidden sticky bottom-0 z-10 -mx-5 mt-4 px-5 pt-3 pb-[calc(12px+env(safe-area-inset-bottom))] bg-white border-t border-[#EBECF0] flex items-center gap-2">
+          {activeFiltersCount > 0 && (
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="shrink-0 px-4 py-3 rounded-xl border border-[#EBECF0] text-[#5E6C84] font-semibold text-sm active:bg-gray-50"
+            >
+              Tozalash
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setIsMobileFiltersOpen(false)}
+            className="flex-1 py-3 rounded-xl bg-[#1673E6] text-white font-bold text-sm active:scale-[.99] shadow-sm"
+          >
+            {totalCount.toLocaleString()} ta e’lonni ko‘rish
+          </button>
+        </div>
       </aside>
         </>
       )}

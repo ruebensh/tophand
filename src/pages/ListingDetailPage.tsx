@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Listing } from '../types/index.ts';
 import { apiRequest, getPublicMonetization, promoteListingRequest, type PublicMonetization } from '../lib/api.ts';
 import { ListingTypeBadge } from '../components/listings/ListingTypeBadge.tsx';
@@ -56,6 +56,8 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
 
   const [listing, setListing] = useState<Listing | null>(null);
   const [selectedImageIdx, setSelectedImageIdx] = useState(0);
+  const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [isAdminDeleting, setIsAdminDeleting] = useState(false);
@@ -476,7 +478,23 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
           <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-xs">
             {images.length > 0 ? (
               <div>
-                <div className="relative aspect-[4/3] sm:aspect-[16/9] w-full bg-gray-50">
+                <div
+                  className="relative aspect-[4/3] sm:aspect-[16/9] w-full bg-gray-50 touch-pan-y"
+                  onTouchStart={(e) => {
+                    if (currentIsVideo || images.length < 2) return;
+                    touchStartX.current = e.touches[0].clientX;
+                    touchStartY.current = e.touches[0].clientY;
+                  }}
+                  onTouchEnd={(e) => {
+                    if (currentIsVideo || images.length < 2 || touchStartX.current === null) return;
+                    const dx = e.changedTouches[0].clientX - touchStartX.current;
+                    const dy = e.changedTouches[0].clientY - (touchStartY.current ?? 0);
+                    touchStartX.current = null;
+                    if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+                      setSelectedImageIdx((i) => Math.min(Math.max(i + (dx < 0 ? 1 : -1), 0), images.length - 1));
+                    }
+                  }}
+                >
                   {currentIsVideo ? (
                     <video
                       src={currentMedia}
@@ -490,6 +508,31 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                       alt={listing.title}
                       className="w-full h-full object-cover"
                     />
+                  )}
+                  {/* Mobil: oldingi keyingi strelkalar */}
+                  {!currentIsVideo && images.length > 1 && (
+                    <>
+                      {selectedImageIdx > 0 && (
+                        <button
+                          type="button"
+                          aria-label="Oldingi rasm"
+                          onClick={() => setSelectedImageIdx((i) => Math.max(i - 1, 0))}
+                          className="absolute left-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-black/40 backdrop-blur-sm text-white flex items-center justify-center active:bg-black/60"
+                        >
+                          <ChevronLeft className="w-5 h-5" />
+                        </button>
+                      )}
+                      {selectedImageIdx < images.length - 1 && (
+                        <button
+                          type="button"
+                          aria-label="Keyingi rasm"
+                          onClick={() => setSelectedImageIdx((i) => Math.min(i + 1, images.length - 1))}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-black/40 backdrop-blur-sm text-white flex items-center justify-center active:bg-black/60"
+                        >
+                          <ChevronRight className="w-5 h-5" />
+                        </button>
+                      )}
+                    </>
                   )}
                   {/* Type badge overlay */}
                   <div className="absolute top-3 left-3">
@@ -922,6 +965,46 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
               </button>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Mobil: pastdagi qotib turuvcha amallar paneli */}
+      <div className="sm:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-md border-t border-gray-200 px-3 pt-2 pb-[calc(8px+env(safe-area-inset-bottom))] shadow-[0_-2px_14px_rgba(0,0,0,0.07)]">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleSaveToggle}
+            aria-label="Saqlash"
+            className={`shrink-0 h-11 w-11 flex items-center justify-center rounded-xl border transition-colors ${
+              isSaved ? 'bg-rose-50 border-rose-200 text-rose-500' : 'bg-white border-gray-200 text-gray-500 active:bg-gray-50'
+            }`}
+          >
+            <Heart className={`w-5 h-5 ${isSaved ? 'fill-rose-500' : ''}`} />
+          </button>
+          <button
+            type="button"
+            onClick={handleShare}
+            aria-label="Ulashish"
+            className="shrink-0 h-11 w-11 flex items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 active:bg-gray-50"
+          >
+            <Share2 className="w-5 h-5" />
+          </button>
+          <button
+            type="button"
+            onClick={handleRevealPhone}
+            className="flex-1 h-11 rounded-xl border border-blue-200 bg-blue-50 text-blue-700 font-bold text-sm flex items-center justify-center gap-1.5 active:bg-blue-100"
+          >
+            <Phone className="w-4 h-4" />
+            <span>{revealedPhone ? 'Qo‘ng‘iroq' : 'Telefon'}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => (user ? setIsChatOpen(true) : openLoginModal(() => setIsChatOpen(true)))}
+            className="flex-1 h-11 rounded-xl bg-blue-600 text-white font-bold text-sm flex items-center justify-center gap-1.5 active:bg-blue-700 shadow-sm"
+          >
+            <MessageSquare className="w-4 h-4" />
+            <span>Yozish</span>
+          </button>
         </div>
       </div>
 

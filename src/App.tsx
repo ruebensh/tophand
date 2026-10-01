@@ -227,16 +227,18 @@ const AppContent: React.FC = () => {
         }}
       />
 
-      {/* Main Content Area */}
-      <main className="relative z-10 flex-1 pb-16 sm:pb-0">{renderRoute()}</main>
+      {/* Main Content Area — e'lon sahifasida pastki amallar paneli o'zi joy ochadi, MobileNav yashiriladi */}
+      <main className={`relative z-10 flex-1 ${currentRoute.startsWith('/listing/') ? '' : 'pb-[calc(64px+env(safe-area-inset-bottom))] sm:pb-0'}`}>{renderRoute()}</main>
 
       {/* Global Footer (conditionally hidden on mobile devices) */}
       <div className="hidden md:block">
         <Footer onNavigate={navigate} />
       </div>
 
-      {/* Mobile Bottom Navigation */}
-      <MobileNav currentRoute={currentRoute} onNavigate={navigate} />
+      {/* Mobile Bottom Navigation (e'lon sahifasida pastki action bar bilan to'qnashmasligi uchun yashiriladi) */}
+      {!currentRoute.startsWith('/listing/') && (
+        <MobileNav currentRoute={currentRoute} onNavigate={navigate} />
+      )}
 
       {/* Global Modals */}
       <GoogleLoginModal />
