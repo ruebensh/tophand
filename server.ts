@@ -26,6 +26,7 @@ import catalogRoutes from './server/routes/catalogRoutes.ts';
 import aiRoutes from './server/routes/aiRoutes.ts';
 import walletRoutes from './server/routes/walletRoutes.ts';
 import monetizationRoutes from './server/routes/monetizationRoutes.ts';
+import seoRoutes from './server/routes/seoRoutes.ts';
 
 dotenv.config();
 
@@ -62,6 +63,9 @@ app.use(express.static(publicDir, {
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
   }
 }));
+
+// SEO: robots.txt va dinamik sitemap.xml (Google Search Console uchun)
+app.use(seoRoutes);
 
 // API Routes
 app.use('/api/auth', authRoutes);
