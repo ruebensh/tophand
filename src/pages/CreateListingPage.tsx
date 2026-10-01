@@ -308,11 +308,8 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
   const [selectedSubcategories, setSelectedSubcategories] = useState<string[]>([]);
 
   // Clickable Feature Chips (1-tap selection)
-  const [selectedFeatures, setSelectedFeatures] = useState<string[]>([
-    "Kafolat beriladi (100%)",
-    "Tezkor yetib borish (30–60 daqiqa)",
-    "O'z professional asboblari bor",
-  ]);
+  // Start empty — no factual/marketing claims are preselected (§3.2 release blocker).
+  const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
 
   // Optional manual description (user only expands if they want)
   const [customDescription, setCustomDescription] = useState('');

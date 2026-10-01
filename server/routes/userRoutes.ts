@@ -58,6 +58,12 @@ router.get('/:id', optionalAuth, async (req: AuthRequest, res) => {
       user.is_followed = Boolean(follow);
     }
 
+    // Phone is private: only the account owner may see it in the profile payload.
+    // Contact reveal for other users goes through the dedicated /:id/phone endpoint.
+    if (req.user?.id !== user.id) {
+      user.phone = null;
+    }
+
     res.json(user);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
