@@ -232,7 +232,7 @@ export const SavedListingsPage: React.FC<SavedListingsPageProps> = ({
                           className="w-4 h-4 rounded-full object-cover shrink-0 ring-1 ring-gray-200"
                         />
                         <span className="truncate">{l.organization_name || l.owner_name}</span>
-                        {(l.organization_verification_status === 'VERIFIED' || l.is_profile_complete) && (
+                        {l.is_verified && (
                           <VerifiedBadge size="xs" />
                         )}
                       </div>

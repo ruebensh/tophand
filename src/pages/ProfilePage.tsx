@@ -17,16 +17,99 @@ import {
   ChevronRight,
   Edit3,
   LogOut,
+  CheckCircle2,
+  AlertTriangle,
+  ShieldQuestion,
 } from 'lucide-react';
 import { formatDateAgo } from '../lib/utils.ts';
 import { VerifiedBadge } from '../components/common/VerifiedBadge.tsx';
 import { FollowListModal } from '../components/modals/FollowListModal.tsx';
+import { VerifyRequestModal } from '../components/modals/VerifyRequestModal.tsx';
 
 interface ProfilePageProps {
   userId: string;
   onNavigate: (route: string) => void;
   onOpenListing: (id: string) => void;
 }
+
+// Tasdiq nishoni holati kartasi (o'z profili uchun) — 4 ta holat.
+const VerifyStatusCard: React.FC<{
+  status: 'UNVERIFIED' | 'PENDING' | 'VERIFIED' | 'REJECTED';
+  rejectionReason?: string | null;
+  onRequest: () => void;
+}> = ({ status, rejectionReason, onRequest }) => {
+  if (status === 'VERIFIED') {
+    return (
+      <div className="mb-6 flex items-center gap-3 p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200">
+        <VerifiedBadge size="md" />
+        <div className="min-w-0">
+          <p className="font-bold text-sm text-emerald-900">Tasdiqlangan profil</p>
+          <p className="text-xs text-emerald-700 mt-0.5">Shaxsingiz pasport orqali rasman tekshirilgan.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (status === 'PENDING') {
+    return (
+      <div className="mb-6 flex items-center gap-3 p-4 rounded-2xl bg-amber-50/70 border border-amber-200">
+        <div className="w-9 h-9 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+          <Clock className="w-5 h-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="font-bold text-sm text-amber-900">Arizangiz ko‘rib chiqilmoqda</p>
+          <p className="text-xs text-amber-700 mt-0.5">Ma’muriyat ma’lumotlaringizni tekshirmoqda. Natija haqida xabar beramiz.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (status === 'REJECTED') {
+    return (
+      <div className="mb-6 flex items-start gap-3 p-4 rounded-2xl bg-rose-50/70 border border-rose-200">
+        <div className="w-9 h-9 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+          <AlertTriangle className="w-5 h-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="font-bold text-sm text-rose-900">Arizangiz rad etildi</p>
+          <p className="text-xs text-rose-700 mt-0.5">
+            Sabab: {rejectionReason || 'Hujjatlarda noaniqliklar mavjud'}
+          </p>
+          <button
+            type="button"
+            onClick={onRequest}
+            className="mt-2.5 h-9 px-4 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-colors cursor-pointer"
+          >
+            Qayta yuborish
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // UNVERIFIED — CTA
+  return (
+    <div className="mb-6 flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-2xl bg-blue-50/70 border border-blue-200">
+      <div className="w-9 h-9 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+        <ShieldQuestion className="w-5 h-5" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="font-bold text-sm text-gray-900">Tasdiq nishonini oling</p>
+        <p className="text-xs text-gray-600 mt-0.5">
+          Pasportingizni tasdiqlab, profil va e’lonlaringizga ishonchni oshiring. Tasdiqlangan foydalanuvchilar ko‘proq e’tibor oladi.
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onRequest}
+        className="shrink-0 h-10 px-5 rounded-xl bg-[#1673E6] hover:bg-[#0f5fbd] text-white text-sm font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+      >
+        <CheckCircle2 className="w-4 h-4" />
+        <span>Tasdiqlash</span>
+      </button>
+    </div>
+  );
+};
 
 export const ProfilePage: React.FC<ProfilePageProps> = ({
   userId,
@@ -44,6 +127,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [isFollowModalOpen, setIsFollowModalOpen] = useState(false);
   const [followModalTab, setFollowModalTab] = useState<'followers' | 'following'>('followers');
+  const [isVerifyModalOpen, setIsVerifyModalOpen] = useState(false);
 
   // Monetization config (Faza 5)
   const [monetization, setMonetization] = useState<PublicMonetization | null>(null);
@@ -188,10 +272,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 <h1 className="text-xl sm:text-2xl font-extrabold text-gray-950 tracking-tight">
                   {profileUser.name}
                 </h1>
-                {profileUser.is_profile_complete && (
+                {profileUser.verification_status === 'VERIFIED' && (
                   <VerifiedBadge
                     size="md"
-                    tooltip="TopHand tomonidan to‘liq tasdiqlangan profil"
+                    tooltip="TopHand tomonidan pasport orqali tasdiqlangan shaxsiy profil"
                   />
                 )}
                 <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-[10px] font-bold">
@@ -377,6 +461,15 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Tasdiq nishoni (Verified badge) holati — faqat o'z profilida */}
+      {isOwner && (
+        <VerifyStatusCard
+          status={profileUser.verification_status || 'UNVERIFIED'}
+          rejectionReason={profileUser.verification_rejection_reason}
+          onRequest={() => setIsVerifyModalOpen(true)}
+        />
+      )}
 
       {/* Tabs */}
       <div className="flex items-center gap-3 border-b border-gray-200 mb-6">
@@ -679,6 +772,13 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           }}
         />
       )}
+
+      {/* Tasdiq nishoni olish modali */}
+      <VerifyRequestModal
+        isOpen={isVerifyModalOpen}
+        onClose={() => setIsVerifyModalOpen(false)}
+        onSubmitted={() => fetchProfile()}
+      />
     </div>
   );
 };

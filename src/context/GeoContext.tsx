@@ -56,11 +56,22 @@ export const GeoProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isDetecting, setIsDetecting] = useState(false);
   const watchId = useRef<number | null>(null);
   const detectTimer = useRef<any>(null);
+  const lastCommitted = useRef<GeoCoords | null>(coords);
 
   // Manual tanlash region'ni ustun qo'yadi
   const effectiveRegion = manual ? region : region;
 
   const applyCoords = useCallback((c: GeoCoords) => {
+    // GPS jitter himoyasi: juda mayda siljishlarni (≈<50m) e'tiborga olmaymiz —
+    // aks holda watchPosition doimiy yangilanishlar bilan butun UI/qidiruvni
+    // qayta render qilib "o'chib-yonish" (flicker) ni keltirib chiqaradi.
+    const last = lastCommitted.current;
+    if (last) {
+      const dLat = Math.abs(last.lat - c.lat);
+      const dLng = Math.abs(last.lng - c.lng);
+      if (dLat < 0.0005 && dLng < 0.0005) return;
+    }
+    lastCommitted.current = c;
     setCoords(c);
     try { localStorage.setItem(LS_COORDS, JSON.stringify(c)); } catch { /* ignore */ }
     // Debounced region detect

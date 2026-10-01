@@ -845,8 +845,8 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <h4 className="font-bold text-sm text-gray-900 truncate">{listing.owner_name}</h4>
-                  {listing.is_profile_complete && (
-                    <VerifiedBadge size="sm" tooltip="TopHand tomonidan to'liq tasdiqlangan mutaxassis" />
+                  {listing.is_verified && (
+                    <VerifiedBadge size="sm" tooltip="TopHand tomonidan pasport orqali tasdiqlangan mutaxassis" />
                   )}
                 </div>
                 <p className="text-[11px] text-gray-400 mt-0.5">

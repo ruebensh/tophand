@@ -38,6 +38,18 @@ export interface User {
   following_count?: number;
   is_profile_complete?: boolean;
   is_followed?: boolean;
+  // Tasdiq nishoni (Verified badge) — pasport/ID tekshiruvi holati
+  verification_status?: 'UNVERIFIED' | 'PENDING' | 'VERIFIED' | 'REJECTED';
+  verification_rejection_reason?: string | null;
+  verification_photo_url?: string | null;
+  full_legal_name?: string | null;
+  birth_date?: string | null;
+  pinfl?: string | null;
+  passport_series?: string | null;
+  passport_number?: string | null;
+  passport_issued_by?: string | null;
+  passport_issued_date?: string | null;
+  verified_at?: string | null;
 }
 
 export interface Region {
@@ -126,6 +138,7 @@ export interface Listing {
   owner_bio?: string;
   owner_phone?: string;
   owner_registered_at?: string;
+  owner_verification_status?: 'UNVERIFIED' | 'PENDING' | 'VERIFIED' | 'REJECTED';
   owner_active_listing_count?: number;
   owner_followers_count?: number;
   organization_name?: string;
@@ -138,6 +151,7 @@ export interface Listing {
   is_saved?: boolean;
   is_followed?: boolean;
   is_profile_complete?: boolean;
+  is_verified?: boolean;
   distance_km?: number | null;
   employer_rating?: number | null;
   employer_review_count?: number;

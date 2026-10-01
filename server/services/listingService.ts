@@ -87,6 +87,7 @@ export async function searchListings(filter: ListingFilter) {
       u.telegram_username as owner_username,
       u.profile_photo_url as owner_photo_url,
       u.bio as owner_bio,
+      u.verification_status as owner_verification_status,
       o.name as organization_name,
       o.logo_url as organization_logo_url,
       o.verification_status as organization_verification_status,
@@ -281,6 +282,12 @@ export async function searchListings(filter: ListingFilter) {
       score += 1_000_000;
     }
 
+    // Rasmiy tasdiq nishoni: faqat pasport/ID admin-moderator tomonidan
+    // VERIFIED qilinganda (yoki tashkilot VERIFIED). Profil to'liqligiga emas.
+    const isVerifiedUser = item.owner_verification_status === 'VERIFIED';
+    const isVerifiedOrg = isCompleteOrg;
+    const isVerified = isVerifiedUser || isVerifiedOrg;
+
     // Geographic relevance
     let distanceKm: number | null = null;
     if (filter.user_lat && filter.user_lng && item.latitude && item.longitude) {
@@ -313,6 +320,7 @@ export async function searchListings(filter: ListingFilter) {
       is_saved: savedListingIds.has(item.id),
       is_followed: isFollowed,
       is_profile_complete: isComplete,
+      is_verified: isVerified,
       distance_km: distanceKm ? Math.round(distanceKm * 10) / 10 : null,
       employer_rating: ratingStats?.avg_rating || null,
       employer_review_count: ratingStats?.review_count || 0,
@@ -414,6 +422,7 @@ export async function getListingById(id: string, current_user_id?: string) {
       u.profile_photo_url as owner_photo_url,
       u.bio as owner_bio,
       u.phone as owner_phone,
+      u.verification_status as owner_verification_status,
       u.created_at as owner_registered_at,
       o.name as organization_name,
       o.logo_url as organization_logo_url,
@@ -480,6 +489,12 @@ export async function getListingById(id: string, current_user_id?: string) {
   // Profile completeness check
   listing.is_profile_complete = Boolean(
     listing.owner_photo_url && listing.owner_bio && listing.owner_bio.trim().length >= 15
+  );
+
+  // Rasmiy tasdiq nishoni — faqat pasport/ID (yoki tashkilot) VERIFIED bo'lsa
+  listing.is_verified = Boolean(
+    listing.owner_verification_status === 'VERIFIED' ||
+      (listing.organization_id && listing.organization_verification_status === 'VERIFIED')
   );
 
   // Employer rating & review count from actual submitted reviews

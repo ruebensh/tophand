@@ -15,6 +15,7 @@ export interface FollowUserItem {
   region_name?: string;
   district_name?: string;
   is_profile_complete?: boolean;
+  is_verified?: boolean;
   is_followed_by_viewer?: boolean;
   followed_at?: string;
 }
@@ -220,7 +221,7 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
                         <span className="font-bold text-sm text-gray-900 group-hover:text-blue-600 transition-colors truncate">
                           {item.name}
                         </span>
-                        {item.is_profile_complete && <VerifiedBadge size="xs" />}
+                        {item.is_verified && <VerifiedBadge size="xs" />}
                       </div>
 
                       <div className="flex items-center gap-2 text-[11px] text-gray-400 mt-0.5 truncate">

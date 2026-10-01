@@ -355,8 +355,8 @@ export const Header: React.FC<HeaderProps> = ({ onSearch, onNavigate, currentRou
                       </p>
                       <div className="mt-1 flex items-center gap-1">
                         <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-[10px] font-bold">{user.role}</span>
-                        {user.is_profile_complete && (
-                          <VerifiedBadge size="xs" showLabel={true} labelText="Tasdiqlangan profil" tooltip="TopHand tomonidan to‘liq tasdiqlangan profil" />
+                        {user.verification_status === 'VERIFIED' && (
+                          <VerifiedBadge size="xs" showLabel={true} labelText="Tasdiqlangan" tooltip="TopHand tomonidan pasport orqali tasdiqlangan profil" />
                         )}
                       </div>
                     </div>

@@ -1,5 +1,7 @@
 import { Router } from 'express';
+import crypto from 'crypto';
 import { requireAuth, requireRole, requireMinLevel, AuthRequest } from '../auth/telegram.ts';
+import { queryAll, queryOne, runQuery } from '../db/database.ts';
 import { createReport, getReports, takeModeratorAction } from '../services/moderationService.ts';
 import {
   getMyQueue,
@@ -268,6 +270,102 @@ router.post('/appeals/:id/resolve', requireAuth, requireMinLevel('LEAD_MOD'), as
   try {
     const { approve, note } = req.body;
     res.json(await resolveAppeal(req.params.id, req.user!.id, !!approve, note || ''));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Tasdiq nishoni (Verified badge) — moderator + admin navbati ───────────
+// PENDING arizalarni ko'rish (moderator va admin).
+router.get('/verifications', requireAuth, requireMinLevel('MODERATOR'), async (req: AuthRequest, res) => {
+  try {
+    const status = (req.query.status as string) || 'PENDING';
+    const allowed = ['PENDING', 'VERIFIED', 'REJECTED', 'UNVERIFIED'];
+    const safeStatus = allowed.includes(status) ? status : 'PENDING';
+    const rows = await queryAll<any>(
+      `SELECT u.id, u.name, u.profile_photo_url, u.full_legal_name, u.birth_date,
+              u.pinfl, u.passport_series, u.passport_number, u.passport_issued_by,
+              u.passport_issued_date, u.verification_photo_url, u.verification_status,
+              u.verification_rejection_reason, u.verified_at, u.created_at,
+              r.name_uz as region_name,
+              (SELECT COUNT(*) FROM listings l WHERE l.owner_user_id = u.id AND l.status = 'ACTIVE') as active_listing_count
+       FROM users u
+       LEFT JOIN regions r ON u.region_id = r.id
+       WHERE u.verification_status = ?
+       ORDER BY u.updated_at DESC
+       LIMIT 200`,
+      [safeStatus]
+    );
+    res.json(rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Bitta ariza detali
+router.get('/verifications/:userId', requireAuth, requireMinLevel('MODERATOR'), async (req: AuthRequest, res) => {
+  try {
+    const row = await queryOne<any>(
+      `SELECT u.*, r.name_uz as region_name
+       FROM users u LEFT JOIN regions r ON u.region_id = r.id
+       WHERE u.id = ?`,
+      [req.params.userId]
+    );
+    if (!row) return res.status(404).json({ error: 'Foydalanuvchi topilmadi' });
+    res.json(row);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Arizani tasdiqlash yoki rad etish (moderator + admin).
+router.post('/verifications/:userId/action', requireAuth, requireMinLevel('MODERATOR'), async (req: AuthRequest, res) => {
+  try {
+    const { action, rejection_reason } = req.body || {};
+    const targetUserId = req.params.id;
+    if (!['APPROVE', 'REJECT'].includes(action)) {
+      return res.status(400).json({ error: 'Amal noto\u2018g\u2018ri (APPROVE yoki REJECT)' });
+    }
+    const target = await queryOne<any>('SELECT id, verification_status FROM users WHERE id = ?', [targetUserId]);
+    if (!target) return res.status(404).json({ error: 'Foydalanuvchi topilmadi' });
+
+    const now = new Date().toISOString();
+    let notifTitle = '';
+    let notifBody = '';
+
+    if (action === 'APPROVE') {
+      await runQuery(
+        `UPDATE users SET
+          verification_status = 'VERIFIED',
+          verified_at = ?, verified_by = ?,
+          verification_rejection_reason = NULL, updated_at = ?
+         WHERE id = ?`,
+        [now, req.user!.id, now, targetUserId]
+      );
+      notifTitle = 'Shaxsingiz tasdiqlandi!';
+      notifBody = 'Tabriklaymiz! Sizning pasport ma\u2019lumotlaringiz tekshirilib, profilingizga rasmiy tasdiq nishoni (Verified badge) berildi.';
+    } else {
+      const reason = (rejection_reason || '').trim() || 'Hujjatlarda noaniqliklar mavjud';
+      await runQuery(
+        `UPDATE users SET
+          verification_status = 'REJECTED',
+          verification_rejection_reason = ?, verified_at = NULL, updated_at = ?
+         WHERE id = ?`,
+        [reason, now, targetUserId]
+      );
+      notifTitle = 'Tasdiqlash arizasi rad etildi';
+      notifBody = `Tasdiqlash arizangiz rad etildi. Sabab: ${reason}`;
+    }
+
+    const notifId = `notif_${crypto.randomUUID().slice(0, 16)}`;
+    await runQuery(
+      `INSERT INTO notifications (id, user_id, type, title, body, link, created_at)
+       VALUES (?, ?, 'SYSTEM_ALERT', ?, ?, ?, ?)`,
+      [notifId, targetUserId, notifTitle, notifBody, `/profile/${targetUserId}`, now]
+    );
+
+    const updated = await queryOne('SELECT * FROM users WHERE id = ?', [targetUserId]);
+    res.json({ success: true, user: updated });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

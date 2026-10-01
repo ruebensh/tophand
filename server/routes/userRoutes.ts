@@ -11,7 +11,7 @@ router.get('/:id', optionalAuth, async (req: AuthRequest, res) => {
     const user = await queryOne<any>(
       `SELECT 
         u.id, u.telegram_username, u.name, u.profile_photo_url, u.bio,
-        u.created_at, u.role, u.is_banned,
+        u.created_at, u.role, u.is_banned, u.verification_status,
         r.name_uz as region_name, d.name_uz as district_name
        FROM users u
        LEFT JOIN regions r ON u.region_id = r.id
@@ -106,6 +106,85 @@ router.put('/me', requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+// ─── Tasdiq nishoni (Verified badge): user self-service request ─────────────
+// Foydalanuvchi pasport ma'lumoti + rasmini yuboradi → status PENDING
+// (keyin moderator/admin tomonidan ko'rib chiqiladi).
+router.post('/me/verification', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const {
+      full_legal_name,
+      birth_date,
+      passport_series,
+      passport_number,
+      pinfl,
+      passport_issued_by,
+      passport_issued_date,
+      verification_photo_url,
+    } = req.body || {};
+
+    // Kiritilgan ma'lumotlarni tozalash
+    const cleanName = (full_legal_name || '').trim();
+    const cleanSeries = (passport_series || '').trim().toUpperCase();
+    const cleanNumber = (passport_number || '').trim();
+    const cleanPinfl = (pinfl || '').trim();
+
+    if (!cleanName || cleanName.split(/\s+/).length < 2) {
+      return res.status(400).json({ error: "To'liq ism familiya kamida 2 ta so'zdan iborat bo'lsin" });
+    }
+    if (!cleanSeries || !cleanNumber) {
+      return res.status(400).json({ error: "Pasport seriyasi va raqami majburiy" });
+    }
+    if (!cleanPinfl || cleanPinfl.length !== 14 || /\D/.test(cleanPinfl)) {
+      return res.status(400).json({ error: "PINFL 14 ta raqamdan iborat bo'lishi kerak" });
+    }
+    if (!verification_photo_url) {
+      return res.status(400).json({ error: "Pasport rasmini (yoki o'zingizning selfie suratni) yuklang" });
+    }
+
+    const current = await queryOne<any>('SELECT verification_status FROM users WHERE id = ?', [req.user!.id]);
+    if (current?.verification_status === 'VERIFIED') {
+      return res.status(400).json({ error: "Sizning profilingiz allaqachon tasdiqlangan" });
+    }
+    if (current?.verification_status === 'PENDING') {
+      return res.status(400).json({ error: "Arizangiz hozir ko'rib chiqilmoqda. Iltimos, kuting" });
+    }
+
+    const now = new Date().toISOString();
+    await runQuery(
+      `UPDATE users SET
+        full_legal_name = ?,
+        birth_date = ?,
+        passport_series = ?,
+        passport_number = ?,
+        pinfl = ?,
+        passport_issued_by = ?,
+        passport_issued_date = ?,
+        verification_photo_url = ?,
+        verification_status = 'PENDING',
+        verification_rejection_reason = NULL,
+        updated_at = ?
+       WHERE id = ?`,
+      [
+        cleanName,
+        (birth_date || '').trim() || null,
+        cleanSeries,
+        cleanNumber,
+        cleanPinfl,
+        (passport_issued_by || '').trim() || null,
+        (passport_issued_date || '').trim() || null,
+        verification_photo_url,
+        now,
+        req.user!.id,
+      ]
+    );
+
+    const updated = await queryOne('SELECT * FROM users WHERE id = ?', [req.user!.id]);
+    res.json({ success: true, user: updated });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Follow / Unfollow (Section 24)
 router.post('/:id/follow', requireAuth, async (req: AuthRequest, res) => {
   try {
@@ -177,6 +256,7 @@ router.get('/:id/followers', optionalAuth, async (req: AuthRequest, res) => {
         u.profile_photo_url, 
         u.bio, 
         u.role, 
+        u.verification_status, 
         r.name_uz as region_name, 
         d.name_uz as district_name,
         f.created_at as followed_at
@@ -201,6 +281,7 @@ router.get('/:id/followers', optionalAuth, async (req: AuthRequest, res) => {
     const result = followers.map((u) => ({
       ...u,
       is_profile_complete: Boolean(u.profile_photo_url && (u.bio?.length || 0) >= 15),
+      is_verified: u.verification_status === 'VERIFIED',
       is_followed_by_viewer: viewerFollowsSet.has(u.id),
     }));
 
@@ -224,6 +305,7 @@ router.get('/:id/following', optionalAuth, async (req: AuthRequest, res) => {
         u.profile_photo_url, 
         u.bio, 
         u.role, 
+        u.verification_status, 
         r.name_uz as region_name, 
         d.name_uz as district_name,
         f.created_at as followed_at
@@ -248,6 +330,7 @@ router.get('/:id/following', optionalAuth, async (req: AuthRequest, res) => {
     const result = following.map((u) => ({
       ...u,
       is_profile_complete: Boolean(u.profile_photo_url && (u.bio?.length || 0) >= 15),
+      is_verified: u.verification_status === 'VERIFIED',
       is_followed_by_viewer: viewerFollowsSet.has(u.id),
     }));
 

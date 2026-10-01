@@ -13,6 +13,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
         u.name as owner_name,
         u.telegram_username as owner_username,
         u.profile_photo_url as owner_photo_url,
+        u.verification_status as owner_verification_status,
         c.name_uz as category_name,
         r.name_uz as region_name,
         d.name_uz as district_name,
@@ -28,7 +29,12 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
       [req.user!.id]
     );
 
-    res.json(saved);
+    const result = saved.map((l) => ({
+      ...l,
+      is_verified: l.owner_verification_status === 'VERIFIED',
+    }));
+
+    res.json(result);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

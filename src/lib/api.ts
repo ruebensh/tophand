@@ -37,7 +37,7 @@ export async function apiRequest<T = any>(endpoint: string, options: RequestInit
   return data as T;
 }
 
-export async function uploadImageFile(file: File): Promise<string> {
+export async function uploadImageFile(file: File, folder?: string): Promise<string> {
   const token = getStoredToken();
   const formData = new FormData();
   formData.append('image', file);
@@ -46,7 +46,8 @@ export async function uploadImageFile(file: File): Promise<string> {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 
-  const response = await fetch('/api/upload', {
+  const url = folder ? `/api/upload?folder=${encodeURIComponent(folder)}` : '/api/upload';
+  const response = await fetch(url, {
     method: 'POST',
     headers,
     body: formData,

@@ -68,6 +68,9 @@ export const HomePage: React.FC<HomePageProps> = ({
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
+  // Fon yangilash (filtr o'zgarganda) — eski ro'yxat ko'rinib turadi, faqat ingichka progress chizig'i
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const hasLoadedOnce = useRef<boolean>(false);
 
   const getInitialCatalogId = () => {
     if (initialParams.catalog) return initialParams.catalog;
@@ -214,8 +217,12 @@ export const HomePage: React.FC<HomePageProps> = ({
   const fetchListings = async (page: number = 1, append: boolean = false) => {
     if (append) {
       setIsLoadingMore(true);
-    } else {
+    } else if (!hasLoadedOnce.current) {
+      // Birinchi yuklash: skelet ko'rsatiladi
       setIsLoading(true);
+    } else {
+      // Fon yangilash: mavjud ro'yxat saqlanadi, faqat progress chizig'i
+      setIsRefreshing(true);
     }
 
     try {
@@ -260,10 +267,16 @@ export const HomePage: React.FC<HomePageProps> = ({
     } finally {
       setIsLoading(false);
       setIsLoadingMore(false);
+      setIsRefreshing(false);
+      hasLoadedOnce.current = true;
     }
   };
 
-  // Trigger search when any filter changes
+  // Trigger search when any filter changes.
+  // DIQQAT: `coords` qasddan qo'shilmagan — mobil qurilmalarda GPS watchPosition
+  // doimiy mayda siljishlarni uzatadi va xar safar refetch ro'yxatni "o'chib-yonish"
+  // (flicker) ga majbur qilardi. Koordinatalar fetchListings ichida closure orqali
+  // o'zi ishlatiladi (eng-yaqin/ masofa), ya'ni filtr o'zgarganda yangi coords bilan ketadi.
   useEffect(() => {
     fetchListings(1, false);
   }, [
@@ -278,8 +291,6 @@ export const HomePage: React.FC<HomePageProps> = ({
     priceMax,
     sortBy,
     onlyFollowed,
-    coords?.lat,
-    coords?.lng,
   ]);
 
   // Landing kartochkalari uchun tur bo'yicha e'lon sonlarini yuklash
@@ -1214,6 +1225,13 @@ export const HomePage: React.FC<HomePageProps> = ({
               </div>
             </div>
           </div>
+
+          {/* Fon yangilanmoqda — ingichka progress chizig'i (ro'yxat yashirilmaydi) */}
+          {isRefreshing && (
+            <div className="h-0.5 w-full rounded-full bg-blue-100 overflow-hidden mb-3">
+              <div className="h-full w-1/3 rounded-full bg-blue-500 animate-pulse" />
+            </div>
+          )}
 
           {/* Job / Service Listing Cards */}
           {isLoading ? (
