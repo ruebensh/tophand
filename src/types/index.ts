@@ -8,7 +8,7 @@ export type ContactTime = 'ANY_TIME' | 'MORNING' | 'AFTERNOON' | 'EVENING' | 'CU
 
 export type WorkFormat = 'ONSITE' | 'REMOTE' | 'HYBRID';
 
-export type UserRole = 'USER' | 'MODERATOR' | 'ADMIN';
+export type UserRole = 'USER' | 'INTERN_MOD' | 'MODERATOR' | 'LEAD_MOD' | 'ADMIN' | 'SUPER_ADMIN';
 
 export type BanType = 'NONE' | 'TEMPORARY' | 'PERMANENT';
 
@@ -117,6 +117,8 @@ export interface Listing {
   expires_at: string;
   archived_at?: string;
   renewed_at?: string;
+  promoted_until?: string | null;
+  is_promoted?: boolean;
   images: string[];
   owner_name?: string;
   owner_username?: string;

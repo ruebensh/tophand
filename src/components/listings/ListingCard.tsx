@@ -7,6 +7,9 @@ import {
   MapPin,
   Heart,
   CheckCircle2,
+  Flame,
+  Clock,
+  Play,
 } from 'lucide-react';
 import { apiRequest } from '../../lib/api.ts';
 import { useAuth } from '../../context/AuthContext.tsx';
@@ -56,13 +59,19 @@ export const ListingCard: React.FC<ListingCardProps> = ({
 
   const coverImage = listing.images && listing.images.length > 0 ? listing.images[0] : null;
   const isJob = listing.type === 'JOB_OPENING' || listing.type === 'JOB_SEEKER';
+  const daysLeft = listing.expires_at
+    ? Math.max(0, Math.ceil((new Date(listing.expires_at).getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
+    : null;
+  const isPromoted = Boolean(listing.is_promoted) ||
+    (Boolean(listing.promoted_until) && new Date(listing.promoted_until as string).getTime() > Date.now());
+  const isVideoCover = !!coverImage && /\.(mp4|webm|mov|m4v)(\?|$)/i.test(coverImage);
 
   // ── ROW VARIANT (legacy, kept for potential use) ──
   if (variant === 'row') {
     return (
       <div
         onClick={onClick}
-        className="group relative border border-gray-100 rounded-2xl hover:border-blue-300 hover:shadow-lg transition-all bg-white overflow-hidden cursor-pointer flex gap-0 w-full"
+        className="group relative th-card border border-gray-100 rounded-2xl hover:border-blue-300 hover:shadow-lg transition-all bg-white overflow-hidden cursor-pointer flex gap-0 w-full"
       >
         {/* Left: Image */}
         <div className="relative w-40 sm:w-48 shrink-0 bg-gray-100 overflow-hidden">
@@ -82,6 +91,11 @@ export const ListingCard: React.FC<ListingCardProps> = ({
           <div className="absolute top-2 left-2 pointer-events-none">
             <ListingTypeBadge type={listing.type} size="sm" />
           </div>
+          {isPromoted && (
+            <div className="absolute top-2 right-2 flex items-center gap-1 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm pointer-events-none">
+              <Flame className="w-3 h-3" /> Promo
+            </div>
+          )}
         </div>
 
         {/* Right: Content */}
@@ -131,17 +145,27 @@ export const ListingCard: React.FC<ListingCardProps> = ({
   return (
     <div
       onClick={onClick}
-      className="group relative flex flex-col bg-white rounded-xl border border-gray-100 hover:shadow-md transition-all duration-200 cursor-pointer overflow-hidden"
+      className="group relative th-card flex flex-col bg-white rounded-xl border border-gray-100 hover:shadow-md transition-all duration-200 cursor-pointer overflow-hidden"
     >
       {/* ── PHOTO ── */}
       <div className="relative w-full overflow-hidden bg-gray-100" style={{ paddingBottom: '75%' }}>
         {coverImage ? (
-          <img
-            src={coverImage}
-            alt={listing.title}
-            loading="lazy"
-            className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-          />
+          isVideoCover ? (
+            <video
+              src={coverImage}
+              muted
+              playsInline
+              preload="metadata"
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          ) : (
+            <img
+              src={coverImage}
+              alt={listing.title}
+              loading="lazy"
+              className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            />
+          )
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-slate-100 to-blue-50 text-gray-400">
             {/* Placeholder: show category icon emoji */}
@@ -189,6 +213,11 @@ export const ListingCard: React.FC<ListingCardProps> = ({
             📍 {listing.distance_km} km
           </div>
         )}
+        {isVideoCover && (
+          <div className="absolute bottom-2 right-2 flex items-center gap-1 bg-black/60 backdrop-blur-sm text-white text-[10px] px-1.5 py-0.5 rounded-md font-medium">
+            <Play className="w-3 h-3" /> Video
+          </div>
+        )}
       </div>
 
       {/* ── CONTENT (below photo, like Avito) ── */}
@@ -232,8 +261,14 @@ export const ListingCard: React.FC<ListingCardProps> = ({
               <CheckCircle2 className="w-3 h-3 text-blue-500 shrink-0" />
             )}
           </div>
-          <span className="text-[10px] text-gray-400 shrink-0">
-            {formatDateAgo(listing.renewed_at || listing.created_at)}
+          <span className="text-[10px] text-gray-400 shrink-0 flex items-center gap-0.5">
+            {daysLeft !== null && daysLeft <= 3 ? (
+              <span className="text-amber-600 font-semibold flex items-center gap-0.5">
+                <Clock className="w-3 h-3" /> {daysLeft} kun
+              </span>
+            ) : (
+              formatDateAgo(listing.renewed_at || listing.created_at)
+            )}
           </span>
         </div>
       </div>

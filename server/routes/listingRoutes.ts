@@ -1,13 +1,17 @@
-import { Router } from 'express';
+import { Router, Response } from 'express';
 import crypto from 'crypto';
-import { requireAuth, optionalAuth, AuthRequest } from '../auth/telegram.ts';
+import { requireAuth, optionalAuth, isStaffRole, hasMinLevel, AuthRequest } from '../auth/telegram.ts';
 import {
   searchListings,
   getListingById,
   createListing,
   renewListing,
+  promoteListing,
+  recordListingEvent,
+  getListingStats,
 } from '../services/listingService.ts';
 import { autoFlagContentIfProfane, logSearchOrFilter } from '../services/autoModerationService.ts';
+import { enqueueListing } from '../services/moderationAssignService.ts';
 import { queryOne, queryAll, runQuery } from '../db/database.ts';
 
 const router = Router();
@@ -92,10 +96,15 @@ router.get('/:id', optionalAuth, async (req: AuthRequest, res) => {
     // If listing is not active, allow only owner, moderator, or admin to view
     if (listing.status !== 'ACTIVE') {
       const isOwner = req.user?.id === listing.owner_user_id;
-      const isStaff = req.user?.role === 'MODERATOR' || req.user?.role === 'ADMIN';
+      const isStaff = isStaffRole(req.user?.role);
       if (!isOwner && !isStaff) {
         return res.status(404).json({ error: 'Ushbu e’lon faol emas yoki arxivlangan' });
       }
+    }
+
+    // Faza 9: track VIEW event (skip owner self-views)
+    if (req.user?.id !== listing.owner_user_id) {
+      recordListingEvent(listing.id, 'VIEW', req.user?.id || null).catch(() => {});
     }
 
     res.json(listing);
@@ -129,6 +138,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
       contact_custom_text,
       organization_id,
       images,
+      videos,
     } = req.body;
 
     // Validation
@@ -189,6 +199,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
       contact_custom_text,
       organization_id,
       images: Array.isArray(images) ? images : [],
+      videos: Array.isArray(videos) ? videos : [],
     });
 
     // Notify all followers about this new listing
@@ -225,6 +236,9 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
       req.user!.id,
       `${listing.title} ${listing.description}`
     );
+
+    // Faza 17: enqueue for moderation distribution (auto-approve if clean + enabled)
+    enqueueListing(listing.id).catch(() => {});
 
     res.status(201).json(listing);
   } catch (err: any) {
@@ -266,7 +280,12 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res) => {
       contact_time,
       contact_custom_text,
       images,
+      videos,
     } = req.body;
+
+    // Admin-only moderation fields (audit logged)
+    const isAdminEditor = req.user!.role === 'ADMIN' || req.user!.role === 'SUPER_ADMIN';
+    const status = isAdminEditor ? req.body.status : undefined;
 
     const now = new Date().toISOString();
     await runQuery(
@@ -287,6 +306,7 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res) => {
            skills = ?,
            contact_time = COALESCE(?, contact_time),
            contact_custom_text = ?,
+           status = COALESCE(?, status),
            updated_at = ?
        WHERE id = ?`,
       [
@@ -306,20 +326,38 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res) => {
         skills ? JSON.stringify(skills) : null,
         contact_time || null,
         contact_custom_text || null,
+        status || null,
         now,
         listingId,
       ]
     );
 
-    // Update images if provided
-    if (Array.isArray(images)) {
+    // Update media (images + videos) if either provided
+    if (Array.isArray(images) || Array.isArray(videos)) {
+      const imageList = Array.isArray(images) ? images : [];
+      const videoList = Array.isArray(videos) ? videos : [];
+      const media = [...imageList.slice(0, 8), ...videoList.slice(0, 2)];
       await runQuery('DELETE FROM listing_images WHERE listing_id = ?', [listingId]);
-      for (let i = 0; i < Math.min(images.length, 8); i++) {
+      for (let i = 0; i < media.length; i++) {
+        const url = media[i];
+        const mediaType = /\.(mp4|webm|mov|m4v)(\?|$)/i.test(url) ? 'video' : 'image';
         const imgId = `img_${crypto.randomUUID().slice(0, 16)}`;
         await runQuery(
-          'INSERT INTO listing_images (id, listing_id, url, sort_order, created_at) VALUES (?, ?, ?, ?, ?)',
-          [imgId, listingId, images[i], i, now]
+          'INSERT INTO listing_images (id, listing_id, url, sort_order, media_type, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+          [imgId, listingId, url, i, mediaType, now]
         );
+      }
+    }
+
+    if (isAdminEditor) {
+      try {
+        await runQuery(
+          `INSERT INTO audit_logs (id, actor_user_id, action, target_type, target_id, metadata, created_at)
+           VALUES (?, ?, 'ADMIN_EDIT_LISTING', 'LISTING', ?, ?, ?)`,
+          [`audit_${crypto.randomUUID().slice(0, 16)}`, req.user!.id, listingId, JSON.stringify({ title, status, role: req.user!.role }), now]
+        );
+      } catch (auditErr) {
+        console.error('Failed to audit admin listing edit:', auditErr);
       }
     }
 
@@ -340,13 +378,65 @@ router.post('/:id/renew', requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+// Faza 8: Promote listing to the top (charge from wallet when PAID)
+router.post('/:id/promote', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const listing = await promoteListing(req.params.id, req.user!.id);
+    res.json({ success: true, listing });
+  } catch (err: any) {
+    const status = err?.name === 'InsufficientFundsError' ? 402 : 400;
+    res.status(status).json({ error: err.message, code: err?.name });
+  }
+});
+
+// Faza 9 + bug fix: Reveal owner phone (was broken /contact) + track CONTACT event
+const contactHandler = async (req: AuthRequest, res: Response) => {
+  try {
+    const listing = await queryOne<any>('SELECT owner_user_id FROM listings WHERE id = ?', [req.params.id]);
+    if (!listing) return res.status(404).json({ error: 'E’lon topilmadi' });
+
+    const owner = await queryOne<{ phone: string }>('SELECT phone FROM users WHERE id = ?', [listing.owner_user_id]);
+    if (!owner || !owner.phone) {
+      return res.status(404).json({ error: 'Telefon raqami mavjud emas' });
+    }
+
+    if (req.user!.id !== listing.owner_user_id) {
+      recordListingEvent(req.params.id, 'CONTACT', req.user!.id).catch(() => {});
+    }
+    res.json({ phone: owner.phone });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+};
+router.get('/:id/contact', requireAuth, contactHandler);
+router.post('/:id/contact', requireAuth, contactHandler);
+
+// Faza 9: Listing analytics — owner or staff only
+router.get('/:id/stats', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const listing = await queryOne<any>('SELECT owner_user_id FROM listings WHERE id = ?', [req.params.id]);
+    if (!listing) return res.status(404).json({ error: 'E’lon topilmadi' });
+
+    const isOwner = req.user!.id === listing.owner_user_id;
+    const isStaff = isStaffRole(req.user!.role);
+    if (!isOwner && !isStaff) {
+      return res.status(403).json({ error: 'Faqat e’lon egasi yoki xodim ko’ra oladi' });
+    }
+
+    const stats = await getListingStats(req.params.id);
+    res.json(stats);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Toggle hide / active
 router.post('/:id/toggle-hide', requireAuth, async (req: AuthRequest, res) => {
   try {
     const listing = await queryOne<any>('SELECT * FROM listings WHERE id = ?', [req.params.id]);
     if (!listing) return res.status(404).json({ error: 'E’lon topilmadi' });
 
-    if (listing.owner_user_id !== req.user!.id && req.user!.role !== 'ADMIN') {
+    if (listing.owner_user_id !== req.user!.id && !hasMinLevel(req.user!.role, 'ADMIN')) {
       return res.status(403).json({ error: 'Ruxsat berilmadi' });
     }
 
@@ -366,12 +456,12 @@ router.delete('/:id', requireAuth, async (req: AuthRequest, res) => {
     const listing = await queryOne<any>('SELECT * FROM listings WHERE id = ?', [req.params.id]);
     if (!listing) return res.status(404).json({ error: 'E’lon topilmadi' });
 
-    if (listing.owner_user_id !== req.user!.id && req.user!.role !== 'ADMIN') {
+    if (listing.owner_user_id !== req.user!.id && !hasMinLevel(req.user!.role, 'ADMIN')) {
       return res.status(403).json({ error: 'Ruxsat berilmadi' });
     }
 
     const now = new Date().toISOString();
-    const hard = req.query.hard === 'true' && req.user!.role === 'ADMIN';
+    const hard = req.query.hard === 'true' && hasMinLevel(req.user!.role, 'ADMIN');
 
     if (hard) {
       await runQuery('DELETE FROM listing_images WHERE listing_id = ?', [listing.id]);
@@ -390,7 +480,7 @@ router.delete('/:id', requireAuth, async (req: AuthRequest, res) => {
 
     await runQuery("UPDATE listings SET status = 'REMOVED', updated_at = ? WHERE id = ?", [now, listing.id]);
 
-    if (req.user!.role === 'ADMIN') {
+    if (hasMinLevel(req.user!.role, 'ADMIN')) {
       const auditId = `audit_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
       await runQuery(
         `INSERT INTO audit_logs (id, actor_user_id, action, target_type, target_id, metadata, created_at)

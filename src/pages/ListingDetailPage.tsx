@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Listing } from '../types/index.ts';
-import { apiRequest } from '../lib/api.ts';
+import { apiRequest, getPublicMonetization, promoteListingRequest, type PublicMonetization } from '../lib/api.ts';
 import { ListingTypeBadge } from '../components/listings/ListingTypeBadge.tsx';
 import { PriceDisplay } from '../components/listings/PriceDisplay.tsx';
 import { getContactTimeLabel, formatDateAgo } from '../lib/utils.ts';
@@ -8,11 +8,14 @@ import { useAuth } from '../context/AuthContext.tsx';
 import {
   MapPin,
   Clock,
+  Rocket,
+  Play,
   Calendar,
   Building2,
   ShieldCheck,
   Heart,
   Share2,
+  CheckCheck,
   AlertTriangle,
   MessageSquare,
   Phone,
@@ -23,6 +26,7 @@ import {
   ChevronLeft,
   Star,
   Trash2,
+  Edit3,
   Briefcase,
   Layers,
   Eye,
@@ -67,6 +71,27 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
   const [isFollowed, setIsFollowed] = useState(false);
   const [isFollowLoading, setIsFollowLoading] = useState(false);
   const [isRenewing, setIsRenewing] = useState(false);
+
+  // Monetization state (Faza 5)
+  const [monetization, setMonetization] = useState<PublicMonetization | null>(null);
+  const [isPromoting, setIsPromoting] = useState(false);
+  const [promoMsg, setPromoMsg] = useState('');
+
+  useEffect(() => {
+    getPublicMonetization().then(setMonetization).catch(() => {});
+  }, []);
+
+  const activeDays = monetization?.active_days ?? 30;
+  const renewPrice = monetization
+    ? (listing?.catalog_id === 'jobs' ? monetization.prices.renew.jobs : monetization.prices.renew.services)
+    : 0;
+  const promoPrice = monetization
+    ? (listing?.catalog_id === 'jobs' ? monetization.prices.promo.jobs : monetization.prices.promo.services)
+    : 0;
+  const daysLeft = listing?.expires_at
+    ? Math.max(0, Math.ceil((new Date(listing.expires_at).getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
+    : null;
+  const isPromoActive = Boolean(listing?.promoted_until) && new Date(listing!.promoted_until as string).getTime() > Date.now();
 
   const fetchDetail = async () => {
     setIsLoading(true);
@@ -146,12 +171,27 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
     }
   };
 
+  const [shareCopied, setShareCopied] = useState(false);
+
   const handleShare = async () => {
     const url = `${window.location.origin}/listing/${listingId}`;
-    if (navigator.share) {
-      await navigator.share({ title: listing?.title, url });
-    } else {
+    const shareData = { title: listing?.title || 'TopHand', text: listing?.title || '', url };
+    // Prefer native share; always fall back to clipboard copy.
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share(shareData);
+        return;
+      } catch (err: any) {
+        // User cancelled — do nothing; other errors fall through to clipboard.
+        if (err?.name === 'AbortError') return;
+      }
+    }
+    try {
       await navigator.clipboard.writeText(url);
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2000);
+    } catch {
+      window.prompt('Havolani nusxalang:', url);
     }
   };
 
@@ -163,6 +203,24 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
       fetchDetail();
     } finally {
       setIsRenewing(false);
+    }
+  };
+
+  const handlePromote = async () => {
+    if (!user) {
+      openLoginModal();
+      return;
+    }
+    setIsPromoting(true);
+    setPromoMsg('');
+    try {
+      await promoteListingRequest(listingId);
+      setPromoMsg("E'lon topga ko'tarildi!");
+      fetchDetail();
+    } catch (err: any) {
+      setPromoMsg(err?.message || "Ko'tarishda xatolik");
+    } finally {
+      setIsPromoting(false);
     }
   };
 
@@ -211,6 +269,9 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
   const isOwner = user?.id === listing.owner_user_id;
   const isJob = listing.type === 'JOB_OPENING' || listing.type === 'JOB_SEEKER';
   const images = listing.images && listing.images.length > 0 ? listing.images : [];
+  const isVideoUrl = (u: string) => /\.(mp4|webm|mov|m4v)(\?|$)/i.test(u);
+  const currentMedia = images[selectedImageIdx] || '';
+  const currentIsVideo = isVideoUrl(currentMedia);
   const skillsList = listing.skills
     ? typeof listing.skills === 'string'
       ? JSON.parse(listing.skills || '[]')
@@ -320,6 +381,14 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
           </div>
           <button
             type="button"
+            onClick={() => onNavigate(`/create?edit=${listingId}`)}
+            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
+          >
+            <Edit3 className="w-3.5 h-3.5" />
+            <span>{"E'lonni tahrirlash"}</span>
+          </button>
+          <button
+            type="button"
             onClick={handleAdminDeleteListing}
             disabled={isAdminDeleting}
             className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
@@ -334,7 +403,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
       {listing.status === 'ARCHIVED' && (
         <div className="mb-4 p-4 rounded-2xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-900 text-xs">
           <div>
-            <p className="font-bold">Ushbu e'lon arxivlangan (30 kunlik muddat tugagan)</p>
+            <p className="font-bold">Ushbu e'lon arxivlangan ({activeDays} kunlik muddat tugagan)</p>
             <p className="text-amber-700 text-[11px] mt-0.5">Hozirda qidiruvda ko'rinmaydi.</p>
           </div>
           {isOwner && (
@@ -344,9 +413,58 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
               className="px-4 py-2 rounded-full bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-xs flex items-center gap-1.5 shrink-0"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isRenewing ? 'animate-spin' : ''}`} />
-              <span>Yana 30 kunga uzaytirish</span>
+              <span>
+                Yana {activeDays} kunga uzaytirish
+                {renewPrice > 0 ? ` · ${renewPrice.toLocaleString('uz-UZ')} so'm` : ' · Bepul'}
+              </span>
             </button>
           )}
+        </div>
+      )}
+
+      {/* Active countdown + promo banner (owner) */}
+      {isOwner && listing.status === 'ACTIVE' && (
+        <div className="mb-4 p-4 rounded-2xl bg-blue-50 border border-blue-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-blue-900 text-xs">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-blue-600 text-white shadow-xs">
+              <Clock className="w-5 h-5" />
+            </div>
+            <div>
+              <span className="font-bold block">
+                {daysLeft !== null ? `⏳ ${daysLeft} kun qoldi` : "Faol e'lon"}
+              </span>
+              <span className="text-[11px] text-blue-700">
+                {daysLeft !== null && daysLeft <= (monetization?.warning_days ?? 3)
+                  ? 'Muddati tugaydi — uzatishni unutmang.'
+                  : `E'lon ${activeDays} kun davomida faol bo'ladi.`}
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            {promoMsg && (
+              <span className={`text-[11px] font-semibold ${promoMsg.includes('xatolik') ? 'text-rose-600' : 'text-emerald-600'}`}>
+                {promoMsg}
+              </span>
+            )}
+            <button
+              onClick={() => onNavigate(`/create?edit=${listingId}`)}
+              className="px-4 py-2 rounded-full bg-white hover:bg-blue-50 border border-blue-300 text-blue-700 font-bold text-xs shadow-xs flex items-center gap-1.5"
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+              <span>Tahrirlash</span>
+            </button>
+            <button
+              onClick={handlePromote}
+              disabled={isPromoting}
+              className="px-4 py-2 rounded-full bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs shadow-xs flex items-center gap-1.5"
+            >
+              <Rocket className={`w-3.5 h-3.5 ${isPromoting ? 'animate-pulse' : ''}`} />
+              <span>
+                {isPromoActive ? 'Promo faol' : 'Topga ko\'tarish'}
+                {promoPrice > 0 ? ` · ${promoPrice.toLocaleString('uz-UZ')} so'm` : ' · Bepul'}
+              </span>
+            </button>
+          </div>
         </div>
       )}
 
@@ -359,11 +477,20 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
             {images.length > 0 ? (
               <div>
                 <div className="relative aspect-[4/3] sm:aspect-[16/9] w-full bg-gray-50">
-                  <img
-                    src={images[selectedImageIdx]}
-                    alt={listing.title}
-                    className="w-full h-full object-cover"
-                  />
+                  {currentIsVideo ? (
+                    <video
+                      src={currentMedia}
+                      controls
+                      playsInline
+                      className="w-full h-full object-cover bg-black"
+                    />
+                  ) : (
+                    <img
+                      src={currentMedia}
+                      alt={listing.title}
+                      className="w-full h-full object-cover"
+                    />
+                  )}
                   {/* Type badge overlay */}
                   <div className="absolute top-3 left-3">
                     <ListingTypeBadge type={listing.type} size="md" />
@@ -387,7 +514,16 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                             : 'border-transparent opacity-60 hover:opacity-90'
                         }`}
                       >
-                        <img src={img} alt={`Rasm ${idx + 1}`} className="w-full h-full object-cover" />
+                        {isVideoUrl(img) ? (
+                          <div className="relative w-full h-full">
+                            <video src={img} muted playsInline className="w-full h-full object-cover" />
+                            <span className="absolute inset-0 flex items-center justify-center text-white">
+                              <Play className="w-5 h-5 drop-shadow" />
+                            </span>
+                          </div>
+                        ) : (
+                          <img src={img} alt={`Rasm ${idx + 1}`} className="w-full h-full object-cover" />
+                        )}
                       </button>
                     ))}
                   </div>
@@ -435,9 +571,9 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                   type="button"
                   onClick={handleShare}
                   className="p-2.5 rounded-full border-2 border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700 transition-all"
-                  title="Ulashish"
+                  title={shareCopied ? 'Havola nusxalandi' : 'Ulashish'}
                 >
-                  <Share2 className="w-4 h-4" />
+                  {shareCopied ? <CheckCheck className="w-4 h-4 text-green-600" /> : <Share2 className="w-4 h-4" />}
                 </button>
                 <button
                   type="button"
@@ -468,6 +604,16 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
               <span>E'lon joylashtirildi: {formatDateAgo(listing.created_at)}</span>
             </div>
           </div>
+
+          {/* 2b. Tavsif (Описание) — Avito style */}
+          {listing.description && (
+            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-xs">
+              <h2 className="font-bold text-sm text-gray-900 mb-2">Tavsif</h2>
+              <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap break-words">
+                {listing.description}
+              </p>
+            </div>
+          )}
 
           {/* 3. Tafsilotlar (Подробности) — Avito style */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-xs overflow-hidden">

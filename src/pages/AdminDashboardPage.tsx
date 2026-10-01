@@ -28,9 +28,19 @@ import {
   GitBranch,
   Wrench,
   Briefcase,
+  DollarSign,
+  Table2,
+  Users2,
+  Send,
+  X,
 } from 'lucide-react';
 import { formatDateAgo } from '../lib/utils.ts';
 import { PlatformManagementSection } from '../components/admin/PlatformManagementSection.tsx';
+import { ThemeHolidaySection } from '../components/admin/ThemeHolidaySection.tsx';
+import { MonetizationSettings } from '../components/admin/MonetizationSettings.tsx';
+import { DataIOSection } from '../components/admin/DataIOSection.tsx';
+import { ModeratorTeam } from '../components/admin/ModeratorTeam.tsx';
+import { StaffMessaging } from '../components/admin/StaffMessaging.tsx';
 import { UserPassportModal } from '../components/admin/UserPassportModal.tsx';
 import { CategoryEditModal } from '../components/admin/CategoryEditModal.tsx';
 import { OrganizationEditModal } from '../components/admin/OrganizationEditModal.tsx';
@@ -42,7 +52,7 @@ interface AdminDashboardPageProps {
 
 export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNavigate }) => {
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'platform' | 'users' | 'organizations' | 'categories' | 'audit'
+    'overview' | 'platform' | 'theme' | 'users' | 'organizations' | 'categories' | 'monetization' | 'data' | 'team' | 'messaging' | 'audit'
   >('overview');
 
   // Stats
@@ -52,6 +62,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
 
   // Users tab
   const [usersList, setUsersList] = useState<any[]>([]);
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [bulkMessagingOpen, setBulkMessagingOpen] = useState(false);
   const [userSearch, setUserSearch] = useState('');
   const [userRoleFilter, setUserRoleFilter] = useState('');
   const [userVerificationFilter, setUserVerificationFilter] = useState('');
@@ -299,9 +311,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         {[
           { id: 'overview', label: 'Umumiy hisobot va statistika', icon: BarChart3 },
           { id: 'platform', label: 'Platforma boshqaruvi', icon: Palette },
+          { id: 'theme', label: 'Bayramlar va Mavzular', icon: Palette },
           { id: 'users', label: 'Foydalanuvchilar va pasportlar', icon: Users },
           { id: 'organizations', label: 'Tashkilotlar', icon: Building2 },
           { id: 'categories', label: 'Kategoriyalar', icon: Layers },
+          { id: 'monetization', label: 'Monetizatsiya', icon: DollarSign },
+          { id: 'data', label: 'Excel ma’lumotlar', icon: Table2 },
+          { id: 'team', label: 'Jamoa / Moderatorlar', icon: Users2 },
+          { id: 'messaging', label: 'Xabarlar', icon: Send },
           { id: 'audit', label: 'Audit jurnali', icon: FileText },
         ].map((tab) => {
           const IconComp = tab.icon;
@@ -547,6 +564,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       {/* 2. Platform Management Tab (Platform Brand & Logo Customization) */}
       {activeTab === 'platform' && <PlatformManagementSection />}
 
+      {/* 2b. Hudud / Bayram mavzularini boshqarish */}
+      {activeTab === 'theme' && <ThemeHolidaySection />}
+
       {/* 3. Users & Identity Verification Tab */}
       {activeTab === 'users' && (
         <div className="bg-white rounded-3xl border border-gray-100 shadow-xs overflow-hidden">
@@ -596,10 +616,35 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
             </div>
           </div>
 
+          {selectedUserIds.length > 0 && (
+            <div className="flex items-center justify-between gap-3 mx-4 mt-4 px-4 py-2.5 rounded-2xl bg-blue-50 border border-blue-100">
+              <span className="text-xs font-bold text-blue-800">{selectedUserIds.length} ta foydalanuvchi tanlandi</span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setBulkMessagingOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] cursor-pointer"
+                >
+                  <Send className="w-3.5 h-3.5" /> Xabar yuborish
+                </button>
+                <button onClick={() => setSelectedUserIds([])} className="px-3 py-1.5 rounded-full border border-blue-200 text-blue-700 font-bold text-[11px] hover:bg-white cursor-pointer">
+                  Bekor
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs text-gray-700">
               <thead className="bg-gray-50 border-b border-gray-100 text-[11px] font-bold text-gray-500 uppercase">
                 <tr>
+                  <th className="p-3.5 w-8">
+                    <input
+                      type="checkbox"
+                      checked={usersList.length > 0 && selectedUserIds.length === usersList.length}
+                      onChange={(e) => setSelectedUserIds(e.target.checked ? usersList.map((u) => u.id) : [])}
+                      className="w-4 h-4 accent-blue-600 cursor-pointer"
+                    />
+                  </th>
                   <th className="p-3.5">Foydalanuvchi</th>
                   <th className="p-3.5">Telegram</th>
                   <th className="p-3.5">Hudud</th>
@@ -613,13 +658,13 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
               <tbody className="divide-y divide-gray-100">
                 {isUsersLoading ? (
                   <tr>
-                    <td colSpan={8} className="p-8 text-center text-xs text-gray-400">
+                    <td colSpan={9} className="p-8 text-center text-xs text-gray-400">
                       Foydalanuvchilar ro‘yxati yuklanmoqda...
                     </td>
                   </tr>
                 ) : usersList.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="p-8 text-center text-xs text-gray-400">
+                    <td colSpan={9} className="p-8 text-center text-xs text-gray-400">
                       Foydalanuvchilar topilmadi.
                     </td>
                   </tr>
@@ -635,6 +680,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                         className="hover:bg-blue-50/40 transition-colors group cursor-pointer"
                         onClick={() => openPassportModal(u)}
                       >
+                        <td className="p-3.5" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={selectedUserIds.includes(u.id)}
+                            onChange={(e) => setSelectedUserIds((prev) => (e.target.checked ? [...prev, u.id] : prev.filter((id) => id !== u.id)))}
+                            className="w-4 h-4 accent-blue-600 cursor-pointer"
+                          />
+                        </td>
                         <td className="p-3.5 font-bold text-gray-900 flex items-center gap-2.5">
                           <img
                             src={u.profile_photo_url || `https://api.dicebear.com/7.x/initials/svg?seed=${u.name}`}
@@ -1182,7 +1235,19 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         );
       })()}
 
-      {/* 6. Audit Logs Tab */}
+      {/* 6. Monetization Tab (Faza 4) */}
+      {activeTab === 'monetization' && <MonetizationSettings />}
+
+      {/* 6b. Excel Data I/O Tab (Faza 12) */}
+      {activeTab === 'data' && <DataIOSection />}
+
+      {/* 6c. Moderation team / distribution (Faza 17) */}
+      {activeTab === 'team' && <ModeratorTeam />}
+
+      {/* 6d. Staff messaging (Faza 18) */}
+      {activeTab === 'messaging' && <StaffMessaging />}
+
+      {/* 7. Audit Logs Tab */}
       {activeTab === 'audit' && (
         <div className="bg-white rounded-3xl border border-gray-100 shadow-xs overflow-hidden">
           <div className="p-4 border-b border-gray-100">
@@ -1256,6 +1321,21 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         org={selectedOrg}
         onSaved={fetchOrgs}
       />
+
+      {/* Bulk staff messaging modal (selected users) */}
+      {bulkMessagingOpen && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-8 bg-gray-950/50 backdrop-blur-sm overflow-y-auto" onClick={() => setBulkMessagingOpen(false)}>
+          <div className="w-full max-w-4xl bg-white rounded-3xl shadow-2xl my-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-gray-100">
+              <h3 className="font-bold text-sm text-gray-900">Tanlangan foydalanuvchilarga xabar ({selectedUserIds.length})</h3>
+              <button onClick={() => setBulkMessagingOpen(false)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 cursor-pointer"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-4">
+              <StaffMessaging initialUserIds={selectedUserIds} />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Category Create / Edit Modal */}
       <CategoryEditModal

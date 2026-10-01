@@ -194,6 +194,50 @@ export async function processAndStoreLogo(
 }
 
 /**
+ * Stores a raw video file (mp4/webm) in Cloudflare R2 or local disk.
+ * Faza 13 — video media for listings.
+ */
+export async function storeVideo(
+  inputBuffer: Buffer,
+  mimetype: string,
+  folder: string = 'videos'
+): Promise<UploadResult> {
+  const ext = mimetype.includes('webm') ? 'webm' : 'mp4';
+  const contentType = mimetype.includes('webm') ? 'video/webm' : 'video/mp4';
+  const uniqueId = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+  const filename = `${uniqueId}.${ext}`;
+  const storageKey = `${folder}/${filename}`;
+
+  if (r2Client) {
+    await r2Client.send(
+      new PutObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: storageKey,
+        Body: inputBuffer,
+        ContentType: contentType,
+        CacheControl: 'public, max-age=31536000, immutable',
+      })
+    );
+    const publicUrl = process.env.R2_PUBLIC_URL
+      ? `${process.env.R2_PUBLIC_URL.replace(/\/$/, '')}/${storageKey}`
+      : `/api/storage/${storageKey}`;
+    return { url: publicUrl, key: storageKey, size: inputBuffer.length, mimetype: contentType, storage: 'r2' };
+  }
+
+  const targetDir = path.join(UPLOAD_DIR, folder);
+  if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
+  const localFilePath = path.join(targetDir, filename);
+  await fs.promises.writeFile(localFilePath, inputBuffer);
+  return {
+    url: `/uploads/${folder}/${filename}`,
+    key: storageKey,
+    size: inputBuffer.length,
+    mimetype: contentType,
+    storage: 'local',
+  };
+}
+
+/**
  * Streams an object directly from Cloudflare R2 if requested via /api/storage/:key
  */
 export async function getR2ObjectStream(key: string) {

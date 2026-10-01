@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import type { Response } from 'express';
 import crypto from 'crypto';
 import multer from 'multer';
 import sharp from 'sharp';
@@ -15,6 +16,8 @@ import {
 import { getAdvancedAnalytics } from '../services/autoModerationService.ts';
 import { queryAll, queryOne, runQuery, persistDb } from '../db/database.ts';
 import { processAndStoreLogo } from '../services/storageService.ts';
+import { getMonetizationConfig, setSetting } from '../services/monetizationService.ts';
+import { isSupportedEntity, exportToXlsx, importFromXlsx } from '../services/exportService.ts';
 
 const router = Router();
 
@@ -863,6 +866,143 @@ router.put('/branding', async (req: AuthRequest, res) => {
 
     await persistDb();
     res.json({ success: true, brand: brandData, message: 'Platforma nomi, ranglari va logotipi yangilandi' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Faza 3: Monetization settings (admin controlled) ──────────────────
+router.get('/monetization', async (_req, res) => {
+  try {
+    const cfg = await getMonetizationConfig();
+    res.json(cfg);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+const MONETIZATION_NUMBER_KEYS = new Set([
+  'listing_active_days_free', 'listing_active_days_paid', 'expiry_warning_days',
+  'listing_price_services', 'listing_price_jobs', 'renew_price_services', 'renew_price_jobs',
+  'promo_price_services', 'promo_price_jobs', 'promo_duration_hours',
+]);
+const MONETIZATION_BOOL_KEYS = new Set(['renew_enabled_paid', 'auto_approve_enabled']);
+
+router.put('/monetization', async (req: AuthRequest, res) => {
+  try {
+    const body = req.body || {};
+    const changes: Record<string, string> = {};
+
+    // Mode
+    if (body.monetization_mode !== undefined) {
+      if (!['FREE_TEST', 'PAID'].includes(body.monetization_mode)) {
+        return res.status(400).json({ error: 'Noto‘g‘ri monetizatsiya rejimi' });
+      }
+      changes.monetization_mode = body.monetization_mode;
+    }
+    // Free test end date
+    if (body.free_test_end_date !== undefined) {
+      const d = new Date(body.free_test_end_date);
+      if (isNaN(d.getTime())) return res.status(400).json({ error: 'Noto‘g‘ri sana' });
+      changes.free_test_end_date = d.toISOString();
+    }
+    // Numeric keys
+    for (const key of MONETIZATION_NUMBER_KEYS) {
+      if (body[key] !== undefined) {
+        const n = Number(body[key]);
+        if (!Number.isFinite(n) || n < 0) {
+          return res.status(400).json({ error: `${key}: manfiy bo‘lmagan son kerak` });
+        }
+        changes[key] = String(Math.round(n));
+      }
+    }
+    // Boolean keys
+    for (const key of MONETIZATION_BOOL_KEYS) {
+      if (body[key] !== undefined) {
+        changes[key] = body[key] === true || body[key] === '1' || body[key] === 1 ? '1' : '0';
+      }
+    }
+
+    const keys = Object.keys(changes);
+    if (keys.length === 0) return res.status(400).json({ error: 'O‘zgartirish kiritilmadi' });
+
+    for (const key of keys) {
+      await setSetting(key, changes[key], req.user!.id);
+    }
+
+    // Audit
+    const auditId = `aud_${crypto.randomUUID().slice(0, 16)}`;
+    const now = new Date().toISOString();
+    await runQuery(
+      `INSERT INTO audit_logs (id, actor_user_id, action, target_type, target_id, metadata, created_at)
+       VALUES (?, ?, 'UPDATE_MONETIZATION', 'SETTINGS', 'monetization', ?, ?)`,
+      [auditId, req.user!.id, JSON.stringify(changes), now]
+    );
+
+    await persistDb();
+    const cfg = await getMonetizationConfig();
+    res.json({ success: true, config: cfg, message: 'Monetizatsiya sozlamalari saqlandi' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Faza 12: Excel import / export ──────────────────────────────────────
+const excelUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 15 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (ext !== '.xlsx') {
+      return cb(new Error('Faqat .xlsx formatidagi fayllar qabul qilinadi.'));
+    }
+    cb(null, true);
+  },
+});
+
+// GET /api/admin/export/:entity — download a table as .xlsx
+router.get('/export/:entity', async (req, res: Response) => {
+  try {
+    const entity = req.params.entity;
+    if (!isSupportedEntity(entity)) {
+      return res.status(400).json({ error: `Noma'lum entitet: ${entity}` });
+    }
+    const buffer = await exportToXlsx(entity);
+    const auditId = `aud_${crypto.randomUUID().slice(0, 16)}`;
+    await runQuery(
+      `INSERT INTO audit_logs (id, actor_user_id, action, target_type, target_id, metadata, created_at)
+       VALUES (?, ?, 'EXPORT_EXCEL', 'ENTITY', ?, ?, ?)`,
+      [auditId, (req as AuthRequest).user!.id, entity, JSON.stringify({ entity }), new Date().toISOString()]
+    );
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="tophand-${entity}-${Date.now()}.xlsx"`);
+    res.send(buffer);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/admin/import/:entity — upload .xlsx and upsert rows
+router.post('/import/:entity', excelUpload.single('file'), async (req: AuthRequest, res: Response) => {
+  try {
+    const entity = req.params.entity!;
+    if (!isSupportedEntity(entity)) {
+      return res.status(400).json({ error: `Noma'lum entitet: ${entity}` });
+    }
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ error: 'Fayl yuklanmadi (field: file)' });
+    }
+    const report = await importFromXlsx(entity, req.file.buffer);
+    const auditId = `aud_${crypto.randomUUID().slice(0, 16)}`;
+    await runQuery(
+      `INSERT INTO audit_logs (id, actor_user_id, action, target_type, target_id, metadata, created_at)
+       VALUES (?, ?, 'IMPORT_EXCEL', 'ENTITY', ?, ?, ?)`,
+      [auditId, req.user!.id, entity, JSON.stringify(report), new Date().toISOString()]
+    );
+    res.json(report);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

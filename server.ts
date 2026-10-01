@@ -16,12 +16,16 @@ import categoryRoutes from './server/routes/categoryRoutes.ts';
 import organizationRoutes from './server/routes/organizationRoutes.ts';
 import notificationRoutes from './server/routes/notificationRoutes.ts';
 import moderationRoutes from './server/routes/moderationRoutes.ts';
+import messagingRoutes from './server/routes/messagingRoutes.ts';
 import adminRoutes from './server/routes/adminRoutes.ts';
 import uploadRoutes from './server/routes/uploadRoutes.ts';
 import settingRoutes from './server/routes/settingRoutes.ts';
+import themeRoutes from './server/routes/themeRoutes.ts';
 import reviewRoutes from './server/routes/reviewRoutes.ts';
 import catalogRoutes from './server/routes/catalogRoutes.ts';
 import aiRoutes from './server/routes/aiRoutes.ts';
+import walletRoutes from './server/routes/walletRoutes.ts';
+import monetizationRoutes from './server/routes/monetizationRoutes.ts';
 
 dotenv.config();
 
@@ -72,11 +76,15 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/organizations', organizationRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/moderation', moderationRoutes);
+app.use('/api/messaging', messagingRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/storage', uploadRoutes);
 app.use('/api/settings', settingRoutes);
+app.use('/api/theme', themeRoutes);
 app.use('/api/reviews', reviewRoutes);
+app.use('/api/wallet', walletRoutes);
+app.use('/api/monetization', monetizationRoutes);
 
 // Health check endpoint
 app.get('/api/health', (_req, res) => {
@@ -93,10 +101,10 @@ app.use('/api', (err: any, _req: express.Request, res: express.Response, _next: 
 
 async function startServer() {
   try {
-    // 1. Initialize SQLite Database & Seed Data
+    // 1. Initialize PostgreSQL database & seed data
     await initDatabase();
 
-    // 2. Start background cron for 30-day listing lifecycle & notifications
+    // 2. Start background cron for listing lifecycle (configurable active-days) & notifications
     startExpirationCron();
 
     // 3. Vite development middleware or static production build

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { requireAuth } from '../auth/telegram.ts';
-import { processAndStoreImage, getR2ObjectStream, r2Client } from '../services/storageService.ts';
+import { processAndStoreImage, storeVideo, getR2ObjectStream, r2Client } from '../services/storageService.ts';
 
 const router = Router();
 
@@ -43,6 +43,41 @@ router.post('/', requireAuth, upload.single('image'), async (req, res) => {
   } catch (err: any) {
     console.error('Upload error:', err);
     res.status(500).json({ error: err.message || 'Rasm yuklashda xatolik yuz berdi' });
+  }
+});
+
+// POST /api/upload/video - Faza 13: upload a listing video (mp4/webm)
+const videoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+  fileFilter: (_req, file, cb) => {
+    const mt = file.mimetype.toLowerCase();
+    if (mt === 'video/mp4' || mt === 'video/webm') {
+      cb(null, true);
+    } else {
+      cb(new Error("Faqat video fayllar (MP4, WebM) yuklanishi mumkin"));
+    }
+  },
+});
+
+router.post('/video', requireAuth, videoUpload.single('video'), async (req, res) => {
+  try {
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ error: 'Video fayl tanlanmadi' });
+    }
+    const folder = (req.query.folder as string) || 'videos';
+    const result = await storeVideo(req.file.buffer, req.file.mimetype, folder);
+    res.json({
+      url: result.url,
+      filename: result.key,
+      size: result.size,
+      mimetype: result.mimetype,
+      media_type: 'video',
+      storage: result.storage,
+    });
+  } catch (err: any) {
+    console.error('Video upload error:', err);
+    res.status(500).json({ error: err.message || 'Video yuklashda xatolik yuz berdi' });
   }
 });
 

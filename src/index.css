@@ -1,5 +1,127 @@
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap");
 @import "tailwindcss";
 @import "leaflet/dist/leaflet.css";
+
+/* ── TopHand dizayn tizimi (Avito-uslubidagi foundation) ──────────────
+   Markazlashgan tokenlar: butun sahifalar va modallar shu yerdan boshqariladi. */
+@theme {
+  /* Brend shrifti */
+  --font-sans: "Manrope", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+
+  /* Brend palitrasi — TopHand ko'ki */
+  --color-brand: #1673E6;
+  --color-brand-dark: #125FD0;
+  --color-brand-darker: #114FAE;
+  --color-brand-light: #EAF2FE;
+  --color-brand-lighter: #F5F9FF;
+
+  /* Ijobiy / telefon-reveal aksenti (Avito yashil) */
+  --color-accent: #02D15C;
+  --color-accent-dark: #03B451;
+
+  /* Mavjud `blue-*` utilitylarini brend ko'kiga moslaymiz —
+     kod bazasidagi yuzlab `bg-blue-600` / `text-blue-600` sinflari
+     darhol TopHand palitrasiga o'tadi (izchillik). */
+  --color-blue-50: #EAF2FE;
+  --color-blue-100: #D3E5FD;
+  --color-blue-200: #A9CDFB;
+  --color-blue-300: #74B0F8;
+  --color-blue-400: #4293F1;
+  --color-blue-500: #1E82EE;
+  --color-blue-600: #1673E6;
+  --color-blue-700: #125FD0;
+  --color-blue-800: #114FAE;
+  --color-blue-900: #123F85;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+}
+
+/* ── Hudud / bayram mavzusi — runtime CSS o'zgaruvchilari ─────────────
+   ThemeContext documentElement ga qo'yadi; bu yerda fallback standart qiymatlar. */
+:root {
+  --th-accent: #1673E6;
+  --th-accent-soft: #EAF2FE;
+  --th-gradient: linear-gradient(135deg, #1673E6 0%, #125FD0 100%);
+  --th-card-pattern: none;
+  --th-atmo-ornament: none;
+  --th-bg-image: none;
+}
+
+/* Mavzu bilan bo'yaladigan elementlar silliq o'tsin */
+.th-accent-bg { background-color: var(--th-accent); transition: background-color .35s ease; }
+.th-accent-text { color: var(--th-accent); transition: color .35s ease; }
+.th-accent-soft-bg { background-color: var(--th-accent-soft); }
+.th-accent-border { border-color: var(--th-accent); }
+.th-gradient-bg { background-image: var(--th-gradient); }
+
+/* Yuqori mavzu lentasi (ribbon) — hudud/bayram uslubini ko'rsatadi */
+.th-ribbon {
+  height: 3px;
+  width: 100%;
+  background-image: var(--th-gradient);
+  transition: background-image .35s ease;
+}
+
+/* Region/holiday badge chip */
+.th-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--th-accent);
+  background: var(--th-accent-soft);
+  transition: color .35s ease, background-color .35s ease;
+}
+
+/* ── Mavzu muhiti (ThemeAtmosphere) ── */
+/* Yirik madaniy naqsh qatlami (sahifa orqasida) */
+.th-atmo-ornament {
+  background-image: var(--th-atmo-ornament);
+  background-repeat: repeat;
+  background-size: 200px 200px;
+  opacity: .55;
+}
+/* Kartalar atrofidagi nozik hudud naqshi (fon suvi) */
+.th-card {
+  background-image: var(--th-card-pattern);
+  background-repeat: repeat;
+  background-size: 56px 56px;
+}
+/* Bayram canvas animatsiyasi */
+.th-fx { will-change: transform; }
+
+/* Yangi yil chiroqlari garlandasi */
+.th-garland::before {
+  content: '';
+  position: absolute; left: 0; right: 0; top: 6px; height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(0,0,0,.18), transparent);
+}
+.th-bulb {
+  position: relative;
+  width: 10px; height: 14px;
+  border-radius: 50% 50% 50% 50% / 42% 42% 58% 58%;
+  box-shadow: 0 0 10px 2px rgba(255, 255, 255, .55), 0 0 6px 1px currentColor;
+  animation: th-flicker 1.9s ease-in-out infinite;
+  transform-origin: top center;
+}
+@keyframes th-flicker {
+  0%, 100% { opacity: 1; transform: scale(1) translateY(0); }
+  42% { opacity: .28; transform: scale(.82) translateY(1px); }
+  52% { opacity: 1; transform: scale(1.05) translateY(0); }
+  70% { opacity: .5; transform: scale(.95) translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .th-bulb { animation: none; }
+}
 
 /* Tillarang zarchalar (Floating golden sparkles around verified badge) */
 @keyframes zarcha-up-1 {

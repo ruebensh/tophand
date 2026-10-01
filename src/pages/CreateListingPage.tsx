@@ -10,7 +10,7 @@ import {
   District,
   Organization,
 } from '../types/index.ts';
-import { apiRequest, uploadImageFile } from '../lib/api.ts';
+import { apiRequest, uploadImageFile, uploadVideoFile, getPublicMonetization, type PublicMonetization } from '../lib/api.ts';
 import { useAuth } from '../context/AuthContext.tsx';
 import {
   Wrench,
@@ -40,6 +40,7 @@ import {
 interface CreateListingPageProps {
   onNavigate: (route: string) => void;
   onCreated: (listingId: string) => void;
+  editListingId?: string;
 }
 
 // Subcategory & service items dictionary per category slug
@@ -282,8 +283,9 @@ const KEYWORD_MAP: Record<string, string[]> = {
   balansirovka: ['avto'],
 };
 
-export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate, onCreated }) => {
+export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate, onCreated, editListingId }) => {
   const { user } = useAuth();
+  const isEditing = !!editListingId;
 
   // Step 1: Listing type selection
   const [selectedType, setSelectedType] = useState<ListingType | null>(null);
@@ -338,10 +340,69 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Videos (Faza 13 — up to 2 short clips)
+  const [videos, setVideos] = useState<string[]>([]);
+  const [isUploadingVideo, setIsUploadingVideo] = useState(false);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+
   // Submission state
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [isLocating, setIsLocating] = useState(false);
+
+  // Monetization config (Faza 5)
+  const [monetization, setMonetization] = useState<PublicMonetization | null>(null);
+  useEffect(() => {
+    getPublicMonetization().then(setMonetization).catch(() => {});
+  }, []);
+
+  // Edit mode (Faza 15): load existing listing and prefill the form
+  const [isLoadingEdit, setIsLoadingEdit] = useState(!!editListingId);
+  useEffect(() => {
+    if (!editListingId) return;
+    (async () => {
+      try {
+        const l = await apiRequest<any>(`/api/listings/${editListingId}`);
+        if (!l) return;
+        setSelectedType(l.type || 'SERVICE_OFFER');
+        setTitle(l.title || '');
+        setCategoryId(l.category_id || '');
+        setRegionId(l.region_id || '');
+        setDistrictId(l.district_id || '');
+        if (l.latitude != null) setLatitude(l.latitude);
+        if (l.longitude != null) setLongitude(l.longitude);
+        setPriceType(l.price_type || 'FIXED');
+        setPriceMin(l.price_min != null ? String(l.price_min) : '');
+        setPriceMax(l.price_max != null ? String(l.price_max) : '');
+        setSalaryType(l.salary_type || 'SALARY_FIXED');
+        setSalaryMin(l.salary_min != null ? String(l.salary_min) : '');
+        setSalaryMax(l.salary_max != null ? String(l.salary_max) : '');
+        setWorkFormat(l.work_format || 'ONSITE');
+        setExperienceLevel(l.experience_level || '1-3');
+        setContactTime(l.contact_time || 'ANY_TIME');
+        setContactCustomText(l.contact_custom_text || '');
+        setOrganizationId(l.organization_id || '');
+        const skillsArr: string[] = Array.isArray(l.skills)
+          ? l.skills
+          : (() => { try { return JSON.parse(l.skills || '[]'); } catch { return []; } })();
+        setSelectedSubcategories(skillsArr);
+        setSelectedFeatures([]);
+        setCustomDescription(l.description || '');
+        const media: string[] = Array.isArray(l.images) ? l.images : [];
+        const isVid = (u: string) => /\.(mp4|webm|mov|m4v)(\?|$)/i.test(u);
+        setImages(media.filter((u) => !isVid(u)));
+        setVideos(media.filter((u) => isVid(u)));
+        if (l.district_id && l.region_id) {
+          apiRequest<District[]>(`/api/locations/districts?region_id=${l.region_id}`).then(setDistricts).catch(() => {});
+        }
+      } catch (err) {
+        console.error('Edit listing load error:', err);
+        setError("E'lonni yuklashda xatolik");
+      } finally {
+        setIsLoadingEdit(false);
+      }
+    })();
+  }, [editListingId]);
 
   // Smart suggestions derived from Title
   const [suggestedCategories, setSuggestedCategories] = useState<Category[]>([]);
@@ -597,6 +658,31 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
     setImages((prev) => prev.filter((_, idx) => idx !== indexToRemove));
   };
 
+  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    if (videos.length + files.length > 2) {
+      alert("Ko'pi bilan 2 ta video yuklash mumkin");
+      return;
+    }
+    setIsUploadingVideo(true);
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const url = await uploadVideoFile(files[i]);
+        setVideos((prev) => [...prev, url].slice(0, 2));
+      }
+    } catch (err: any) {
+      alert(err.message || 'Video yuklashda xatolik');
+    } finally {
+      setIsUploadingVideo(false);
+      if (videoInputRef.current) videoInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveVideo = (indexToRemove: number) => {
+    setVideos((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+  };
+
   const handleDetectGPS = () => {
     if (!navigator.geolocation) {
       alert("Brauzeringiz geolokatsiyani qo'llab-quvvatlamaydi");
@@ -670,46 +756,62 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
     const finalDescription = autoGeneratedDescription;
 
     try {
-      const res = await apiRequest<any>('/api/listings', {
-        method: 'POST',
-        body: JSON.stringify({
-          catalog_id: currentCatalogId,
-          type: selectedType,
-          title: title.trim(),
-          description: finalDescription,
-          category_id: categoryId,
-          region_id: regionId,
-          district_id: districtId,
-          latitude,
-          longitude,
-          price_type: priceType,
-          price_min: priceMin ? parseFloat(priceMin) : undefined,
-          price_max: priceMax ? parseFloat(priceMax) : undefined,
-          salary_type:
-            selectedType === 'JOB_OPENING' || selectedType === 'JOB_SEEKER' ? salaryType : undefined,
-          salary_min: salaryMin ? parseFloat(salaryMin) : undefined,
-          salary_max: salaryMax ? parseFloat(salaryMax) : undefined,
-          work_format: workFormat,
-          experience_level: experienceLevel || undefined,
-          skills: combinedSkills,
-          contact_time: contactTime,
-          contact_custom_text: contactCustomText || undefined,
-          organization_id: organizationId || undefined,
-          images,
-        }),
-      });
+      const payload = {
+        catalog_id: currentCatalogId,
+        type: selectedType,
+        title: title.trim(),
+        description: finalDescription,
+        category_id: categoryId,
+        region_id: regionId,
+        district_id: districtId,
+        latitude,
+        longitude,
+        price_type: priceType,
+        price_min: priceMin ? parseFloat(priceMin) : undefined,
+        price_max: priceMax ? parseFloat(priceMax) : undefined,
+        salary_type:
+          selectedType === 'JOB_OPENING' || selectedType === 'JOB_SEEKER' ? salaryType : undefined,
+        salary_min: salaryMin ? parseFloat(salaryMin) : undefined,
+        salary_max: salaryMax ? parseFloat(salaryMax) : undefined,
+        work_format: workFormat,
+        experience_level: experienceLevel || undefined,
+        skills: combinedSkills,
+        contact_time: contactTime,
+        contact_custom_text: contactCustomText || undefined,
+        organization_id: organizationId || undefined,
+        images,
+        videos,
+      };
 
-      onCreated(res.id);
+      if (isEditing && editListingId) {
+        const updated = await apiRequest<any>(`/api/listings/${editListingId}`, {
+          method: 'PUT',
+          body: JSON.stringify(payload),
+        });
+        onCreated(updated?.id || editListingId);
+      } else {
+        const res = await apiRequest<any>('/api/listings', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+        onCreated(res.id);
+      }
     } catch (err: any) {
-      setError(err.message || "E'lon joylashda xatolik yuz berdi");
+      setError(err.message || (isEditing ? "E'lonni tahrirlashda xatolik" : "E'lon joylashda xatolik yuz berdi"));
       setIsSubmitting(false);
     }
   };
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-6 sm:py-10 pb-28">
-      {/* ── STEP 1: Select Type ── */}
-      {!selectedType ? (
+      {isLoadingEdit ? (
+        <div className="space-y-4 animate-pulse">
+          <div className="w-48 h-8 bg-gray-200 rounded-lg" />
+          <div className="h-96 bg-gray-100 rounded-3xl" />
+        </div>
+      ) : (
+      /* ── STEP 1: Select Type ── */
+      !selectedType ? (
         <div className="space-y-6">
           <div className="text-center max-w-lg mx-auto">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-bold mb-3 border border-blue-100">
@@ -818,14 +920,25 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
         /* ── STEP 2: The Smart Form ── */
         <div className="bg-white rounded-3xl border border-gray-100 p-5 sm:p-8 shadow-xs">
           <div className="flex items-center justify-between pb-5 border-b border-gray-100 mb-6">
-            <button
-              type="button"
-              onClick={() => setSelectedType(null)}
-              className="inline-flex items-center gap-1.5 text-xs font-bold text-gray-500 hover:text-blue-600 transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Boshqa turga o'zgartirish</span>
-            </button>
+            {isEditing ? (
+              <button
+                type="button"
+                onClick={() => onNavigate(`/listing/${editListingId}`)}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-gray-500 hover:text-blue-600 transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>E'longa qaytish</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setSelectedType(null)}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-gray-500 hover:text-blue-600 transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Boshqa turga o'zgartirish</span>
+              </button>
+            )}
             <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-bold border border-blue-100">
               {selectedType === 'SERVICE_OFFER' && '🔧 Xizmat taklifi'}
               {selectedType === 'SERVICE_REQUEST' && "🔍 Xizmat so'rovi"}
@@ -1416,22 +1529,103 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
               />
             </div>
 
-            {/* Immediate 30-day lifecycle notification notice */}
-            <div className="p-3.5 rounded-2xl bg-blue-50/70 border border-blue-100 text-xs text-blue-900 leading-relaxed flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-blue-600 shrink-0" />
-              <span>
-                E'lon joylangach, darhol faol holatga o'tadi va 30 kun davomida amal qiladi. 30 kundan so'ng uni bepul uzaytirishingiz mumkin.
-              </span>
+            {/* 10b. VIDEO UPLOAD (Faza 13 — up to 2 clips) */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-bold text-gray-800">
+                  Video (Ko'pi bilan 2 ta, MP4/WebM)
+                </label>
+                <span className="text-[11px] text-gray-400">{videos.length}/2 ta video</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {videos.map((url, idx) => (
+                  <div
+                    key={idx}
+                    className="relative aspect-square rounded-2xl overflow-hidden border border-gray-200 group bg-black"
+                  >
+                    <video src={url} className="w-full h-full object-cover" muted playsInline />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveVideo(idx)}
+                      className="absolute top-1.5 right-1.5 p-1 rounded-full bg-rose-600 text-white shadow-md hover:bg-rose-700 transition-colors cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                    <span className="absolute bottom-1.5 left-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-sm bg-violet-600 text-white">
+                      Video
+                    </span>
+                  </div>
+                ))}
+
+                {videos.length < 2 && (
+                  <button
+                    type="button"
+                    disabled={isUploadingVideo}
+                    onClick={() => videoInputRef.current?.click()}
+                    className="aspect-square rounded-2xl border-2 border-dashed border-gray-300 hover:border-violet-500 hover:bg-violet-50/30 flex flex-col items-center justify-center p-3 text-center transition-colors cursor-pointer"
+                  >
+                    <UploadCloud
+                      className={`w-6 h-6 text-gray-400 mb-1 ${
+                        isUploadingVideo ? 'animate-bounce text-violet-600' : ''
+                      }`}
+                    />
+                    <span className="text-[11px] font-bold text-gray-600">
+                      {isUploadingVideo ? 'Yuklanmoqda...' : 'Video yuklash'}
+                    </span>
+                  </button>
+                )}
+              </div>
+              <input
+                type="file"
+                ref={videoInputRef}
+                onChange={handleVideoUpload}
+                accept="video/mp4,video/webm"
+                className="hidden"
+              />
             </div>
+
+            {/* Immediate lifecycle notification notice (monetization-aware, Faza 5) — hidden while editing */}
+            {!isEditing && (() => {
+              const activeDays = monetization?.active_days ?? 30;
+              const isPaid = monetization?.mode === 'PAID';
+              const listingPrice = monetization
+                ? currentCatalogId === 'jobs'
+                  ? monetization.prices.listing.jobs
+                  : monetization.prices.listing.services
+                : 0;
+              return (
+                <div
+                  className={`p-3.5 rounded-2xl border text-xs leading-relaxed flex items-center gap-2 ${
+                    isPaid
+                      ? 'bg-amber-50/70 border-amber-200 text-amber-900'
+                      : 'bg-emerald-50/70 border-emerald-100 text-emerald-900'
+                  }`}
+                >
+                  <Sparkles className="w-4 h-4 shrink-0" />
+                  {isPaid ? (
+                    <span>
+                      Ushbu e'lon narxi: <b>{listingPrice.toLocaleString('uz-UZ')} so'm</b> (balansdan
+                      yechiladi). E'lon {activeDays} kun davomida faol bo'ladi, so'ng uni uzaytirishingiz
+                      mumkin.
+                    </span>
+                  ) : (
+                    <span>
+                      <b>Test davri: bepul.</b> E'loningiz {activeDays} kun davomida faol turadi, so'ng
+                      arxivga o'tadi va uni bepul uzaytirishingiz mumkin.
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Action buttons */}
             <div className="pt-4 flex items-center gap-3">
               <button
                 type="button"
-                onClick={() => setSelectedType(null)}
+                onClick={() => (isEditing ? onNavigate(`/listing/${editListingId}`) : setSelectedType(null))}
                 className="py-3 px-6 rounded-full border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold text-xs cursor-pointer"
               >
-                Orqaga
+                {isEditing ? 'Bekor qilish' : 'Orqaga'}
               </button>
 
               <button
@@ -1440,17 +1634,18 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
                 className="flex-1 py-3.5 rounded-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-xs sm:text-sm shadow-md transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
               >
                 {isSubmitting ? (
-                  <span>Chop etilmoqda...</span>
+                  <span>{isEditing ? 'Saqlanmoqda...' : 'Chop etilmoqda...'}</span>
                 ) : (
                   <>
                     <CheckCircle2 className="w-4 h-4" />
-                    <span>E'lonni darhol chop etish</span>
+                    <span>{isEditing ? "O'zgarishlarni saqlash" : "E'lonni darhol chop etish"}</span>
                   </>
                 )}
               </button>
             </div>
           </form>
         </div>
+      )
       )}
     </div>
   );

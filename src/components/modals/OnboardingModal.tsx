@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext.tsx';
 import { Region, District } from '../../types/index.ts';
 import { apiRequest } from '../../lib/api.ts';
 import { MapPin, Sparkles, Navigation } from 'lucide-react';
+import { Modal } from '../common/Modal.tsx';
 
 export const OnboardingModal: React.FC = () => {
   const { user, isOnboardingOpen, closeOnboardingModal, refreshUser } = useAuth();
@@ -118,8 +119,7 @@ export const OnboardingModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-gray-100 p-6 sm:p-8">
+    <Modal isOpen={isOnboardingOpen} onClose={closeOnboardingModal} size="lg" dismissable={false} hideClose>
         <div className="text-center mb-6">
           <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-3">
             <Sparkles className="w-6 h-6" />
@@ -237,13 +237,12 @@ export const OnboardingModal: React.FC = () => {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full py-2.5 rounded-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-xs shadow-md transition-colors"
+              className="w-full h-[48px] rounded-2xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-sm shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
             >
               {isSubmitting ? 'Saqlanmoqda...' : 'Davom etish'}
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
 };

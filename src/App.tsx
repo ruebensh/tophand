@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext.tsx';
 import { NotificationProvider } from './context/NotificationContext.tsx';
 import { LogoProvider } from './context/LogoContext.tsx';
+import { GeoProvider } from './context/GeoContext.tsx';
+import { ThemeProvider } from './context/ThemeContext.tsx';
 import { Header } from './components/layout/Header.tsx';
 import { MobileNav } from './components/layout/MobileNav.tsx';
 import { Footer } from './components/layout/Footer.tsx';
@@ -13,8 +15,8 @@ import { CreateListingPage } from './pages/CreateListingPage.tsx';
 import { ProfilePage } from './pages/ProfilePage.tsx';
 import { ChatPage } from './pages/ChatPage.tsx';
 import { SavedListingsPage } from './pages/SavedListingsPage.tsx';
+import { WalletPage } from './pages/WalletPage.tsx';
 import { OrganizationPage } from './pages/OrganizationPage.tsx';
-import { CreateOrganizationPage } from './pages/CreateOrganizationPage.tsx';
 import { ModeratorDashboardPage } from './pages/ModeratorDashboardPage.tsx';
 import { AdminDashboardPage } from './pages/AdminDashboardPage.tsx';
 import { CategoriesPage } from './pages/CategoriesPage.tsx';
@@ -22,12 +24,14 @@ import { CategoriesPage } from './pages/CategoriesPage.tsx';
 // Global Modals
 import { GoogleLoginModal } from './components/modals/GoogleLoginModal.tsx';
 import { OnboardingModal } from './components/modals/OnboardingModal.tsx';
+import { ThemeAtmosphere } from './components/theme/ThemeAtmosphere.tsx';
 
 const AppContent: React.FC = () => {
   const { user, openLoginModal } = useAuth();
   const [currentRoute, setCurrentRoute] = useState<string>(
     (window.location.pathname || '/') + (window.location.search || '')
   );
+  const [homeStamp, setHomeStamp] = useState(0);
 
   // Sync browser popstate (back/forward)
   useEffect(() => {
@@ -41,6 +45,9 @@ const AppContent: React.FC = () => {
   const navigate = (route: string) => {
     window.history.pushState({}, '', route);
     setCurrentRoute(route);
+    // Always show a fresh landing page when navigating to home '/'
+    // (bumps the key so HomePage remounts and clears in-page filters).
+    if (route === '/' || route === '/?') setHomeStamp((n) => n + 1);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -57,11 +64,16 @@ const AppContent: React.FC = () => {
       );
     }
 
-    // 2. Create Listing: /create
-    if (currentRoute === '/create') {
+    // 2. Create Listing: /create (edit mode: /create?edit=:id)
+    if (currentRoute === '/create' || currentRoute.startsWith('/create?')) {
+      const editParam = currentRoute.includes('edit=')
+        ? currentRoute.split('edit=')[1].split('&')[0]
+        : undefined;
       return (
         <CreateListingPage
+          key={currentRoute}
           onNavigate={navigate}
+          editListingId={editParam}
           onCreated={(listingId) => navigate(`/listing/${listingId}`)}
         />
       );
@@ -105,6 +117,11 @@ const AppContent: React.FC = () => {
       );
     }
 
+    // 5b. Wallet / Balance: /wallet
+    if (currentRoute === '/wallet' || currentRoute.startsWith('/wallet')) {
+      return <WalletPage onNavigate={navigate} />;
+    }
+
     // 6. Organization Detail: /org/:id
     if (currentRoute.startsWith('/org/')) {
       const orgId = currentRoute.replace('/org/', '');
@@ -117,15 +134,7 @@ const AppContent: React.FC = () => {
       );
     }
 
-    // 7. Create Organization: /create-org
-    if (currentRoute === '/create-org') {
-      return (
-        <CreateOrganizationPage
-          onNavigate={navigate}
-          onCreated={(orgId) => navigate(`/org/${orgId}`)}
-        />
-      );
-    }
+    // 7. Create Organization: removed (Faza 11 — user-facing org creation dropped)
 
     // 8. Categories Page: /categories
     if (
@@ -143,7 +152,8 @@ const AppContent: React.FC = () => {
 
     // 9. Moderator Dashboard: /moderator
     if (currentRoute === '/moderator') {
-      if (!user || (user.role !== 'MODERATOR' && user.role !== 'ADMIN')) {
+      const STAFF_ROLES = ['INTERN_MOD', 'MODERATOR', 'LEAD_MOD', 'ADMIN', 'SUPER_ADMIN'];
+      if (!user || !STAFF_ROLES.includes(user.role)) {
         return (
           <div className="max-w-md mx-auto py-16 text-center">
             <h3 className="font-bold text-base text-gray-900">Ruxsat cheklangan</h3>
@@ -169,7 +179,7 @@ const AppContent: React.FC = () => {
 
     // 9. Admin Dashboard: /admin
     if (currentRoute === '/admin') {
-      if (!user || user.role !== 'ADMIN') {
+      if (!user || (user.role !== 'ADMIN' && user.role !== 'SUPER_ADMIN')) {
         return (
           <div className="max-w-md mx-auto py-16 text-center">
             <h3 className="font-bold text-base text-gray-900">Ruxsat cheklangan</h3>
@@ -195,7 +205,7 @@ const AppContent: React.FC = () => {
 
     return (
       <HomePage
-        key={currentRoute}
+        key={`${currentRoute}:${homeStamp}`}
         initialType={homeType}
         onNavigate={navigate}
         onOpenListing={(id) => navigate(`/listing/${id}`)}
@@ -204,7 +214,10 @@ const AppContent: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50/50 font-sans text-gray-900 selection:bg-blue-600 selection:text-white overflow-x-hidden w-full max-w-full">
+    <div className="relative min-h-screen flex flex-col bg-gray-50/50 font-sans text-gray-900 selection:bg-blue-600 selection:text-white overflow-x-hidden w-full max-w-full">
+      {/* Mavzu muhiti: hudud foni/naqshi + bayram animatsiyalari (kontent ortasi/ustida) */}
+      <ThemeAtmosphere />
+
       {/* Global Header */}
       <Header
         onNavigate={navigate}
@@ -215,7 +228,7 @@ const AppContent: React.FC = () => {
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 pb-16 sm:pb-0">{renderRoute()}</main>
+      <main className="relative z-10 flex-1 pb-16 sm:pb-0">{renderRoute()}</main>
 
       {/* Global Footer (conditionally hidden on mobile devices) */}
       <div className="hidden md:block">
@@ -237,7 +250,11 @@ export function App() {
     <AuthProvider>
       <NotificationProvider>
         <LogoProvider>
-          <AppContent />
+          <GeoProvider>
+            <ThemeProvider>
+              <AppContent />
+            </ThemeProvider>
+          </GeoProvider>
         </LogoProvider>
       </NotificationProvider>
     </AuthProvider>

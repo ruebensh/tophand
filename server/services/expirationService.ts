@@ -1,9 +1,13 @@
 import crypto from 'crypto';
 import { queryAll, runQuery } from '../db/database.ts';
+import { getMonetizationConfig, resolveWarningDays, resolveActiveDays } from './monetizationService.ts';
 
 export async function processListingExpirations() {
   const now = new Date().toISOString();
-  const threeDaysFromNow = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
+  const cfg = await getMonetizationConfig();
+  const warningDays = resolveWarningDays(cfg);
+  const activeDays = resolveActiveDays(cfg);
+  const warnFromNow = new Date(Date.now() + warningDays * 24 * 60 * 60 * 1000).toISOString();
 
   // 1. Check for expired listings (ACTIVE -> ARCHIVED)
   const expiredListings = await queryAll<{ id: string; owner_user_id: string; title: string }>(
@@ -24,14 +28,14 @@ export async function processListingExpirations() {
       [
         notifId,
         l.owner_user_id,
-        `"${l.title}" nomli e’loningizning amal qilish muddati tugadi va arxivga o‘tkazildi. Uni istalgan vaqtda bepul uzaytirishingiz mumkin.`,
+        `"${l.title}" nomli e’loningizning amal qilish muddati tugadi va arxivga o‘tkazildi. Uni istalgan vaqtda qayta faollashtirishingiz mumkin.`,
         `/profile/${l.owner_user_id}`,
         now,
       ]
     );
   }
 
-  const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+  const warnedAfter = new Date(Date.now() - warningDays * 24 * 60 * 60 * 1000).toISOString();
   const expiringSoonListings = await queryAll<{ id: string; owner_user_id: string; title: string }>(
     `SELECT id, owner_user_id, title FROM listings 
      WHERE status = 'ACTIVE' 
@@ -41,18 +45,19 @@ export async function processListingExpirations() {
          SELECT link FROM notifications 
          WHERE type = 'LISTING_EXPIRING' AND created_at >= ?
        )`,
-    [threeDaysFromNow, now, threeDaysAgo]
+    [warnFromNow, now, warnedAfter]
   );
 
   for (const l of expiringSoonListings) {
     const notifId = `notif_${crypto.randomUUID().slice(0, 16)}`;
     await runQuery(
       `INSERT INTO notifications (id, user_id, type, title, body, link, created_at)
-       VALUES (?, ?, 'LISTING_EXPIRING', 'E’lon muddati tugashiga 3 kun qoldi', ?, ?, ?)`,
+       VALUES (?, ?, 'LISTING_EXPIRING', ?, ?, ?, ?)`,
       [
         notifId,
         l.owner_user_id,
-        `"${l.title}" nomli e’loningizning amal qilish muddati tugashiga 3 kun qoldi. Uni yana 30 kunga uzaytirishingiz mumkin.`,
+        `E’lon muddati tugashiga ${warningDays} kun qoldi`,
+        `"${l.title}" nomli e’loningizning amal qilish muddati tugashiga ${warningDays} kun qoldi. Uni yana ${activeDays} kunga uzaytirishingiz mumkin.`,
         `/listing/${l.id}`,
         now,
       ]

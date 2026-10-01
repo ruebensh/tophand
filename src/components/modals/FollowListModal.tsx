@@ -3,6 +3,7 @@ import { apiRequest } from '../../lib/api.ts';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { VerifiedBadge } from '../common/VerifiedBadge.tsx';
 import { X, UserCheck, UserPlus, Users, MapPin } from 'lucide-react';
+import { Modal } from '../common/Modal.tsx';
 
 export interface FollowUserItem {
   id: string;
@@ -75,8 +76,6 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
     };
   }, [isOpen, userId, activeTab]);
 
-  if (!isOpen) return null;
-
   const handleToggleFollow = async (e: React.MouseEvent, targetUser: FollowUserItem) => {
     e.stopPropagation();
 
@@ -109,60 +108,60 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div
-        className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="p-4 sm:p-5 border-b border-gray-100 flex items-center justify-between bg-white">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-              <Users className="w-5 h-5" />
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      size="md"
+      padded={false}
+      header={
+        <>
+          {/* Header */}
+          <div className="px-5 sm:px-7 pt-5 sm:pt-6 pb-4 border-b border-gray-100 flex items-center justify-between bg-white">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                <Users className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="font-extrabold text-base text-gray-950 truncate">{userName}</h3>
+                <p className="text-[11px] text-gray-400">Obuna aloqalari</p>
+              </div>
             </div>
-            <div className="min-w-0">
-              <h3 className="font-extrabold text-sm sm:text-base text-gray-950 truncate">
-                {userName}
-              </h3>
-              <p className="text-[11px] text-gray-400">Obuna aloqalari</p>
-            </div>
+            <button
+              onClick={onClose}
+              className="w-9 h-9 -mr-1 rounded-full flex items-center justify-center text-gray-900 hover:bg-gray-100 transition-colors cursor-pointer"
+              aria-label="Yopish"
+            >
+              <X className="w-[18px] h-[18px]" strokeWidth={2.2} />
+            </button>
           </div>
 
-          <button
-            onClick={onClose}
-            className="p-2 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
-            aria-label="Yopish"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Tabs */}
-        <div className="grid grid-cols-2 border-b border-gray-100 bg-gray-50/50">
-          <button
-            onClick={() => setActiveTab('followers')}
-            className={`py-3 text-center text-xs font-bold transition-all border-b-2 cursor-pointer ${
-              activeTab === 'followers'
-                ? 'border-blue-600 text-blue-600 bg-white shadow-2xs'
-                : 'border-transparent text-gray-500 hover:text-gray-900'
-            }`}
-          >
-            Obunachilar ({activeTab === 'followers' ? users.length : '...'})
-          </button>
-          <button
-            onClick={() => setActiveTab('following')}
-            className={`py-3 text-center text-xs font-bold transition-all border-b-2 cursor-pointer ${
-              activeTab === 'following'
-                ? 'border-blue-600 text-blue-600 bg-white shadow-2xs'
-                : 'border-transparent text-gray-500 hover:text-gray-900'
-            }`}
-          >
-            Obunalar ({activeTab === 'following' ? users.length : '...'})
-          </button>
-        </div>
-
-        {/* List Body */}
-        <div className="flex-1 overflow-y-auto p-3 sm:p-4 divide-y divide-gray-100">
+          {/* Tabs */}
+          <div className="grid grid-cols-2 border-b border-gray-100 bg-gray-50/50">
+            <button
+              onClick={() => setActiveTab('followers')}
+              className={`py-3 text-center text-xs font-bold transition-all border-b-2 cursor-pointer ${
+                activeTab === 'followers'
+                  ? 'border-blue-600 text-blue-600 bg-white shadow-2xs'
+                  : 'border-transparent text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              Obunachilar ({activeTab === 'followers' ? users.length : '...'})
+            </button>
+            <button
+              onClick={() => setActiveTab('following')}
+              className={`py-3 text-center text-xs font-bold transition-all border-b-2 cursor-pointer ${
+                activeTab === 'following'
+                  ? 'border-blue-600 text-blue-600 bg-white shadow-2xs'
+                  : 'border-transparent text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              Obunalar ({activeTab === 'following' ? users.length : '...'})
+            </button>
+          </div>
+        </>
+      }
+    >
+      <div className="p-3 sm:p-4 divide-y divide-gray-100">
           {isLoading ? (
             <div className="space-y-3 py-4">
               {[1, 2, 3, 4].map((i) => (
@@ -272,8 +271,7 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
               );
             })
           )}
-        </div>
       </div>
-    </div>
+    </Modal>
   );
 };

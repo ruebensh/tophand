@@ -1,6 +1,7 @@
 import { pool } from './database.ts';
 import { CATALOGS_LIST, ALL_CATALOG_CATEGORIES } from './categoriesData.ts';
 import { UZBEKISTAN_DISTRICTS } from './districtsData.ts';
+import { runMigrations } from './migrations.ts';
 
 // ─── Table creation helpers ────────────────────────────────────────────
 async function createTableIfNotExists(sql: string) {
@@ -422,6 +423,9 @@ export async function initDatabase() {
   // ─── Seed data ────────────────────────────────────────────────────────
   await seedInitialData();
 
+  // ─── Idempotent schema migrations + monetization defaults (Faza 16) ────
+  await runMigrations();
+
   console.log('✅ PostgreSQL schema initialized successfully.');
 }
 
@@ -458,6 +462,7 @@ export async function syncCategories() {
         name_uz = EXCLUDED.name_uz,
         slug = EXCLUDED.slug,
         icon = EXCLUDED.icon,
+        parent_id = NULL,
         sort_order = EXCLUDED.sort_order,
         updated_at = EXCLUDED.updated_at
     `, [parent.id, catalogId, parent.name_uz, parent.slug, parent.icon, order++, now, now]);

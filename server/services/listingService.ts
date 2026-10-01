@@ -1,5 +1,13 @@
 import crypto from 'crypto';
 import { queryAll, queryOne, runQuery } from '../db/database.ts';
+import {
+  getMonetizationConfig,
+  resolveActiveDays,
+  getListingPrice,
+  getRenewPrice,
+  getPromoPrice,
+} from './monetizationService.ts';
+import { charge } from './walletService.ts';
 
 export interface ListingFilter {
   catalog_id?: string;
@@ -247,6 +255,12 @@ export async function searchListings(filter: ListingFilter) {
   const scoredListings = allMatching.map((item) => {
     let score = 0;
 
+    // Faza 8: promoted (paid) listings always surface on top
+    const isPromoted = Boolean(item.promoted_until) && new Date(item.promoted_until).getTime() > Date.now();
+    if (isPromoted) {
+      score += 100_000_000;
+    }
+
     // Follow priority
     const isFollowed = followedUserIds.has(item.owner_user_id);
     if (isFollowed) {
@@ -302,6 +316,7 @@ export async function searchListings(filter: ListingFilter) {
       distance_km: distanceKm ? Math.round(distanceKm * 10) / 10 : null,
       employer_rating: ratingStats?.avg_rating || null,
       employer_review_count: ratingStats?.review_count || 0,
+      is_promoted: isPromoted,
       _ranking_score: score,
     };
   });
@@ -481,11 +496,11 @@ export async function getListingById(id: string, current_user_id?: string) {
 export async function createListing(userId: string, data: any) {
   const id = `lst_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
   const now = new Date().toISOString();
-  // 30 days expiration rule
-  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
-  // Validate images count
+  // Validate images count (Faza 13: videos stored alongside images, media_type inferred by extension)
   const images: string[] = Array.isArray(data.images) ? data.images.slice(0, 8) : [];
+  const videos: string[] = Array.isArray(data.videos) ? data.videos.slice(0, 2) : [];
+  const media: string[] = [...images, ...videos];
 
   // Determine catalog_id
   let catalogId = data.catalog_id;
@@ -497,6 +512,15 @@ export async function createListing(userId: string, data: any) {
     } else {
       catalogId = 'services';
     }
+  }
+
+  // Faza 2 + 7: configurable active-days cycle + charge listing price when PAID
+  const cfg = await getMonetizationConfig();
+  const activeDays = resolveActiveDays(cfg);
+  const expiresAt = new Date(Date.now() + activeDays * 24 * 60 * 60 * 1000).toISOString();
+  const price = getListingPrice(cfg, catalogId);
+  if (price > 0) {
+    await charge(userId, price, { ref_type: 'LISTING_CREATE', ref_id: id, note: "E'lon joylash" });
   }
 
   await runQuery(
@@ -537,12 +561,13 @@ export async function createListing(userId: string, data: any) {
     ]
   );
 
-  // Insert images
-  for (let i = 0; i < images.length; i++) {
+  // Insert media (images + videos). Faza 13: media_type inferred from extension.
+  for (let i = 0; i < media.length; i++) {
     const imgId = `img_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
+    const mediaType = /\.(mp4|webm|mov|m4v)(\?|$)/i.test(media[i]) ? 'video' : 'image';
     await runQuery(
-      `INSERT INTO listing_images (id, listing_id, url, sort_order, created_at) VALUES (?, ?, ?, ?, ?)`,
-      [imgId, id, images[i], i, now]
+      `INSERT INTO listing_images (id, listing_id, url, sort_order, media_type, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+      [imgId, id, media[i], i, mediaType, now]
     );
   }
 
@@ -559,9 +584,20 @@ export async function renewListing(listingId: string, userId: string) {
     throw new Error("Siz faqat o'zingizning e'loningizni uzaytirishingiz mumkin");
   }
 
+  if (!['ACTIVE', 'ARCHIVED', 'HIDDEN'].includes(listing.status)) {
+    throw new Error("Bu holatdagi e'lonni uzaytirib bo'lmaydi");
+  }
+
+  // Faza 2 + 7: configurable active-days + optional renew charge when PAID
+  const cfg = await getMonetizationConfig();
+  const activeDays = resolveActiveDays(cfg);
+  const price = getRenewPrice(cfg, listing.catalog_id);
+  if (price > 0) {
+    await charge(userId, price, { ref_type: 'LISTING_RENEW', ref_id: listingId, note: "E'lon uzaytirish" });
+  }
+
   const now = new Date().toISOString();
-  // 30 days renewal
-  const newExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  const newExpiresAt = new Date(Date.now() + activeDays * 24 * 60 * 60 * 1000).toISOString();
 
   // Renew does NOT change created_at (prevents artificial aging change)
   await runQuery(
@@ -579,11 +615,86 @@ export async function renewListing(listingId: string, userId: string) {
     [
       notifId,
       userId,
-      `"${listing.title}" nomli e'loningiz amal qilish muddati yana 30 kunga uzaytirildi.`,
+      `"${listing.title}" nomli e'loningiz amal qilish muddati yana ${activeDays} kunga uzaytirildi.`,
       `/listing/${listingId}`,
       now,
     ]
   );
 
   return getListingById(listingId, userId);
+}
+
+// ─── Faza 8: Promote (topga ko'tarish) ─────────────────────────────────
+export async function promoteListing(listingId: string, userId: string) {
+  const listing = await queryOne<any>('SELECT * FROM listings WHERE id = ?', [listingId]);
+  if (!listing) throw new Error("E'lon topilmadi");
+  if (listing.owner_user_id !== userId) throw new Error("Siz faqat o'zingizning e'loningizni ko'tarishingiz mumkin");
+
+  const cfg = await getMonetizationConfig();
+  const price = getPromoPrice(cfg, listing.catalog_id);
+  if (price <= 0) {
+    // Free-test: still allow a short promo without charge
+    const hours = cfg.promo_duration_hours || 24;
+    const until = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
+    await runQuery('UPDATE listings SET promoted_until = ?, updated_at = ? WHERE id = ?', [until, new Date().toISOString(), listingId]);
+    return getListingById(listingId, userId);
+  }
+
+  await charge(userId, price, { ref_type: 'LISTING_PROMO', ref_id: listingId, note: "E'lonni topga ko'tarish" });
+  const until = new Date(Date.now() + (cfg.promo_duration_hours || 24) * 60 * 60 * 1000).toISOString();
+  await runQuery('UPDATE listings SET promoted_until = ?, updated_at = ? WHERE id = ?', [until, new Date().toISOString(), listingId]);
+  return getListingById(listingId, userId);
+}
+
+// ─── Faza 9: Listing analytics events ──────────────────────────────────
+export async function recordListingEvent(
+  listingId: string,
+  eventType: 'VIEW' | 'CONTACT' | 'SAVE',
+  userId: string | null
+) {
+  const id = `lev_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
+  await runQuery(
+    `INSERT INTO listing_events (id, listing_id, event_type, user_id, created_at) VALUES (?, ?, ?, ?, ?)`,
+    [id, listingId, eventType, userId, new Date().toISOString()]
+  );
+}
+
+export async function getListingStats(listingId: string) {
+  const rows = await queryAll<{ event_type: string; count: string }>(
+    `SELECT event_type, COUNT(*) as count FROM listing_events WHERE listing_id = ? GROUP BY event_type`,
+    [listingId]
+  );
+  const stats = { views: 0, contacts: 0, saves: 0 };
+  for (const r of rows) {
+    const c = Number(r.count) || 0;
+    if (r.event_type === 'VIEW') stats.views = c;
+    else if (r.event_type === 'CONTACT') stats.contacts = c;
+    else if (r.event_type === 'SAVE') stats.saves = c;
+  }
+  return { listing_id: listingId, ...stats };
+}
+
+/** Aggregate stats for all listings owned by a user (owner-only analytics). */
+export async function getOwnerListingsStats(ownerUserId: string) {
+  const listings = await queryAll<{ id: string; title: string; status: string }>(
+    `SELECT id, title, status FROM listings WHERE owner_user_id = ? ORDER BY created_at DESC`,
+    [ownerUserId]
+  );
+  const ids = listings.map((l) => l.id);
+  const result: Record<string, { views: number; contacts: number; saves: number }> = {};
+  for (const id of ids) result[id] = { views: 0, contacts: 0, saves: 0 };
+  if (ids.length > 0) {
+    const rows = await queryAll<{ listing_id: string; event_type: string; count: string }>(
+      `SELECT listing_id, event_type, COUNT(*) as count FROM listing_events WHERE listing_id IN (${ids.map(() => '?').join(',')}) GROUP BY listing_id, event_type`,
+      ids
+    );
+    for (const r of rows) {
+      const c = Number(r.count) || 0;
+      if (!result[r.listing_id]) continue;
+      if (r.event_type === 'VIEW') result[r.listing_id].views = c;
+      else if (r.event_type === 'CONTACT') result[r.listing_id].contacts = c;
+      else if (r.event_type === 'SAVE') result[r.listing_id].saves = c;
+    }
+  }
+  return listings.map((l) => ({ ...l, stats: result[l.id] }));
 }

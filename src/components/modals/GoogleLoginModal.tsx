@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { X, Mail, Lock, Eye, EyeOff, Loader2, ArrowLeft, CheckCircle2, User, KeyRound } from 'lucide-react';
 import { TopHandLogo } from '../common/TopHandLogo.tsx';
+import { Modal } from '../common/Modal.tsx';
 
 declare global {
   interface Window {
@@ -202,24 +203,24 @@ export const GoogleLoginModal: React.FC = () => {
   if (!isLoginModalOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-950/70 backdrop-blur-xs animate-in fade-in duration-200">
-      <div
-        className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col animate-in zoom-in-95 duration-200"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="p-6 pb-4 border-b border-gray-100 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <TopHandLogo size="sm" showText={true} />
-          </div>
+    <Modal
+      isOpen={isLoginModalOpen}
+      onClose={closeLoginModal}
+      size="md"
+      padded={false}
+      header={
+        <div className="px-6 sm:px-7 pt-5 pb-4 border-b border-gray-100 flex items-center justify-between">
+          <TopHandLogo size="sm" showText={true} />
           <button
             onClick={closeLoginModal}
-            className="p-2 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
+            aria-label="Yopish"
+            className="w-9 h-9 -mr-1 rounded-full flex items-center justify-center text-gray-900 hover:bg-gray-100 transition-colors cursor-pointer"
           >
-            <X className="w-5 h-5" />
+            <X className="w-[18px] h-[18px]" strokeWidth={2.2} />
           </button>
         </div>
-
+      }
+    >
         <div className="p-6">
           {/* ════════════════════════════════════════════════════════════════
               1. LOGIN VIEW
@@ -589,7 +590,6 @@ export const GoogleLoginModal: React.FC = () => {
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 };

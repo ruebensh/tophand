@@ -6,12 +6,14 @@ import { queryOne } from '../db/database.ts';
 const JWT_SECRET = process.env.JWT_SECRET || 'tophand-jwt-secret-uzbekistan-2026';
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 
+export type Role = 'USER' | 'INTERN_MOD' | 'MODERATOR' | 'LEAD_MOD' | 'ADMIN' | 'SUPER_ADMIN';
+
 export interface AuthUser {
   id: string;
   telegram_id: string;
   telegram_username?: string;
   name: string;
-  role: 'USER' | 'MODERATOR' | 'ADMIN';
+  role: Role;
   is_banned: number;
   ban_type: 'NONE' | 'TEMPORARY' | 'PERMANENT';
   ban_reason?: string;
@@ -136,7 +138,7 @@ export async function optionalAuth(req: AuthRequest, res: Response, next: NextFu
   next();
 }
 
-export function requireRole(allowedRoles: ('MODERATOR' | 'ADMIN')[]) {
+export function requireRole(allowedRoles: Role[]) {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
     if (!req.user) {
       return res.status(401).json({ error: 'Avtorizatsiya talab qilinadi' });
@@ -146,6 +148,39 @@ export function requireRole(allowedRoles: ('MODERATOR' | 'ADMIN')[]) {
       return res.status(403).json({ error: 'Ushbu amalni bajarish uchun sizda yetarli ruxsat yo‘q' });
     }
 
+    next();
+  };
+}
+
+// ─── Faza 17: role hierarchy helpers ───────────────────────────────────
+export const ROLE_LEVEL: Record<Role, number> = {
+  USER: 0,
+  INTERN_MOD: 1,
+  MODERATOR: 2,
+  LEAD_MOD: 3,
+  ADMIN: 4,
+  SUPER_ADMIN: 5,
+};
+
+/** Any staff member (moderator tier or above). */
+export function isStaffRole(role?: string | null): boolean {
+  return !!role && role !== 'USER' && ROLE_LEVEL[role as Role] >= ROLE_LEVEL.INTERN_MOD;
+}
+
+export function hasMinLevel(role: string | null | undefined, min: Role): boolean {
+  if (!role) return false;
+  return (ROLE_LEVEL[role as Role] ?? -1) >= ROLE_LEVEL[min];
+}
+
+/** Middleware: require the authenticated user's role level >= min. */
+export function requireMinLevel(min: Role) {
+  return (req: AuthRequest, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Avtorizatsiya talab qilinadi' });
+    }
+    if (!hasMinLevel(req.user.role, min)) {
+      return res.status(403).json({ error: 'Ushbu amalni bajarish uchun ruxsat darajangiz yetarli emas' });
+    }
     next();
   };
 }

@@ -3,6 +3,7 @@ import { Review, RatingSummary } from '../../types/index.ts';
 import { apiRequest } from '../../lib/api.ts';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { formatDateAgo } from '../../lib/utils.ts';
+import { Modal } from '../common/Modal.tsx';
 import {
   Star,
   MessageSquare,
@@ -546,35 +547,40 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
       </div>
 
       {/* 4. Modal: Add or Edit Review */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl border border-[#EBECF0] shadow-2xl max-w-lg w-full p-6 sm:p-7 relative animate-in zoom-in-95 duration-200">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between pb-4 border-b border-[#EBECF0]">
-              <div>
-                <h3 className="font-extrabold text-lg text-[#172B4D]">
-                  {editingReviewId ? 'Sharhni tahrirlash' : 'Sharh qoldirish'}
-                </h3>
-                <p className="text-xs text-[#5E6C84] mt-0.5">
-                  Ish beruvchi: <span className="font-semibold text-[#172B4D]">{employerName}</span>
-                </p>
-              </div>
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        size="md"
+        padded={false}
+        header={
+          <div className="flex items-start justify-between gap-4 px-6 sm:px-8 pt-6 pb-4 border-b border-gray-100">
+            <div>
+              <h3 className="font-bold text-lg text-gray-950">
+                {editingReviewId ? 'Sharhni tahrirlash' : 'Sharh qoldirish'}
+              </h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Ish beruvchi: <span className="font-semibold text-gray-800">{employerName}</span>
+              </p>
             </div>
+            <button
+              type="button"
+              onClick={() => setIsModalOpen(false)}
+              className="p-1.5 -mr-1 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 cursor-pointer shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        }
+      >
+        <div className="p-6 sm:p-8">
+          {formError && (
+            <div className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-100 text-xs text-rose-600 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{formError}</span>
+            </div>
+          )}
 
-            {formError && (
-              <div className="mt-4 p-3 rounded-xl bg-rose-50 border border-rose-100 text-xs text-rose-600 flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{formError}</span>
-              </div>
-            )}
-
-            <form onSubmit={handleSubmitReview} className="mt-5 space-y-4">
+          <form onSubmit={handleSubmitReview} className="space-y-4">
               {/* Interactive 5-Star Selection */}
               <div>
                 <label className="block text-xs font-bold text-[#172B4D] mb-1.5">
@@ -658,46 +664,48 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
                   )}
                 </button>
               </div>
-            </form>
-          </div>
+          </form>
         </div>
-      )}
+      </Modal>
 
       {/* 5. Modal: Delete Confirmation */}
-      {deletingReviewId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl border border-[#EBECF0] shadow-xl max-w-sm w-full p-6 text-center space-y-4">
-            <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
-              <Trash2 className="w-6 h-6" />
-            </div>
-            <div>
-              <h4 className="font-bold text-base text-[#172B4D]">Sharhni o‘chirmoqchimisiz?</h4>
-              <p className="text-xs text-[#5E6C84] mt-1">
-                Ushbu amalni ortga qaytarib bo‘lmaydi. Sharh butunlay o‘chiriladi va reyting qayta
-                hisoblanadi.
-              </p>
-            </div>
-            <div className="flex gap-2 justify-center pt-2">
-              <button
-                type="button"
-                onClick={() => setDeletingReviewId(null)}
-                disabled={isDeleting}
-                className="flex-1 py-2 rounded-xl border border-[#EBECF0] text-xs font-semibold text-gray-700 hover:bg-gray-50"
-              >
-                Bekor qilish
-              </button>
-              <button
-                type="button"
-                onClick={handleDeleteReview}
-                disabled={isDeleting}
-                className="flex-1 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs transition-colors"
-              >
-                {isDeleting ? 'O‘chirilmoqda...' : 'O‘chirish'}
-              </button>
-            </div>
+      <Modal
+        isOpen={!!deletingReviewId}
+        onClose={() => setDeletingReviewId(null)}
+        size="sm"
+        hideClose
+      >
+        <div className="text-center space-y-4">
+          <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
+            <Trash2 className="w-6 h-6" />
+          </div>
+          <div>
+            <h4 className="font-bold text-base text-gray-950">Sharhni o‘chirmoqchimisiz?</h4>
+            <p className="text-xs text-gray-500 mt-1">
+              Ushbu amalni ortga qaytarib bo‘lmaydi. Sharh butunlay o‘chiriladi va reyting qayta
+              hisoblanadi.
+            </p>
+          </div>
+          <div className="flex gap-2 justify-center pt-2">
+            <button
+              type="button"
+              onClick={() => setDeletingReviewId(null)}
+              disabled={isDeleting}
+              className="flex-1 py-2.5 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 cursor-pointer"
+            >
+              Bekor qilish
+            </button>
+            <button
+              type="button"
+              onClick={handleDeleteReview}
+              disabled={isDeleting}
+              className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs transition-colors cursor-pointer"
+            >
+              {isDeleting ? 'O‘chirilmoqda...' : 'O‘chirish'}
+            </button>
           </div>
         </div>
-      )}
+      </Modal>
     </div>
   );
 };

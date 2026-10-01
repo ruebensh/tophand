@@ -20,6 +20,9 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { formatDateAgo } from '../lib/utils.ts';
+import { ModerationQueue } from '../components/moderator/ModerationQueue.tsx';
+import { StaffMessaging } from '../components/admin/StaffMessaging.tsx';
+import { Inbox, Send } from 'lucide-react';
 
 interface ModeratorDashboardPageProps {
   onNavigate: (route: string) => void;
@@ -30,7 +33,7 @@ export const ModeratorDashboardPage: React.FC<ModeratorDashboardPageProps> = ({
   onNavigate,
   onOpenListing,
 }) => {
-  const [activeTab, setActiveTab] = useState<'auto_flagged' | 'reports' | 'profanity_words'>('auto_flagged');
+  const [activeTab, setActiveTab] = useState<'queue' | 'auto_flagged' | 'reports' | 'profanity_words' | 'messaging'>('queue');
 
   // 1. Auto-flagged state
   const [autoFlaggedList, setAutoFlaggedList] = useState<any[]>([]);
@@ -235,7 +238,19 @@ export const ModeratorDashboardPage: React.FC<ModeratorDashboardPageProps> = ({
         </div>
 
         {/* Tab switcher */}
-        <div className="flex items-center gap-1.5 p-1 bg-gray-100 rounded-2xl border border-gray-200 text-xs font-bold">
+        <div className="flex items-center gap-1.5 p-1 bg-gray-100 rounded-2xl border border-gray-200 text-xs font-bold flex-wrap">
+          <button
+            onClick={() => setActiveTab('queue')}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl transition-all cursor-pointer ${
+              activeTab === 'queue'
+                ? 'bg-white text-blue-600 shadow-xs'
+                : 'text-gray-600 hover:text-gray-950'
+            }`}
+          >
+            <Inbox className="w-3.5 h-3.5 text-blue-600" />
+            <span>Navbatim</span>
+          </button>
+
           <button
             onClick={() => setActiveTab('auto_flagged')}
             className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl transition-all cursor-pointer ${
@@ -271,8 +286,26 @@ export const ModeratorDashboardPage: React.FC<ModeratorDashboardPageProps> = ({
             <BookOpen className="w-3.5 h-3.5 text-purple-600" />
             <span>Taqiqlangan so‘zlar</span>
           </button>
+
+          <button
+            onClick={() => setActiveTab('messaging')}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl transition-all cursor-pointer ${
+              activeTab === 'messaging'
+                ? 'bg-white text-blue-600 shadow-xs'
+                : 'text-gray-600 hover:text-gray-950'
+            }`}
+          >
+            <Send className="w-3.5 h-3.5 text-blue-600" />
+            <span>Xabar yuborish</span>
+          </button>
         </div>
       </div>
+
+      {/* 0. MODERATION QUEUE TAB (Faza 17) */}
+      {activeTab === 'queue' && <ModerationQueue onOpenListing={onOpenListing} />}
+
+      {/* MESSAGING TAB (Faza 18) */}
+      {activeTab === 'messaging' && <StaffMessaging />}
 
       {/* 1. AUTO-FLAGGED TAB */}
       {activeTab === 'auto_flagged' && (

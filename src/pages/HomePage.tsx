@@ -18,8 +18,12 @@ import {
   Layers,
   Navigation,
   Loader2,
+  Wrench,
+  ClipboardList,
+  UserRound,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.tsx';
+import { useGeo } from '../context/GeoContext.tsx';
 
 interface HomePageProps {
   initialType?: ListingType;
@@ -33,6 +37,7 @@ export const HomePage: React.FC<HomePageProps> = ({
   onOpenListing,
 }) => {
   const { user } = useAuth();
+  const { coords } = useGeo();
 
   // Read URL params initially
   const getInitialParams = () => {
@@ -74,7 +79,10 @@ export const HomePage: React.FC<HomePageProps> = ({
   const [selectedCatalogId, setSelectedCatalogId] = useState<string | undefined>(getInitialCatalogId());
   const [selectedType, setSelectedType] = useState<ListingType | undefined>(initialParams.type);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | undefined>(initialParams.cat);
-  const [selectedRegionId, setSelectedRegionId] = useState<string | undefined>(user?.region_id);
+  // Hudud filtri AVVALDAN qo'llanmaydi — GPS faqat eng-yaqin-avval tartibi va
+  // mavzu uchun `coords` orqali ishlatiladi. Aks holda logo/"Barchasi" bosilganda
+  // sahifa qayta mount bo'lib yuborilib, "landing" o'rniga filtrlangan sahifa chiqadi.
+  const [selectedRegionId, setSelectedRegionId] = useState<string | undefined>(undefined);
   const [selectedDistrictId, setSelectedDistrictId] = useState<string | undefined>(undefined);
   const [selectedWorkSchedule, setSelectedWorkSchedule] = useState<string[]>([]);
   const [selectedExperience, setSelectedExperience] = useState<string[]>([]);
@@ -86,6 +94,9 @@ export const HomePage: React.FC<HomePageProps> = ({
   const [priceMaxInput, setPriceMaxInput] = useState<string>('');
   const [sortBy, setSortBy] = useState<string>('newest');
   const [onlyFollowed, setOnlyFollowed] = useState<boolean>(false);
+
+  // Landing: 4 ta kategoriya (turi) kartochkalari uchun e'lon sonlari
+  const [typeCounts, setTypeCounts] = useState<Record<string, number>>({});
 
   // Helper: format number with space separators: 9000000 → "9 000 000"
   const formatUZS = (n: number): string =>
@@ -216,6 +227,11 @@ export const HomePage: React.FC<HomePageProps> = ({
       if (selectedExperience.length > 0) params.append('experience', selectedExperience.join(','));
       if (sortBy) params.append('sort_by', sortBy);
       if (onlyFollowed) params.append('only_followed', 'true');
+      // GPS: yaqinlik bo'yicha saralash uchun koordinatalar (doimiy fonda)
+      if (coords) {
+        params.append('user_lat', String(coords.lat));
+        params.append('user_lng', String(coords.lng));
+      }
 
       const res = await apiRequest<{
         items: Listing[];
@@ -254,7 +270,22 @@ export const HomePage: React.FC<HomePageProps> = ({
     priceMax,
     sortBy,
     onlyFollowed,
+    coords?.lat,
+    coords?.lng,
   ]);
+
+  // Landing kartochkalari uchun tur bo'yicha e'lon sonlarini yuklash
+  useEffect(() => {
+    const types = ['SERVICE_OFFER', 'JOB_OPENING', 'SERVICE_REQUEST', 'JOB_SEEKER'];
+    types.forEach(async (t) => {
+      try {
+        const r = await apiRequest<{ pagination: { total: number } }>(`/api/listings?type=${t}&limit=1`);
+        setTypeCounts((prev) => ({ ...prev, [t]: r.pagination.total }));
+      } catch {
+        /* ignore */
+      }
+    });
+  }, []);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -367,22 +398,48 @@ export const HomePage: React.FC<HomePageProps> = ({
 
   const handleMainTabClick = (tab: MainTab) => {
     if (tab.id === 'all') {
-      setSelectedCatalogId(undefined);
-      setSelectedType(undefined);
-      setSelectedCategoryId(undefined);
-    } else {
-      if (selectedCatalogId !== tab.catalogId) {
-        setSelectedCategoryId(undefined);
-      }
-      setSelectedCatalogId(tab.catalogId);
-      setSelectedType(tab.type);
+      // "Barchasi" -> doim sof asosiy sahifaga qaytamiz
+      onNavigate('/');
+      return;
     }
+    if (selectedCatalogId !== tab.catalogId) {
+      setSelectedCategoryId(undefined);
+    }
+    setSelectedCatalogId(tab.catalogId);
+    setSelectedType(tab.type);
+    setCurrentPage(1);
+  };
+
+  // Avito-style landing: category tiles shown only on the pure, unfiltered home view
+  const isLanding =
+    !keyword.trim() &&
+    !selectedCategoryId &&
+    !selectedType &&
+    !selectedCatalogId &&
+    !selectedRegionId &&
+    activeFiltersCount === 0;
+
+  // Landing'dagi 4 ta asosiy kategoriya (turi) kartochkasi
+  const TYPE_CARDS: { type: ListingType; catalogId: string; label: string; hint: string; Icon: any }[] = [
+    { type: 'SERVICE_OFFER', catalogId: 'services', label: 'Xizmatlar', hint: 'Ustalar va xizmat takliflari', Icon: Wrench },
+    { type: 'JOB_OPENING', catalogId: 'jobs', label: "Ish o'rinlari", hint: 'Vakansiyalar va bo\u2018sh ish o\u2018rinlari', Icon: Briefcase },
+    { type: 'SERVICE_REQUEST', catalogId: 'services', label: 'Buyurtmalar', hint: 'Xizmat qidirayotgan mijozlar', Icon: ClipboardList },
+    { type: 'JOB_SEEKER', catalogId: 'jobs', label: 'Rezumelar', hint: 'Mutaxassislar va rezyumelar', Icon: UserRound },
+  ];
+
+  const openTypeCard = (catalogId: string, type: ListingType) => {
+    setKeyword('');
+    setSelectedCategoryId(undefined);
+    setSelectedCatalogId(catalogId);
+    setSelectedType(type);
     setCurrentPage(1);
   };
 
   return (
-    <div className="max-w-[1440px] mx-auto flex-1 w-full flex flex-col lg:grid lg:grid-cols-[300px_1fr] min-h-[calc(100vh-64px)] overflow-x-hidden">
+    <div className={`max-w-[1440px] mx-auto flex-1 w-full flex flex-col ${isLanding ? '' : 'lg:grid lg:grid-cols-[300px_1fr]'} min-h-[calc(100vh-64px)] overflow-x-hidden`}>
       {/* Mobile Filters Toggle Button */}
+      {!isLanding && (
+        <>
       <div className="lg:hidden px-3 sm:px-4 py-2.5 sm:py-3 bg-white border-b border-[#EBECF0] flex items-center justify-between w-full max-w-full">
         <button
           onClick={() => setIsMobileFiltersOpen(!isMobileFiltersOpen)}
@@ -726,11 +783,14 @@ export const HomePage: React.FC<HomePageProps> = ({
           </button>
         )}
       </aside>
+        </>
+      )}
 
       {/* 2. Main Content */}
       <div className="px-3 py-3.5 sm:p-6 lg:p-8 bg-white flex-1 flex flex-col justify-between lg:overflow-y-auto w-full max-w-full min-w-0">
         <div>
-          {/* Search Form */}
+          {/* Search Form — faqat kategoriya/filtrlangan sahifada (home'da qidiruv header'da) */}
+          {!isLanding && (
           <form
             onSubmit={handleSearchSubmit}
             className="flex flex-col sm:flex-row bg-[#F9FAFB] border border-[#EBECF0] rounded-2xl p-2 sm:p-1.5 mb-5 gap-2 sm:gap-1.5 shadow-2xs focus-within:border-[#1673E6]/60 transition-all w-full max-w-full"
@@ -761,6 +821,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             </div>
 
             {/* Top Bar Category Selector */}
+            {!isLanding && (
             <div className="relative" ref={topCategoryRef}>
               <button
                 type="button"
@@ -807,6 +868,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                 </div>
               )}
             </div>
+            )}
 
             {/* Region Selector */}
             <div className="flex items-center gap-2 px-3 sm:px-4 sm:max-w-[200px] bg-white sm:bg-transparent rounded-xl sm:rounded-none py-1.5 sm:py-0 border border-[#EBECF0] sm:border-0 flex-1 min-w-0">
@@ -866,8 +928,54 @@ export const HomePage: React.FC<HomePageProps> = ({
               <span>Xarita</span>
             </button>
           </form>
+          )}
 
-          {/* Main Catalog Tabs directly under Search Form */}
+          {/* Landing: 4 ta asosiy kategoriya kartochkalari (faqat toza bosh sahifada) */}
+          {isLanding && (
+            <section className="mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-base sm:text-lg font-extrabold text-[#172B4D] tracking-tight">
+                  Kategoriyalar
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => onNavigate('/categories')}
+                  className="text-xs font-bold th-accent-text hover:underline cursor-pointer"
+                >
+                  Barchasi →
+                </button>
+              </div>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                {TYPE_CARDS.map((card) => {
+                  const count = typeCounts[card.type] ?? 0;
+                  return (
+                    <button
+                      key={card.type}
+                      type="button"
+                      onClick={() => openTypeCard(card.catalogId, card.type)}
+                      className="group flex flex-col gap-3 p-4 rounded-2xl bg-[#F2F3F5] hover:bg-white hover:shadow-md hover:border-blue-100 border border-transparent transition-all text-left cursor-pointer"
+                    >
+                      <span className="w-12 h-12 rounded-xl th-accent-soft-bg group-hover:opacity-90 shadow-2xs flex items-center justify-center shrink-0">
+                        <card.Icon className="w-6 h-6 th-accent-text" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-extrabold text-[#172B4D] truncate group-hover:text-blue-700 transition-colors">
+                          {card.label}
+                        </p>
+                        <p className="text-[11px] text-[#5E6C84] mt-0.5 line-clamp-1">{card.hint}</p>
+                        <p className="text-[11px] font-bold th-accent-text mt-1">
+                          {count.toLocaleString()} ta e’lon
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          {/* Main Catalog Tabs — faqat kategoriya sahifasida (landing'da 4 kartochka bor) */}
+          {!isLanding && (
           <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-5 no-scrollbar border-b border-[#EBECF0] w-full max-w-full">
             {MAIN_TABS.map((tab) => {
               const isSelected = isMainTabActive(tab);
@@ -887,6 +995,7 @@ export const HomePage: React.FC<HomePageProps> = ({
               );
             })}
           </div>
+          )}
 
           {/* Active Filter Chips Bar */}
           {activeFiltersCount > 0 && (
