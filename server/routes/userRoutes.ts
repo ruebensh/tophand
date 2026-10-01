@@ -103,7 +103,7 @@ router.put('/me', requireAuth, async (req: AuthRequest, res) => {
     const now = new Date().toISOString();
     await runQuery(
       `UPDATE users 
-       SET name = ?, bio = ?, region_id = ?, district_id = ?, 
+       SET name = ?, bio = ?, region_id = COALESCE(?, region_id), district_id = COALESCE(?, district_id), 
            profile_photo_url = COALESCE(?, profile_photo_url),
            phone = COALESCE(?, phone), updated_at = ?
        WHERE id = ?`,

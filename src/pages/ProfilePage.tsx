@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { User, Listing } from '../types/index.ts';
-import { apiRequest, getPublicMonetization, type PublicMonetization } from '../lib/api.ts';
+import React, { useState, useEffect, useRef } from 'react';
+import { User, Listing, Region, District } from '../types/index.ts';
+import { apiRequest, uploadImageFile, getPublicMonetization, type PublicMonetization } from '../lib/api.ts';
 import { useAuth } from '../context/AuthContext.tsx';
 import { ListingTypeBadge } from '../components/listings/ListingTypeBadge.tsx';
 import { PriceDisplay } from '../components/listings/PriceDisplay.tsx';
@@ -21,8 +21,10 @@ import {
   CheckCircle2,
   AlertTriangle,
   ShieldQuestion,
+  Camera,
+  Loader2,
 } from 'lucide-react';
-import { formatDateAgo } from '../lib/utils.ts';
+import { formatDateAgo, isOfficialAccount, isStaffAccount } from '../lib/utils.ts';
 import { VerifiedBadge } from '../components/common/VerifiedBadge.tsx';
 import { FollowListModal } from '../components/modals/FollowListModal.tsx';
 import { VerifyRequestModal } from '../components/modals/VerifyRequestModal.tsx';
@@ -141,6 +143,13 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const [editName, setEditName] = useState('');
   const [editBio, setEditBio] = useState('');
   const [editPhone, setEditPhone] = useState('');
+  const [editPhoto, setEditPhoto] = useState('');
+  const [editRegionId, setEditRegionId] = useState('');
+  const [editDistrictId, setEditDistrictId] = useState('');
+  const [regions, setRegions] = useState<Region[]>([]);
+  const [districts, setDistricts] = useState<District[]>([]);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   const isOwner = currentUser?.id === userId;
@@ -154,6 +163,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       setEditName(u.name || '');
       setEditBio(u.bio || '');
       setEditPhone(u.phone || '');
+      setEditPhoto(u.profile_photo_url || '');
+      setEditRegionId(u.region_id || '');
+      setEditDistrictId(u.district_id || '');
 
       // Load active listings
       const activeList = await apiRequest<Listing[]>(`/api/users/${userId}/listings?status=ACTIVE`);
@@ -174,6 +186,37 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   useEffect(() => {
     fetchProfile();
   }, [userId, isOwner]);
+
+  // Load location options only when the owner opens the edit form.
+  useEffect(() => {
+    if (!isEditing || !isOwner || regions.length) return;
+    apiRequest<Region[]>('/api/locations/regions').then(setRegions).catch(console.error);
+  }, [isEditing, isOwner, regions.length]);
+
+  useEffect(() => {
+    if (!editRegionId) {
+      setDistricts([]);
+      return;
+    }
+    apiRequest<District[]>(`/api/locations/districts?region_id=${editRegionId}`)
+      .then(setDistricts)
+      .catch(console.error);
+  }, [editRegionId]);
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingPhoto(true);
+    try {
+      const url = await uploadImageFile(file, 'avatars');
+      setEditPhoto(url);
+    } catch (err: any) {
+      alert(err.message || 'Rasm yuklashda xatolik');
+    } finally {
+      setIsUploadingPhoto(false);
+      if (photoInputRef.current) photoInputRef.current.value = '';
+    }
+  };
 
   const handleFollowToggle = async () => {
     if (!currentUser) {
@@ -223,6 +266,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           name: editName,
           bio: editBio,
           phone: editPhone || undefined,
+          profile_photo_url: editPhoto || undefined,
+          region_id: editRegionId || undefined,
+          district_id: editDistrictId || undefined,
         }),
       });
       setIsEditing(false);
@@ -266,22 +312,36 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             <img
               src={profileUser.profile_photo_url || `https://api.dicebear.com/7.x/initials/svg?seed=${profileUser.name}`}
               alt={profileUser.name}
-              className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl object-cover ring-4 ring-blue-500/10 shadow-sm"
+              className={`w-20 h-20 sm:w-24 sm:h-24 rounded-3xl object-cover ring-4 shadow-sm ${isOfficialAccount(profileUser) ? 'ring-amber-400/50' : isStaffAccount(profileUser) ? 'ring-indigo-400/50' : 'ring-blue-500/10'}`}
             />
             <div>
               <div className="flex items-center gap-2 overflow-visible">
                 <h1 className="text-xl sm:text-2xl font-extrabold text-gray-950 tracking-tight">
                   {profileUser.name}
                 </h1>
-                {profileUser.verification_status === 'VERIFIED' && (
+                {isOfficialAccount(profileUser) ? (
+                  <VerifiedBadge size="md" variant="official" tooltip="TopHand rasmiy hisobi" />
+                ) : isStaffAccount(profileUser) ? (
+                  <VerifiedBadge size="md" variant="staff" tooltip="TopHand moderatori (staff)" />
+                ) : profileUser.verification_status === 'VERIFIED' ? (
                   <VerifiedBadge
                     size="md"
                     tooltip="TopHand tomonidan pasport orqali tasdiqlangan shaxsiy profil"
                   />
+                ) : null}
+                {isOfficialAccount(profileUser) ? (
+                  <span className="px-2 py-0.5 rounded-md bg-gradient-to-r from-amber-100 to-yellow-100 text-amber-800 border border-amber-200 text-[10px] font-bold">
+                    Rasmiy • Premium
+                  </span>
+                ) : isStaffAccount(profileUser) ? (
+                  <span className="px-2 py-0.5 rounded-md bg-gradient-to-r from-indigo-100 to-violet-100 text-indigo-800 border border-indigo-200 text-[10px] font-bold">
+                    Staff • Moderator
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-[10px] font-bold">
+                    {profileUser.role}
+                  </span>
                 )}
-                <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-[10px] font-bold">
-                  {profileUser.role}
-                </span>
               </div>
 
               <p className="text-xs text-gray-400 mt-0.5">
@@ -358,6 +418,38 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         {/* Edit profile form if owner */}
         {isEditing && (
           <form onSubmit={handleSaveProfile} className="mt-6 pt-6 border-t border-gray-100 space-y-4">
+            {/* Profile photo — upload / change */}
+            <div className="flex items-center gap-4">
+              <div className="relative shrink-0">
+                <img
+                  src={editPhoto || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(editName || 'TopHand')}`}
+                  alt="Profil"
+                  className="w-16 h-16 rounded-2xl object-cover ring-2 ring-gray-100 bg-gray-50"
+                />
+                <button
+                  type="button"
+                  onClick={() => photoInputRef.current?.click()}
+                  disabled={isUploadingPhoto}
+                  className="absolute -bottom-1.5 -right-1.5 w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-sm hover:bg-blue-700 cursor-pointer disabled:opacity-50"
+                  aria-label="Rasm yuklash"
+                >
+                  {isUploadingPhoto ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
+                </button>
+                <input ref={photoInputRef} type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-gray-800">Profil rasmi</p>
+                <button
+                  type="button"
+                  onClick={() => photoInputRef.current?.click()}
+                  disabled={isUploadingPhoto}
+                  className="text-[11px] font-bold text-blue-600 hover:text-blue-800 mt-0.5 cursor-pointer disabled:opacity-50"
+                >
+                  {isUploadingPhoto ? 'Yuklanmoqda...' : editPhoto ? 'Rasmni almashtirish' : 'Rasm yuklash'}
+                </button>
+              </div>
+            </div>
+
             <div>
               <label className="block text-xs font-semibold text-gray-700 mb-1">Ismingiz</label>
               <input
@@ -390,6 +482,40 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 onChange={(e) => setEditBio(e.target.value)}
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium"
               />
+            </div>
+
+            {/* Region + District */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Viloyat / Shahar</label>
+                <select
+                  value={editRegionId}
+                  onChange={(e) => {
+                    setEditRegionId(e.target.value);
+                    setEditDistrictId('');
+                  }}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium text-gray-800"
+                >
+                  <option value="">Tanlang...</option>
+                  {regions.map((r) => (
+                    <option key={r.id} value={r.id}>{r.name_uz}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Tuman</label>
+                <select
+                  disabled={!editRegionId}
+                  value={editDistrictId}
+                  onChange={(e) => setEditDistrictId(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium text-gray-800 disabled:opacity-50"
+                >
+                  <option value="">Tanlang...</option>
+                  {districts.map((d) => (
+                    <option key={d.id} value={d.id}>{d.name_uz}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div className="flex items-center gap-2">
@@ -463,14 +589,36 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         </div>
       </div>
 
-      {/* Tasdiq nishoni (Verified badge) holati — faqat o'z profilida */}
-      {isOwner && (
+      {/* Tasdiq nishoni holati — faqat o'z profilida.
+          Rasmiy (admin) hisob uchun tasdiq so'rash kerak emas — u boshqalardan
+          farqli, avtomatik premium/rasmiy tasdiq nishoni bilan ta'minlangan. */}
+      {isOwner && isOfficialAccount(profileUser) ? (
+        <div className="mb-6 flex items-center gap-3 p-4 rounded-2xl bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200">
+          <VerifiedBadge size="md" variant="official" />
+          <div className="min-w-0">
+            <p className="font-bold text-sm text-amber-900">TopHand rasmiy (premium) hisobi</p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              Bu — platformaning rasmiy hisobi. Boshqalardan farqli, avtomatik rasmiy tasdiq nishoni bilan ta'minlangan va alohida tasdiq so'rashi talab qilinmaydi.
+            </p>
+          </div>
+        </div>
+      ) : isOwner && isStaffAccount(profileUser) ? (
+        <div className="mb-6 flex items-center gap-3 p-4 rounded-2xl bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-200">
+          <VerifiedBadge size="md" variant="staff" />
+          <div className="min-w-0">
+            <p className="font-bold text-sm text-indigo-900">TopHand moderatori (staff) hisobi</p>
+            <p className="text-xs text-indigo-700 mt-0.5">
+              Siz jamoa a'zosgisiz. Boshqalardan farqli, avtomatik staff tasdiq nishoni bilan ta'minlangansiz va alohida tasdiq so'rashingiz shart emas.
+            </p>
+          </div>
+        </div>
+      ) : isOwner ? (
         <VerifyStatusCard
           status={profileUser.verification_status || 'UNVERIFIED'}
           rejectionReason={profileUser.verification_rejection_reason}
           onRequest={() => setIsVerifyModalOpen(true)}
         />
-      )}
+      ) : null}
 
       {/* Hisobni bog'lash (Email ↔ Google) — faqat o'z profilida */}
       {isOwner && <AccountLinkingCard />}

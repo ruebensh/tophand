@@ -42,13 +42,12 @@ async function clearEmailCodes(email: string, type: string) {
   await runQuery('DELETE FROM email_verification_codes WHERE email = ? AND type = ?', [email, type]);
 }
 
-/** Mandatory profile = real name + phone + photo + region + district. */
+/** Mandatory profile = real name + phone + region + district (photo is optional). */
 function computeProfileComplete(u: any): boolean {
   return Boolean(
     u &&
       u.name && u.name.trim().length >= 2 &&
       u.phone && u.phone.trim().length >= 6 &&
-      u.profile_photo_url &&
       u.region_id && u.district_id
   );
 }
@@ -481,9 +480,6 @@ router.post('/profile/complete', requireAuth, async (req: AuthRequest, res) => {
     if (!cleanPhone || cleanPhone.replace(/\D/g, '').length < 9) {
       return res.status(400).json({ error: 'Telefon raqami majburiy va to‘liq bo‘lishi kerak' });
     }
-    if (!profile_photo_url) {
-      return res.status(400).json({ error: 'Profil rasmi yuklang yoki Google rasmini saqlang' });
-    }
     if (!region_id || !district_id) {
       return res.status(400).json({ error: 'Viloyat va tumanni tanlang' });
     }
@@ -491,11 +487,11 @@ router.post('/profile/complete', requireAuth, async (req: AuthRequest, res) => {
     const now = new Date().toISOString();
     await runQuery(
       `UPDATE users
-       SET name = ?, phone = ?, profile_photo_url = ?, region_id = ?, district_id = ?,
+       SET name = ?, phone = ?, profile_photo_url = COALESCE(?, profile_photo_url), region_id = ?, district_id = ?,
            bio = COALESCE(?, bio), latitude = COALESCE(?, latitude), longitude = COALESCE(?, longitude),
            updated_at = ?
        WHERE id = ?`,
-      [fullName, cleanPhone, profile_photo_url, region_id, district_id, (bio || '').trim() || null,
+      [fullName, cleanPhone, profile_photo_url || null, region_id, district_id, (bio || '').trim() || null,
         latitude || null, longitude || null, now, req.user!.id]
     );
 

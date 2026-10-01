@@ -1,5 +1,24 @@
 import { ListingType, PriceType, SalaryType, ContactTime } from '../types/index.ts';
 
+/**
+ * The official TopHand account(s). Admin / super-admin roles are rendered with a
+ * distinct royal-gold badge so they stand apart from ordinary verified users.
+ */
+export function isOfficialAccount(entity?: { role?: string | null; owner_role?: string | null } | null): boolean {
+  const role = entity?.role ?? entity?.owner_role;
+  return role === 'ADMIN' || role === 'SUPER_ADMIN';
+}
+
+/**
+ * TopHand staff (moderation team). Rendered with a distinct indigo-violet shield
+ * badge so moderators stand apart from ordinary verified users, but below the
+ * royal-gold official/admin seal.
+ */
+export function isStaffAccount(entity?: { role?: string | null; owner_role?: string | null } | null): boolean {
+  const role = entity?.role ?? entity?.owner_role;
+  return role === 'INTERN_MOD' || role === 'MODERATOR' || role === 'LEAD_MOD';
+}
+
 export function formatCurrency(amount?: number | null): string {
   if (amount === undefined || amount === null || isNaN(amount)) return '';
   return new Intl.NumberFormat('uz-UZ').format(amount).replace(/,/g, ' ');

@@ -191,7 +191,19 @@ export async function adminSetRole(adminId: string, userId: string, newRole: 'US
   }
 
   const now = new Date().toISOString();
-  await runQuery(`UPDATE users SET role = ?, updated_at = ? WHERE id = ?`, [newRole, now, userId]);
+
+  // Staff roles carry an automatic, distinct verification badge — no passport
+  // request needed. When a user is promoted into the moderation team we mark
+  // them VERIFIED right away (and record who granted it, for the audit trail).
+  const STAFF_ROLES = ['INTERN_MOD', 'MODERATOR', 'LEAD_MOD'];
+  if (STAFF_ROLES.includes(newRole)) {
+    await runQuery(
+      `UPDATE users SET role = ?, updated_at = ?, verification_status = 'VERIFIED', verified_at = ?, verified_by = ?, verification_rejection_reason = NULL WHERE id = ?`,
+      [newRole, now, now, adminId, userId]
+    );
+  } else {
+    await runQuery(`UPDATE users SET role = ?, updated_at = ? WHERE id = ?`, [newRole, now, userId]);
+  }
 
   const auditId = `audit_${crypto.randomUUID().slice(0, 16)}`;
   await runQuery(

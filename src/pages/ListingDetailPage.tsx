@@ -3,7 +3,7 @@ import { Listing } from '../types/index.ts';
 import { apiRequest, getPublicMonetization, promoteListingRequest, type PublicMonetization } from '../lib/api.ts';
 import { ListingTypeBadge } from '../components/listings/ListingTypeBadge.tsx';
 import { PriceDisplay } from '../components/listings/PriceDisplay.tsx';
-import { getContactTimeLabel, formatDateAgo } from '../lib/utils.ts';
+import { getContactTimeLabel, formatDateAgo, isOfficialAccount, isStaffAccount } from '../lib/utils.ts';
 import { useAuth } from '../context/AuthContext.tsx';
 import {
   MapPin,
@@ -845,9 +845,13 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <h4 className="font-bold text-sm text-gray-900 truncate">{listing.owner_name}</h4>
-                  {listing.is_verified && (
+                  {isOfficialAccount(listing) ? (
+                    <VerifiedBadge size="sm" variant="official" tooltip="TopHand rasmiy hisobi" />
+                  ) : isStaffAccount(listing) ? (
+                    <VerifiedBadge size="sm" variant="staff" tooltip="TopHand moderatori (staff)" />
+                  ) : listing.is_verified ? (
                     <VerifiedBadge size="sm" tooltip="TopHand tomonidan pasport orqali tasdiqlangan mutaxassis" />
-                  )}
+                  ) : null}
                 </div>
                 <p className="text-[11px] text-gray-400 mt-0.5">
                   {listing.owner_username ? `@${listing.owner_username}` : "TopHand a'zosi"}

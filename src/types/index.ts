@@ -144,6 +144,7 @@ export interface Listing {
   owner_phone?: string;
   owner_registered_at?: string;
   owner_verification_status?: 'UNVERIFIED' | 'PENDING' | 'VERIFIED' | 'REJECTED';
+  owner_role?: UserRole;
   owner_active_listing_count?: number;
   owner_followers_count?: number;
   organization_name?: string;

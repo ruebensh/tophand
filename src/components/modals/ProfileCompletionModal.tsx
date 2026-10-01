@@ -131,10 +131,6 @@ export const ProfileCompletionModal: React.FC = () => {
       setError('Telefon raqami majburiy va to‘liq bo‘lishi kerak');
       return;
     }
-    if (!photoUrl) {
-      setError('Profil rasmi yuklang');
-      return;
-    }
     if (!regionId || !districtId) {
       setError('Viloyat va tumanni tanlang');
       return;
@@ -203,7 +199,7 @@ export const ProfileCompletionModal: React.FC = () => {
             <input ref={fileRef} type="file" accept="image/*" onChange={handleUpload} className="hidden" />
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-gray-800">Profil rasmi <span className="text-rose-500">*</span></p>
+            <p className="text-xs font-semibold text-gray-800">Profil rasmi <span className="text-gray-400 font-medium">(ixtiyoriy)</span></p>
             <p className="text-[11px] text-gray-500 mt-0.5">
               {user?.has_google
                 ? 'Google rasminiz qo‘yilgan. O‘zgartirish uchun yangi rasm yuklang.'

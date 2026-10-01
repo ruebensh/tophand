@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Listing } from '../../types/index.ts';
 import { ListingTypeBadge } from './ListingTypeBadge.tsx';
 import { PriceDisplay } from './PriceDisplay.tsx';
-import { formatDateAgo } from '../../lib/utils.ts';
+import { formatDateAgo, isOfficialAccount, isStaffAccount } from '../../lib/utils.ts';
 import {
   MapPin,
   Heart,
@@ -264,9 +264,13 @@ export const ListingCard: React.FC<ListingCardProps> = ({
             <span className="text-[11px] text-gray-500 font-medium truncate">
               {listing.organization_name || listing.owner_name || ''}
             </span>
-            {listing.is_verified && (
+            {isOfficialAccount(listing) ? (
+              <CheckCircle2 className="w-3 h-3 text-amber-500 shrink-0" />
+            ) : isStaffAccount(listing) ? (
+              <CheckCircle2 className="w-3 h-3 text-indigo-500 shrink-0" />
+            ) : listing.is_verified ? (
               <CheckCircle2 className="w-3 h-3 text-blue-500 shrink-0" />
-            )}
+            ) : null}
           </div>
           <span className="text-[10px] text-gray-400 shrink-0 flex items-center gap-0.5">
             {daysLeft !== null && daysLeft <= 3 ? (

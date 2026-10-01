@@ -14,6 +14,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
         u.telegram_username as owner_username,
         u.profile_photo_url as owner_photo_url,
         u.verification_status as owner_verification_status,
+        u.role as owner_role,
         c.name_uz as category_name,
         r.name_uz as region_name,
         d.name_uz as district_name,

@@ -14,7 +14,7 @@ import {
   ChevronRight,
   Trash2,
 } from 'lucide-react';
-import { formatDateAgo } from '../lib/utils.ts';
+import { formatDateAgo, isOfficialAccount, isStaffAccount } from '../lib/utils.ts';
 import { useAuth } from '../context/AuthContext.tsx';
 
 interface SavedListingsPageProps {
@@ -232,9 +232,13 @@ export const SavedListingsPage: React.FC<SavedListingsPageProps> = ({
                           className="w-4 h-4 rounded-full object-cover shrink-0 ring-1 ring-gray-200"
                         />
                         <span className="truncate">{l.organization_name || l.owner_name}</span>
-                        {l.is_verified && (
+                        {isOfficialAccount(l) ? (
+                          <VerifiedBadge size="xs" variant="official" tooltip="TopHand rasmiy hisobi" />
+                        ) : isStaffAccount(l) ? (
+                          <VerifiedBadge size="xs" variant="staff" tooltip="TopHand moderatori (staff)" />
+                        ) : l.is_verified ? (
                           <VerifiedBadge size="xs" />
-                        )}
+                        ) : null}
                       </div>
 
                       <span className="text-gray-300">•</span>

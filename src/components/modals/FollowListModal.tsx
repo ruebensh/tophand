@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { apiRequest } from '../../lib/api.ts';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { VerifiedBadge } from '../common/VerifiedBadge.tsx';
+import { isOfficialAccount, isStaffAccount } from '../../lib/utils.ts';
 import { X, UserCheck, UserPlus, Users, MapPin } from 'lucide-react';
 import { Modal } from '../common/Modal.tsx';
 
@@ -221,7 +222,13 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
                         <span className="font-bold text-sm text-gray-900 group-hover:text-blue-600 transition-colors truncate">
                           {item.name}
                         </span>
-                        {item.is_verified && <VerifiedBadge size="xs" />}
+                        {isOfficialAccount(item) ? (
+                          <VerifiedBadge size="xs" variant="official" tooltip="TopHand rasmiy hisobi" />
+                        ) : isStaffAccount(item) ? (
+                          <VerifiedBadge size="xs" variant="staff" tooltip="TopHand moderatori (staff)" />
+                        ) : item.is_verified ? (
+                          <VerifiedBadge size="xs" />
+                        ) : null}
                       </div>
 
                       <div className="flex items-center gap-2 text-[11px] text-gray-400 mt-0.5 truncate">
