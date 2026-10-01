@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="uz">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
@@ -10,17 +10,77 @@
     <meta name="apple-mobile-web-app-title" content="TopHand" />
     <link rel="icon" type="image/png" href="/TOPHAND.uz (1).png" />
     <link rel="apple-touch-icon" href="/TOPHAND.uz (1).png" />
-    <title>TopHand - Mahalliy Xizmatlar va Ish Bozor Platformasi</title>
-    <meta name="description" content="TopHand — O'zbekistonda xizmatlar, mutaxassislar, bo'sh ish o'rinlari va ish qidiruvchilar uchun zamonaviy mahalliy bozor platformasi." />
-    <meta property="og:title" content="TopHand - Mahalliy Xizmatlar va Ish Bozor Platformasi" />
-    <meta property="og:description" content="TopHand — O'zbekistonda xizmatlar, mutaxassislar, bo'sh ish o'rinlari va ish qidiruvchilar uchun zamonaviy mahalliy bozor platformasi." />
+
+    <!-- ─── SEO: asosiy kalit so'zlar (O'zbekiston bozori) ─── -->
+    <title>TopHand — O'zbekistonda xizmatlar, mutaxassislar va ish e'lonlari bozori</title>
+    <meta
+      name="description"
+      content="TopHand — O'zbekistondagi mahalliy xizmatlar, mutaxassislar, bo'sh ish o'rinlari va ish qidiruvchilar uchun yagona platforma. Santexnik, elektrika, tikuvchi, haydovchi, tozalash, ta'mir, IT, dizayn va yuzlab boshqa xizmatlarni toping yoki bepul e'lon joylang."
+    />
+    <meta
+      name="keywords"
+      content="tophand, tophand.uz, e'lon, e'lonlar, mahalliy xizmatlar, xizmat ko'rsatish, mutaxassis topish, ustalar, santexnik, elektrika, shifokor, ta'mir, tikuvchi, haydovchi, tozalash, yuk tashish, ish e'lonlari, vakansiyalar, ish qidirish, ish beruvchi, Toshkent e'lonlari, Samarqand, Farg'ona, Buxoro, Xiva, Namangan, Andijon, Qarshi, Nukus, O'zbekiston bozori, bepul e'lon joylash, xizmat buyurtma"
+    />
+    <meta name="author" content="TopHand" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="language" content="Uzbek" />
+    <meta name="geo.region" content="UZ" />
+    <link rel="canonical" href="https://tophand.uz/" />
+
+    <!-- ─── Open Graph ─── -->
+    <meta property="og:site_name" content="TopHand" />
+    <meta property="og:title" content="TopHand — O'zbekistonda xizmatlar va ish e'lonlari bozori" />
+    <meta
+      property="og:description"
+      content="Mahalliy xizmatlar, mutaxassislar va ish e'lonlarini toping yoki bepul joylang. Toshkent, Samarqand, Farg'ona, Buxoro va butun O'zbekiston bo'ylab."
+    />
     <meta property="og:image" content="/TOPHAND.uz (1).png" />
     <meta property="og:type" content="website" />
+    <meta property="og:locale" content="uz_UZ" />
+    <meta property="og:url" content="https://tophand.uz/" />
+
+    <!-- ─── Twitter ─── -->
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="TopHand — xizmatlar va ish e'lonlari bozori" />
+    <meta
+      name="twitter:description"
+      content="O'zbekistonda mahalliy xizmatlar, mutaxassislar va ish e'lonlari uchun yagona platforma."
+    />
+    <meta name="twitter:image" content="/TOPHAND.uz (1).png" />
+
+    <!-- ─── Structured data: Organization + WebSite (SearchAction) ─── -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://tophand.uz/#organization",
+            "name": "TopHand",
+            "url": "https://tophand.uz/",
+            "logo": "https://tophand.uz/TOPHAND.uz (1).png",
+            "description": "O'zbekistondagi mahalliy xizmatlar, mutaxassislar va ish e'lonlari platformasi.",
+            "areaServed": { "@type": "Country", "name": "Uzbekistan" }
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://tophand.uz/#website",
+            "url": "https://tophand.uz/",
+            "name": "TopHand",
+            "inLanguage": "uz",
+            "publisher": { "@id": "https://tophand.uz/#organization" },
+            "potentialAction": {
+              "@type": "SearchAction",
+              "target": "https://tophand.uz/?q={search_term_string}",
+              "query-input": "required name=search_term_string"
+            }
+          }
+        ]
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

@@ -20,6 +20,7 @@ import { OrganizationPage } from './pages/OrganizationPage.tsx';
 import { ModeratorDashboardPage } from './pages/ModeratorDashboardPage.tsx';
 import { AdminDashboardPage } from './pages/AdminDashboardPage.tsx';
 import { CategoriesPage } from './pages/CategoriesPage.tsx';
+import { RegionCategoryPage } from './pages/RegionCategoryPage.tsx';
 
 // Global Modals
 import { GoogleLoginModal } from './components/modals/GoogleLoginModal.tsx';
@@ -148,6 +149,25 @@ const AppContent: React.FC = () => {
           onSelectCategory={(categoryId) => navigate(`/?category=${categoryId}`)}
         />
       );
+    }
+
+    // 8b. Hudud landing: /hudud/:regionSlug/:categorySlug?
+    if (currentRoute.startsWith('/hudud/')) {
+      const pathOnly = currentRoute.split('?')[0];
+      const parts = pathOnly.replace(/^\/hudud\/?/, '').split('/').filter(Boolean);
+      const regionSlug = parts[0];
+      const categorySlug = parts[1];
+      if (regionSlug) {
+        return (
+          <RegionCategoryPage
+            key={currentRoute}
+            regionSlug={regionSlug}
+            categorySlug={categorySlug}
+            onNavigate={navigate}
+            onOpenListing={(id) => navigate(`/listing/${id}`)}
+          />
+        );
+      }
     }
 
     // 9. Moderator Dashboard: /moderator

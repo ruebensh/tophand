@@ -4,6 +4,7 @@ import fs from 'fs';
 import dotenv from 'dotenv';
 import { initDatabase } from './server/db/init.ts';
 import { startExpirationCron } from './server/services/expirationService.ts';
+import { getSeoMeta, injectSeo } from './server/services/seoService.ts';
 
 // Routes
 import authRoutes from './server/routes/authRoutes.ts';
@@ -124,11 +125,18 @@ async function startServer() {
     } else {
       const distDir = path.resolve(process.cwd(), 'dist');
       app.use(express.static(distDir, { index: false }));
-      app.get('*', (_req, res) => {
+      app.get('*', async (req, res) => {
         const htmlFile = path.resolve(distDir, 'index.html');
         const googleClientId = process.env.VITE_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || '';
         try {
           let html = fs.readFileSync(htmlFile, 'utf8');
+          // Dinamik sahifa SEO (e'lon/kategoriya) — Google keng qamrov olsin uchun
+          try {
+            const meta = await getSeoMeta(req.path);
+            if (meta) html = injectSeo(html, meta);
+          } catch {
+            /* static defaults remain */
+          }
           if (googleClientId) {
             html = html.replace(
               '</head>',

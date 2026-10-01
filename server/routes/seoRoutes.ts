@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { queryAll } from '../db/database.ts';
+import { resolveLanding, regionIdToSlug } from '../services/seoService.ts';
+import { searchListings } from '../services/listingService.ts';
 
 const router = Router();
 
@@ -22,6 +24,29 @@ function escapeXml(s: string): string {
     ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c] as string)
   );
 }
+
+// ─── Hudud landing sahifasi uchun ma'lumot (frontend fetch qiladi) ───────
+router.get('/api/seo/landing', async (req, res) => {
+  try {
+    const regionSlug = String(req.query.region || '').trim();
+    const categorySlug = String(req.query.category || '').trim() || undefined;
+    if (!regionSlug) return res.status(400).json({ error: 'region kerak' });
+
+    const data = await resolveLanding(regionSlug, categorySlug);
+    if (!data) return res.status(404).json({ error: 'topilmadi' });
+
+    const result = await searchListings({
+      region_id: data.region.id,
+      category_id: data.category?.id,
+      page: 1,
+      limit: 48,
+    } as any);
+
+    res.json({ ...data, listings: result.items, total: result.pagination.total });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ─── robots.txt ──────────────────────────────────────────────────────────
 router.get('/robots.txt', (req, res) => {
@@ -66,7 +91,28 @@ router.get('/sitemap.xml', async (req, res) => {
       lastmod: l.updated_at ? new Date(l.updated_at).toISOString() : now,
     }));
 
-    const all = [...staticUrls, ...listingUrls];
+    // Hudud landing sahifalari: faqat haqiqatan faol e'loni bor kombinatsiyalar
+    const landingRows = await queryAll<{ region_id: string; slug: string; c: number | string }>(
+      `SELECT l.region_id, c.slug, COUNT(*) AS c
+       FROM listings l
+       JOIN categories c ON l.category_id = c.id
+       WHERE l.status = 'ACTIVE'
+       GROUP BY l.region_id, c.slug
+       ORDER BY c DESC
+       LIMIT 3000`
+    );
+    const regionHubSeen = new Set<string>();
+    const landingUrls: { loc: string; priority: string; changefreq: string; lastmod: string }[] = [];
+    for (const row of landingRows) {
+      const rslug = regionIdToSlug(row.region_id);
+      if (!regionHubSeen.has(rslug)) {
+        regionHubSeen.add(rslug);
+        landingUrls.push({ loc: `${base}/hudud/${rslug}`, priority: '0.8', changefreq: 'daily', lastmod: now });
+      }
+      landingUrls.push({ loc: `${base}/hudud/${rslug}/${row.slug}`, priority: '0.7', changefreq: 'daily', lastmod: now });
+    }
+
+    const all = [...staticUrls, ...landingUrls, ...listingUrls];
     const body =
       `<?xml version="1.0" encoding="UTF-8"?>\n` +
       `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
