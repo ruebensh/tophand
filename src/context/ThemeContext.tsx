@@ -41,6 +41,8 @@ interface ThemeContextType {
   theme: ActiveTheme;
   holidays: HolidayDef[];
   regionThemes: Record<string, RegionTheme>;
+  /** Admin panel: hudud (GPS) dizayni yoqilgan/o'chirilgan */
+  regionThemesEnabled: boolean;
   /** Admin panel uchun local preview (serverga yozmaydi) */
   preview: ThemeOverride | null;
   setPreview: (p: ThemeOverride | null) => void;
@@ -51,6 +53,7 @@ const ThemeContext = createContext<ThemeContextType>({
   theme: { ...DEFAULT_THEME, kind: 'default', id: 'default' } as ActiveTheme,
   holidays: DEFAULT_HOLIDAYS,
   regionThemes: REGION_THEMES,
+  regionThemesEnabled: true,
   preview: null,
   setPreview: () => {},
   reload: async () => {},
@@ -66,7 +69,8 @@ function resolveTheme(
   regionId: string | null,
   holidays: HolidayDef[],
   regionThemes: Record<string, RegionTheme>,
-  override: ThemeOverride | null
+  override: ThemeOverride | null,
+  regionThemesEnabled: boolean
 ): ActiveTheme {
   // Admin/override (preview yoki server theme_override) ustun
   if (override && override.type !== 'none' && override.id) {
@@ -80,7 +84,7 @@ function resolveTheme(
         };
       }
     }
-    if (override.type === 'region') {
+    if (override.type === 'region' && regionThemesEnabled) {
       const rt = regionThemes[override.id];
       if (rt) {
         return {
@@ -102,8 +106,8 @@ function resolveTheme(
     };
   }
 
-  // Hudud mavzusi
-  if (regionId && regionThemes[regionId]) {
+  // Hudud mavzusi (admin o'chirgan bo'lsa qo'llanilmaydi)
+  if (regionThemesEnabled && regionId && regionThemes[regionId]) {
     const rt = regionThemes[regionId];
     return {
       kind: 'region', id: regionId, accent: rt.accent, accentSoft: rt.accentSoft,
@@ -124,6 +128,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [holidays, setHolidays] = useState<HolidayDef[]>(DEFAULT_HOLIDAYS);
   const [regionThemes, setRegionThemes] = useState<Record<string, RegionTheme>>(REGION_THEMES);
   const [serverOverride, setServerOverride] = useState<ThemeOverride | null>(null);
+  const [regionThemesEnabled, setRegionThemesEnabled] = useState(true);
   const [preview, setPreview] = useState<ThemeOverride | null>(null);
 
   const reload = useCallback(async () => {
@@ -132,10 +137,12 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         holidays?: HolidayDef[];
         regionThemes?: Record<string, Partial<RegionTheme>>;
         override?: ThemeOverride | null;
+        regionThemesEnabled?: boolean;
       }>('/api/theme/config');
       if (Array.isArray(cfg.holidays) && cfg.holidays.length) setHolidays(cfg.holidays);
       if (cfg.regionThemes) setRegionThemes(mergeRegionThemes(REGION_THEMES, cfg.regionThemes));
       setServerOverride(cfg.override && cfg.override.type ? cfg.override : null);
+      if (typeof cfg.regionThemesEnabled === 'boolean') setRegionThemesEnabled(cfg.regionThemesEnabled);
     } catch {
       /* defaults remain */
     }
@@ -148,8 +155,8 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [reload]);
 
   const theme = useMemo(
-    () => resolveTheme(region?.region_id ?? null, holidays, regionThemes, preview ?? serverOverride),
-    [region?.region_id, holidays, regionThemes, preview, serverOverride]
+    () => resolveTheme(region?.region_id ?? null, holidays, regionThemes, preview ?? serverOverride, regionThemesEnabled),
+    [region?.region_id, holidays, regionThemes, preview, serverOverride, regionThemesEnabled]
   );
 
   // CSS custom-property'larini va data-attribute'larni qo'llash
@@ -167,7 +174,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [theme]);
 
   const value: ThemeContextType = {
-    theme, holidays, regionThemes, preview, setPreview, reload,
+    theme, holidays, regionThemes, regionThemesEnabled, preview, setPreview, reload,
   };
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

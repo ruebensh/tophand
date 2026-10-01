@@ -43,15 +43,18 @@ function requireAdmin(req: AuthRequest, res: any): boolean {
 // ─── Public: barcha mavzu konfiguratsiyasi ───────────────────────────────
 router.get('/config', async (_req, res) => {
   try {
-    const [holidaysRaw, regionRaw, overrideRaw] = await Promise.all([
+    const [holidaysRaw, regionRaw, overrideRaw, regionEnabledRaw] = await Promise.all([
       getSetting('holidays'),
       getSetting('region_themes'),
       getSetting('theme_override'),
+      getSetting('region_themes_enabled'),
     ]);
     res.json({
       holidays: parseJson(holidaysRaw, null),
       regionThemes: parseJson(regionRaw, null),
       override: parseJson(overrideRaw, null),
+      // Default: yoqilgan. Faqat 'false' saqlangan bo'lsa o'chirilgan hisoblanadi.
+      regionThemesEnabled: regionEnabledRaw === null ? true : regionEnabledRaw === 'true',
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -68,6 +71,18 @@ router.put('/holidays', requireAuth, async (req: AuthRequest, res) => {
     }
     await setSetting('holidays', JSON.stringify(list), req.user!.id);
     res.json({ success: true, count: list.length });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Admin: hudud (GPS) dizaynini yoqish/o'chirish ─────────────────────
+router.put('/region-themes/enabled', requireAuth, async (req: AuthRequest, res) => {
+  if (!requireAdmin(req, res)) return;
+  try {
+    const enabled = Boolean(req.body?.enabled);
+    await setSetting('region_themes_enabled', enabled ? 'true' : 'false', req.user!.id);
+    res.json({ success: true, enabled });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

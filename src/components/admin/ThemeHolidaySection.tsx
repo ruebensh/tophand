@@ -11,7 +11,7 @@ const ADMIN_ROLES = ['ADMIN', 'SUPER_ADMIN'];
 type Override = { type: 'holiday' | 'region' | 'none'; id?: string };
 
 export const ThemeHolidaySection: React.FC = () => {
-  const { setPreview, reload } = useTheme();
+  const { setPreview, reload, regionThemesEnabled } = useTheme();
 
   const [holidays, setHolidays] = useState<HolidayDef[]>(DEFAULT_HOLIDAYS);
   const [regionOverrides, setRegionOverrides] = useState<Record<string, Partial<RegionTheme>>>({});
@@ -145,6 +145,21 @@ export const ThemeHolidaySection: React.FC = () => {
       flash('Hudud mavzulari saqlandi ✓');
     } catch (e: any) {
       flash(e.message || 'Saqlashda xatolik');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // ── Hudud (GPS) dizaynini yoqish / o'chirish ──
+  const toggleRegionEnabled = async () => {
+    setBusy(true);
+    try {
+      const next = !regionThemesEnabled;
+      await apiRequest('/api/theme/region-themes/enabled', { method: 'PUT', body: JSON.stringify({ enabled: next }) });
+      await reload();
+      flash(next ? 'Hudud dizayni yoqildi ✓' : 'Hudud dizayni o‘chirildi ✓');
+    } catch (e: any) {
+      flash(e.message || 'O‘zgartirishda xatolik');
     } finally {
       setBusy(false);
     }
@@ -298,12 +313,38 @@ export const ThemeHolidaySection: React.FC = () => {
 
       {/* ── Region themes ── */}
       <div className="bg-white rounded-2xl border border-gray-200 p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-bold text-sm text-gray-900">Hudud mavzulari (14)</h3>
-          <button onClick={saveRegions} disabled={busy} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold disabled:opacity-50 cursor-pointer">
-            <Save className="w-3.5 h-3.5" /> Saqlash
-          </button>
+        <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+          <div className="min-w-0">
+            <h3 className="font-bold text-sm text-gray-900">Hudud mavzulari (14)</h3>
+            <p className="text-[11px] text-gray-500 mt-0.5">
+              O‘chirsangiz, GPS hududiga qarab sayt dizayni o‘zgartirilmaydi — sayt standart brend ko‘rinishida qoladi (bayramlar ishlayveradi).
+            </p>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            <button
+              onClick={toggleRegionEnabled}
+              disabled={busy}
+              className={`relative inline-flex items-center gap-2 h-9 pl-1 pr-3 rounded-full border text-xs font-bold transition-colors cursor-pointer disabled:opacity-50 ${
+                regionThemesEnabled ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-gray-100 border-gray-300 text-gray-500'
+              }`}
+              title="Hudud (GPS) dizaynini yoqish / o‘chirish"
+            >
+              <span className={`inline-flex w-8 h-8 rounded-full items-center justify-center transition-colors ${regionThemesEnabled ? 'bg-emerald-500 text-white' : 'bg-white text-gray-400 border border-gray-200'}`}>
+                <span className={`w-3.5 h-3.5 rounded-full ${regionThemesEnabled ? 'bg-white' : 'bg-gray-300'}`} />
+              </span>
+              {regionThemesEnabled ? 'Hudud dizayni YOGILGAN' : 'Hudud dizayni O‘CHIRILGAN'}
+            </button>
+            <button onClick={saveRegions} disabled={busy} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold disabled:opacity-50 cursor-pointer">
+              <Save className="w-3.5 h-3.5" /> Saqlash
+            </button>
+          </div>
         </div>
+
+        {!regionThemesEnabled && (
+          <div className="mb-4 flex items-center gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800">
+            <X className="w-4 h-4 shrink-0" /> Hudud dizayni hozircha o‘chirilgan — quyidagi sozlamalar saqlanadi, lekin saytga qo‘llanilmaydi.
+          </div>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {Object.keys(REGION_THEMES).map((id) => {
