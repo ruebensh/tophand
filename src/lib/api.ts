@@ -12,21 +12,41 @@ export function removeStoredToken() {
   localStorage.removeItem(TOKEN_KEY);
 }
 
-export async function apiRequest<T = any>(endpoint: string, options: RequestInit = {}): Promise<T> {
+export async function apiRequest<T = any>(
+  endpoint: string,
+  options: RequestInit & { timeoutMs?: number } = {}
+): Promise<T> {
+  const { timeoutMs, ...init } = options;
   const token = getStoredToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string>),
+    ...(init.headers as Record<string, string>),
   };
 
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const response = await fetch(endpoint, {
-    ...options,
-    headers,
-  });
+  // Abort client-side so a stalled server never leaves the UI hanging forever.
+  let signal: AbortSignal | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  if (timeoutMs && timeoutMs > 0) {
+    const controller = new AbortController();
+    timer = setTimeout(() => controller.abort(), timeoutMs);
+    signal = controller.signal;
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(endpoint, { ...init, headers, signal });
+  } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      throw new Error('Server javob bermadi. Ulanish vaqtinchalik uzildi — qaytadan urinib ko‘ring.');
+    }
+    throw err;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 
   const data = await response.json().catch(() => ({}));
 

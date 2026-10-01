@@ -19,6 +19,7 @@ import {
   X,
 } from 'lucide-react';
 import { formatDateAgo } from '../../lib/utils.ts';
+import { getPublicMonetization } from '../../lib/api.ts';
 import { TopHandLogo } from '../common/TopHandLogo.tsx';
 import { VerifiedBadge } from '../common/VerifiedBadge.tsx';
 import { NearbyMapModal } from '../modals/NearbyMapModal.tsx';
@@ -55,6 +56,8 @@ export const Header: React.FC<HeaderProps> = ({ onSearch, onNavigate, currentRou
   const [isMegaOpen, setIsMegaOpen] = useState(false);
   const [isMapOpen, setIsMapOpen] = useState(false);
   const [tree, setTree] = useState<{ services: TreeNode[]; jobs: TreeNode[] }>({ services: [], jobs: [] });
+  // Wallet is only shown once monetization switches to PAID (hidden during the FREE_TEST / bepul davr).
+  const [walletVisible, setWalletVisible] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -66,6 +69,12 @@ export const Header: React.FC<HeaderProps> = ({ onSearch, onNavigate, currentRou
         jobs: Array.isArray(jobs) ? jobs : [],
       });
     });
+  }, []);
+
+  useEffect(() => {
+    getPublicMonetization()
+      .then((m) => setWalletVisible(m.mode === 'PAID'))
+      .catch(() => setWalletVisible(false));
   }, []);
 
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -126,9 +135,11 @@ export const Header: React.FC<HeaderProps> = ({ onSearch, onNavigate, currentRou
               Saqlanganlar
             </button>
             {user ? (
-              <button type="button" onClick={() => onNavigate('/wallet')} className="hover:text-[#1673E6] transition-colors cursor-pointer">
-                Balans
-              </button>
+              walletVisible ? (
+                <button type="button" onClick={() => onNavigate('/wallet')} className="hover:text-[#1673E6] transition-colors cursor-pointer">
+                  Balans
+                </button>
+              ) : null
             ) : (
               <button type="button" onClick={() => openLoginModal()} className="hover:text-[#1673E6] transition-colors cursor-pointer">
                 Kirish
@@ -370,9 +381,11 @@ export const Header: React.FC<HeaderProps> = ({ onSearch, onNavigate, currentRou
                       <button onClick={() => { setIsUserMenuOpen(false); onNavigate('/chat'); }} className="w-full px-3.5 py-2 text-xs text-left font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2">
                         <MessageSquare className="w-4 h-4 text-gray-400" /> Suhbatlar
                       </button>
-                      <button onClick={() => { setIsUserMenuOpen(false); onNavigate('/wallet'); }} className="w-full px-3.5 py-2 text-xs text-left font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-                        <Wallet className="w-4 h-4 text-gray-400" /> Balans va to‘lovlar
-                      </button>
+                      {walletVisible && (
+                        <button onClick={() => { setIsUserMenuOpen(false); onNavigate('/wallet'); }} className="w-full px-3.5 py-2 text-xs text-left font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                          <Wallet className="w-4 h-4 text-gray-400" /> Balans va to‘lovlar
+                        </button>
+                      )}
                     </div>
                     {(user.role === 'MODERATOR' || user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') && (
                       <div className="py-1 bg-amber-50/50">

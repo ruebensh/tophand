@@ -2,8 +2,9 @@ import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
 dotenv.config();
 
-// Create reusable transporter
-// Can use standard Gmail, Resend SMTP, or any free SMTP provider
+// Transporter is only used as a fallback when no Brevo API key is set.
+// Timeouts keep a stalled SMTP connection from hanging until the platform
+// request limit (Render ~100s).
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp.gmail.com',
   port: parseInt(process.env.SMTP_PORT || '587', 10),
@@ -14,19 +15,15 @@ const transporter = nodemailer.createTransport({
         pass: process.env.SMTP_PASS,
       }
     : undefined,
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+  socketTimeout: 15000,
 });
 
-/**
- * Sends a 6-digit confirmation/reset code to the user's email.
- */
-export async function sendVerificationCodeEmail(
-  toEmail: string,
-  code: string,
-  subject: string = 'TopHand - Tasdiqlash kodi'
-): Promise<{ success: boolean; simulated?: boolean }> {
-  const isConfigured = Boolean(process.env.SMTP_USER && process.env.SMTP_PASS);
+const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
 
-  const htmlContent = `
+function buildHtmlEmail(code: string): string {
+  return `
     <!DOCTYPE html>
     <html>
     <head>
@@ -62,27 +59,85 @@ export async function sendVerificationCodeEmail(
     </body>
     </html>
   `;
+}
 
-  if (!isConfigured) {
-    // Development / Demo mode: Log verification code to console clearly
-    console.log('\n==================================================');
-    console.log(`📧 [EMAIL SIMULATSIYA] Kimga: ${toEmail}`);
-    console.log(`🔑 Tasdiqlash kodi: ${code}`);
-    console.log('==================================================\n');
-    return { success: true, simulated: true };
+/**
+ * Sends a 6-digit confirmation/reset code to the user's email.
+ * Preference order:
+ *   1) Brevo HTTP API (BREVO_API_KEY) — reliable on Render (port 443).
+ *   2) SMTP (SMTP_USER + SMTP_PASS) — legacy fallback.
+ *   3) Simulated mode — logs the code to the console (dev/demo).
+ */
+export async function sendVerificationCodeEmail(
+  toEmail: string,
+  code: string,
+  subject: string = 'TopHand - Tasdiqlash kodi'
+): Promise<{ success: boolean; simulated?: boolean }> {
+  const htmlContent = buildHtmlEmail(code);
+  const textContent = `TopHand platformasi tasdiqlash kodi: ${code}. Kod 15 daqiqa davomida amal qiladi.`;
+
+  const apiKey = (process.env.BREVO_API_KEY || '').trim();
+  const smtpConfigured = Boolean(process.env.SMTP_USER && process.env.SMTP_PASS);
+
+  // 1) Brevo HTTP API — preferred.
+  if (apiKey) {
+    const senderEmail = (process.env.BREVO_SENDER_EMAIL || process.env.SMTP_FROM || '').trim();
+    const senderName = (process.env.BREVO_SENDER_NAME || 'TopHand Platformasi').trim();
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+    try {
+      const response = await fetch(BREVO_API_URL, {
+        method: 'POST',
+        headers: {
+          'api-key': apiKey,
+          'content-type': 'application/json',
+          accept: 'application/json',
+        },
+        body: JSON.stringify({
+          sender: { name: senderName, email: senderEmail },
+          to: [{ email: toEmail }],
+          subject,
+          htmlContent,
+          textContent,
+        }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const body = await response.text().catch(() => '');
+        throw new Error(`Brevo API ${response.status}: ${body}`);
+      }
+      return { success: true, simulated: false };
+    } catch (error) {
+      console.error('Brevo API email send error:', error);
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
-  try {
-    await transporter.sendMail({
-      from: `"TopHand Platformasi" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
-      to: toEmail,
-      subject,
-      html: htmlContent,
-      text: `TopHand platformasi tasdiqlash kodi: ${code}. Kod 15 daqiqa davomida amal qiladi.`,
-    });
-    return { success: true, simulated: false };
-  } catch (error) {
-    console.error('Email send error:', error);
-    throw error;
+  // 2) SMTP fallback.
+  if (smtpConfigured) {
+    try {
+      await transporter.sendMail({
+        from: `"TopHand Platformasi" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
+        to: toEmail,
+        subject,
+        html: htmlContent,
+        text: textContent,
+      });
+      return { success: true, simulated: false };
+    } catch (error) {
+      console.error('Email send error:', error);
+      throw error;
+    }
   }
+
+  // 3) Development / Demo mode: Log verification code to console clearly.
+  console.log('\n==================================================');
+  console.log(`📧 [EMAIL SIMULATSIYA] Kimga: ${toEmail}`);
+  console.log(`🔑 Tasdiqlash kodi: ${code}`);
+  console.log('==================================================\n');
+  return { success: true, simulated: true };
 }

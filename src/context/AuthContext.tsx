@@ -123,7 +123,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const sendRegisterCode = async (email: string) => {
     return apiRequest<{ success: boolean; message: string; simulated?: boolean; demo_code?: string }>(
       '/api/auth/register/send-code',
-      { method: 'POST', body: JSON.stringify({ email }) }
+      { method: 'POST', timeoutMs: 20000, body: JSON.stringify({ email }) }
     );
   };
 
@@ -184,7 +184,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const sendLinkEmailCode = async (email: string) => {
     return apiRequest<{ success: boolean; message: string; simulated?: boolean; demo_code?: string }>(
       '/api/auth/email/send-code',
-      { method: 'POST', body: JSON.stringify({ email }) }
+      { method: 'POST', timeoutMs: 20000, body: JSON.stringify({ email }) }
     );
   };
 
