@@ -346,7 +346,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 ) : null}
                 {isOfficialAccount(profileUser) ? (
                   <span className="px-2 py-0.5 rounded-md bg-gradient-to-r from-amber-100 to-yellow-100 text-amber-800 border border-amber-200 text-[10px] font-bold">
-                    Rasmiy • Premium
+                    Rasmiy
                   </span>
                 ) : isStaffAccount(profileUser) ? (
                   <span className="px-2 py-0.5 rounded-md bg-gradient-to-r from-indigo-100 to-violet-100 text-indigo-800 border border-indigo-200 text-[10px] font-bold">
