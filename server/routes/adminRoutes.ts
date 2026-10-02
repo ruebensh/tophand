@@ -5,7 +5,7 @@ import multer from 'multer';
 import sharp from 'sharp';
 import fs from 'fs';
 import path from 'path';
-import { requireAuth, requireRole, AuthRequest } from '../auth/telegram.ts';
+import { requireAuth, requireMinLevel, AuthRequest } from '../auth/telegram.ts';
 import {
   getAdminOverview,
   adminPermanentBan,
@@ -39,8 +39,8 @@ const logoUpload = multer({
   },
 });
 
-// Middleware: Admin only for all routes in this file
-router.use(requireAuth, requireRole(['ADMIN']));
+// Middleware: Admin (and SUPER_ADMIN) only for all routes in this file
+router.use(requireAuth, requireMinLevel('ADMIN'));
 
 // Overview stats (Section 34)
 router.get('/overview', async (_req, res) => {

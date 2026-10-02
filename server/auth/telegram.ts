@@ -3,7 +3,13 @@ import jwt from 'jsonwebtoken';
 import { Request, Response, NextFunction } from 'express';
 import { queryOne } from '../db/database.ts';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'tophand-jwt-secret-uzbekistan-2026';
+// SECURITY: never fall back to a known secret in production. If JWT_SECRET is
+// missing while NODE_ENV=production, fail fast so the server refuses to boot
+// (otherwise every token would be signed with a guessable, shared secret).
+if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
+  throw new Error('FATAL: JWT_SECRET muhit o‘zgaruvchisi qo‘yilmagan — production da ishga tushirish taqiqlanadi.');
+}
+const JWT_SECRET = process.env.JWT_SECRET || 'tophand-dev-insecure-secret-do-not-use-in-prod';
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 
 export type Role = 'USER' | 'INTERN_MOD' | 'MODERATOR' | 'LEAD_MOD' | 'ADMIN' | 'SUPER_ADMIN';

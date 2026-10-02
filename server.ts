@@ -16,6 +16,7 @@ import locationRoutes from './server/routes/locationRoutes.ts';
 import categoryRoutes from './server/routes/categoryRoutes.ts';
 import organizationRoutes from './server/routes/organizationRoutes.ts';
 import notificationRoutes from './server/routes/notificationRoutes.ts';
+import pushRoutes from './server/routes/pushRoutes.ts';
 import moderationRoutes from './server/routes/moderationRoutes.ts';
 import messagingRoutes from './server/routes/messagingRoutes.ts';
 import adminRoutes from './server/routes/adminRoutes.ts';
@@ -34,9 +35,49 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
+// Trust the first proxy (Render/Cloudflare) so req.ip / X-Forwarded-For is correct.
+app.set('trust proxy', 1);
+
 // Body parser
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// ── Production hardening: basic security headers + in-memory rate limiting ──
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
+
+function rateLimit(opts: { windowMs: number; max: number; message: string }) {
+  const hits = new Map<string, { count: number; reset: number }>();
+  const sweeper = setInterval(() => {
+    const now = Date.now();
+    for (const [k, v] of hits) if (now > v.reset) hits.delete(k);
+  }, Math.max(opts.windowMs, 60_000));
+  if (typeof sweeper.unref === 'function') sweeper.unref();
+
+  return (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || 'unknown';
+    const key = `${ip}|${req.baseUrl}${req.path}`;
+    const now = Date.now();
+    let rec = hits.get(key);
+    if (!rec || now > rec.reset) {
+      rec = { count: 0, reset: now + opts.windowMs };
+      hits.set(key, rec);
+    }
+    rec.count++;
+    if (rec.count > opts.max) {
+      res.setHeader('Retry-After', String(Math.ceil((rec.reset - now) / 1000)));
+      return res.status(429).json({ error: opts.message });
+    }
+    next();
+  };
+}
+
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100, message: "Juda ko'p urinish. Birozdan so'ng qayta urinib ko'ring." });
+const codeLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 10, message: "Kod yuborish chegarasi oshdi. 1 soatdan so'ng urinib ko'ring." });
 
 // Static assets with permissive CORS & Cross-Origin-Resource-Policy for browser image loading
 app.use((_req, res, next) => {
@@ -69,6 +110,10 @@ app.use(express.static(publicDir, {
 app.use(seoRoutes);
 
 // API Routes
+// Rate-limit auth endpoints: strict on code-sending (email bombing), general on all auth.
+app.use('/api/auth/register/send-code', codeLimiter);
+app.use('/api/auth/forgot-password', codeLimiter);
+app.use('/api/auth', authLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/listings', listingRoutes);
@@ -80,6 +125,7 @@ app.use('/api/categories', categoryRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/organizations', organizationRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/push', pushRoutes);
 app.use('/api/moderation', moderationRoutes);
 app.use('/api/messaging', messagingRoutes);
 app.use('/api/admin', adminRoutes);
@@ -99,8 +145,12 @@ app.get('/api/health', (_req, res) => {
 // Centralized API error handler
 app.use('/api', (err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('API Error:', err);
-  res.status(err.status || 500).json({
-    error: err.message || 'Serverda ichki xatolik yuz berdi',
+  const isProd = process.env.NODE_ENV === 'production';
+  const status = err.status || 500;
+  // In production, never leak internal 5xx messages (DB/SQL details, stack, etc.).
+  const expose = !isProd || (status >= 400 && status < 500);
+  res.status(status).json({
+    error: expose ? (err.message || 'So‘rovni bajarib bo‘lmadi') : 'Serverda ichki xatolik yuz berdi',
   });
 });
 

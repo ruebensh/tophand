@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { queryAll, queryOne, runQuery } from '../db/database.ts';
+import { sendPushToUser } from './pushService.ts';
 
 export async function getOrCreateConversation(listingId: string, initiatorUserId: string) {
   // Find listing to get recipient
@@ -233,6 +234,14 @@ export async function sendMessage(
       now,
     ]
   );
+
+  // Web Push so a new chat message is noticed even with the tab closed.
+  sendPushToUser(recipientUserId, {
+    title: 'Yangi xabar',
+    body: `${senderUser?.name || 'Foydalanuvchi'}: ${text.slice(0, 80) || 'Rasm yubordi'}`,
+    url: `/chat?conv=${conversationId}`,
+    tag: conversationId,
+  }).catch(() => {});
 
   return queryOne('SELECT * FROM messages WHERE id = ?', [id]);
 }

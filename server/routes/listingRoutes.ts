@@ -13,6 +13,7 @@ import {
 import { autoFlagContentIfProfane, logSearchOrFilter } from '../services/autoModerationService.ts';
 import { enqueueListing } from '../services/moderationAssignService.ts';
 import { notifyFirstListing, createNotification } from '../services/notificationService.ts';
+import { refundListingCreation } from '../services/walletService.ts';
 import { queryOne, queryAll, runQuery } from '../db/database.ts';
 
 const router = Router();
@@ -564,6 +565,9 @@ router.delete('/:id', requireAuth, async (req: AuthRequest, res) => {
          VALUES (?, ?, 'LISTING_REMOVED_BY_ADMIN', 'LISTING', ?, ?, ?)`,
         [auditId, req.user!.id, listing.id, JSON.stringify({ title: listing.title, owner: listing.owner_user_id }), now]
       );
+
+      // Staff/admin removal of a paid listing → refund the one-time creation charge once.
+      try { await refundListingCreation(listing.id); } catch (e) { console.error('Listing refund on removal failed:', e); }
     }
 
     res.json({ success: true, message: 'E’lon olib tashlandi' });

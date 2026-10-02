@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext.tsx';
 import { ListingTypeBadge } from '../components/listings/ListingTypeBadge.tsx';
 import { PriceDisplay } from '../components/listings/PriceDisplay.tsx';
 import { AccountLinkingCard } from '../components/modals/AccountLinkingCard.tsx';
+import { PushNotificationsCard } from '../components/profile/PushNotificationsCard.tsx';
 import {
   MapPin,
   Calendar,
@@ -636,6 +637,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
       {/* Hisobni bog'lash (Email ↔ Google) — faqat o'z profilida */}
       {isOwner && <AccountLinkingCard />}
+
+      {/* Push bildirishnomalar — sayt yopiq bo'lganda ham xabar olish */}
+      {isOwner && <PushNotificationsCard />}
 
       {/* Tabs */}
       <div className="flex items-center gap-3 border-b border-gray-200 mb-6">

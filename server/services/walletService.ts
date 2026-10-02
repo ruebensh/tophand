@@ -112,6 +112,34 @@ export async function refund(userId: string, amount: number, meta: TxMeta = {}):
   return newBalance;
 }
 
+/**
+ * Refund a listing's one-time creation charge to its owner, at most once.
+ * Used when staff/admin remove a paid listing so the user is made whole.
+ * No-op in FREE_TEST (no LISTING_CREATE spend exists for the listing).
+ */
+export async function refundListingCreation(listingId: string): Promise<number> {
+  const spend = await queryOne<{ amount: string | number }>(
+    `SELECT COALESCE(SUM(amount), 0) AS amount FROM wallet_transactions
+     WHERE ref_id = ? AND ref_type = 'LISTING_CREATE' AND type = 'SPEND'`,
+    [listingId]
+  );
+  const amount = Number(spend?.amount ?? 0);
+  if (amount <= 0) return 0;
+
+  const already = await queryOne<{ id: string }>(
+    `SELECT id FROM wallet_transactions
+     WHERE ref_id = ? AND ref_type = 'LISTING_CREATE' AND type = 'REFUND' LIMIT 1`,
+    [listingId]
+  );
+  if (already) return 0;
+
+  const listing = await queryOne<{ owner_user_id: string }>('SELECT owner_user_id FROM listings WHERE id = ?', [listingId]);
+  if (!listing) return 0;
+
+  await refund(listing.owner_user_id, amount, { ref_type: 'LISTING_CREATE', ref_id: listingId, note: "E'lon olib tashlangani uchun to'lov qaytarildi" });
+  return amount;
+}
+
 /** List a user's wallet transactions (newest first). */
 export async function listTransactions(userId: string, limit = 50) {
   return queryAll(

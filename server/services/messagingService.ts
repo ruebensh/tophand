@@ -3,6 +3,7 @@ import { queryAll, queryOne, runQuery, runTransaction } from '../db/database.ts'
 import type { PoolClient } from 'pg';
 import { hasMinLevel, Role } from '../auth/telegram.ts';
 import { signTopHand } from './notificationService.ts';
+import { sendPushToUser } from './pushService.ts';
 
 function newId(prefix: string) {
   return `${prefix}_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
@@ -105,6 +106,13 @@ export async function sendStaffMessage(input: SendMessageInput) {
         );
       }
     });
+
+    // Web Push fan-out (fire-and-forget) after the batch is committed, so
+    // announcements reach users even when the site is closed.
+    for (const u of batch) {
+      const body = mode === 'PER_USER' ? renderBody(input.body, u) : input.body;
+      sendPushToUser(u.id, { title, body, url: input.link || '/notifications', tag: 'SYSTEM_ALERT' }).catch(() => {});
+    }
   }
 
   // Record the broadcast + audit

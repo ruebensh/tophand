@@ -247,5 +247,17 @@ export async function runMigrations() {
   await seedSetting('promo_duration_hours', '24');
   await seedSetting('auto_approve_enabled', '0');
 
+  // ── Web Push: push_subscriptions table (idempotent, safe on existing DBs) ──
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      endpoint TEXT PRIMARY KEY,
+      user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+      p256dh TEXT NOT NULL,
+      auth TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id)`);
+
   console.log('✅ Schema migrations complete.');
 }

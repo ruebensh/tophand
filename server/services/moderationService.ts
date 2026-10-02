@@ -253,7 +253,7 @@ export async function adminVerifyOrganization(adminId: string, orgId: string, ve
 export async function getAdminOverview() {
   const usersCount = await queryOne<{ count: number }>('SELECT COUNT(*) as count FROM users');
   const activeListingsCount = await queryOne<{ count: number }>("SELECT COUNT(*) as count FROM listings WHERE status = 'ACTIVE'");
-  const archivedListingsCount = await queryOne<{ count: number }>("SELECT COUNT(*) as count FROM listings WHERE status = 'ARCHIVED'");
+  const archivedListingsCount = await queryOne<{ count: number }>("SELECT COUNT(*) as count FROM listings WHERE status IN ('ARCHIVED', 'COMPLETED')");
   const pendingReportsCount = await queryOne<{ count: number }>("SELECT COUNT(*) as count FROM reports WHERE status = 'PENDING'");
   const orgsCount = await queryOne<{ count: number }>('SELECT COUNT(*) as count FROM organizations');
   const verifiedOrgsCount = await queryOne<{ count: number }>("SELECT COUNT(*) as count FROM organizations WHERE verification_status = 'VERIFIED'");

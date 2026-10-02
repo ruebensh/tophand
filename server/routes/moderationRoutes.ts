@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import crypto from 'crypto';
-import { requireAuth, requireRole, requireMinLevel, AuthRequest } from '../auth/telegram.ts';
+import { requireAuth, requireMinLevel, AuthRequest } from '../auth/telegram.ts';
 import { queryAll, queryOne, runQuery } from '../db/database.ts';
 import { createReport, getReports, takeModeratorAction } from '../services/moderationService.ts';
 import {
@@ -55,7 +55,7 @@ router.post('/reports', requireAuth, async (req: AuthRequest, res) => {
 });
 
 // View reports list (Moderator and Admin only)
-router.get('/reports', requireAuth, requireRole(['MODERATOR', 'ADMIN']), async (req: AuthRequest, res) => {
+router.get('/reports', requireAuth, requireMinLevel('MODERATOR'), async (req: AuthRequest, res) => {
   try {
     const status = req.query.status as string;
     const reports = await getReports(status);
@@ -66,7 +66,7 @@ router.get('/reports', requireAuth, requireRole(['MODERATOR', 'ADMIN']), async (
 });
 
 // Moderator take action (Section 33)
-router.post('/action', requireAuth, requireRole(['MODERATOR', 'ADMIN']), async (req: AuthRequest, res) => {
+router.post('/action', requireAuth, requireMinLevel('MODERATOR'), async (req: AuthRequest, res) => {
   try {
     const { report_id, action, target_type, target_id, reason, ban_days } = req.body;
     if (!action || !target_type || !target_id || !reason) {
@@ -89,7 +89,7 @@ router.post('/action', requireAuth, requireRole(['MODERATOR', 'ADMIN']), async (
 });
 
 // Auto-flagged content queue (Moderator and Admin)
-router.get('/auto-flagged', requireAuth, requireRole(['MODERATOR', 'ADMIN']), async (req: AuthRequest, res) => {
+router.get('/auto-flagged', requireAuth, requireMinLevel('MODERATOR'), async (req: AuthRequest, res) => {
   try {
     const status = req.query.status as string;
     const items = await getAutoFlaggedContent(status);
@@ -100,7 +100,7 @@ router.get('/auto-flagged', requireAuth, requireRole(['MODERATOR', 'ADMIN']), as
 });
 
 // Take action on auto-flagged content
-router.post('/auto-flagged/:id/action', requireAuth, requireRole(['MODERATOR', 'ADMIN']), async (req: AuthRequest, res) => {
+router.post('/auto-flagged/:id/action', requireAuth, requireMinLevel('MODERATOR'), async (req: AuthRequest, res) => {
   try {
     const { action, reason, ban_days } = req.body;
     if (!action) {
@@ -121,7 +121,7 @@ router.post('/auto-flagged/:id/action', requireAuth, requireRole(['MODERATOR', '
 });
 
 // Profanity Words: List
-router.get('/profanity-words', requireAuth, requireRole(['MODERATOR', 'ADMIN']), async (_req, res) => {
+router.get('/profanity-words', requireAuth, requireMinLevel('MODERATOR'), async (_req, res) => {
   try {
     const words = await getProfanityWords();
     res.json(words);
@@ -131,7 +131,7 @@ router.get('/profanity-words', requireAuth, requireRole(['MODERATOR', 'ADMIN']),
 });
 
 // Profanity Words: Add
-router.post('/profanity-words', requireAuth, requireRole(['MODERATOR', 'ADMIN']), async (req: AuthRequest, res) => {
+router.post('/profanity-words', requireAuth, requireMinLevel('MODERATOR'), async (req: AuthRequest, res) => {
   try {
     const { word, severity } = req.body;
     const added = await addProfanityWord(word, severity);
@@ -142,7 +142,7 @@ router.post('/profanity-words', requireAuth, requireRole(['MODERATOR', 'ADMIN'])
 });
 
 // Profanity Words: Delete
-router.delete('/profanity-words/:id', requireAuth, requireRole(['MODERATOR', 'ADMIN']), async (req: AuthRequest, res) => {
+router.delete('/profanity-words/:id', requireAuth, requireMinLevel('MODERATOR'), async (req: AuthRequest, res) => {
   try {
     const result = await deleteProfanityWord(req.params.id);
     res.json(result);

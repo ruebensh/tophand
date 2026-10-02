@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { runQuery } from '../db/database.ts';
+import { sendPushToUser } from './pushService.ts';
 
 /** Standard closing line used on every user-facing TopHand notification. */
 export const TOPHAND_SIGNATURE = 'Hurmat bilan, TopHand jamoasi 🧡';
@@ -34,6 +35,16 @@ export async function createNotification(input: CreateNotificationInput): Promis
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [id, input.userId, input.type, input.title, body, input.link ?? null, now]
   );
+
+  // Mirror the notification as a Web Push so it is seen even when the tab/site is closed.
+  // Uses the unsigned body (shorter) and is fully fire-and-forget.
+  sendPushToUser(input.userId, {
+    title: input.title,
+    body: (input.body || '').trim(),
+    url: input.link || '/notifications',
+    tag: input.type,
+  }).catch(() => {});
+
   return id;
 }
 

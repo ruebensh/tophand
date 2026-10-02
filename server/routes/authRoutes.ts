@@ -424,7 +424,7 @@ router.get('/me', requireAuth, async (req: AuthRequest, res) => {
       [user.id]
     );
     const archivedListingsRes = await queryOne<{ count: number }>(
-      `SELECT COUNT(*) as count FROM listings WHERE owner_user_id = ? AND status = 'ARCHIVED'`,
+      `SELECT COUNT(*) as count FROM listings WHERE owner_user_id = ? AND status IN ('ARCHIVED', 'COMPLETED')`,
       [user.id]
     );
 

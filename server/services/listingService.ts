@@ -7,7 +7,16 @@ import {
   getRenewPrice,
   getPromoPrice,
 } from './monetizationService.ts';
-import { charge } from './walletService.ts';
+import { charge, refund } from './walletService.ts';
+
+/**
+ * Admin / SUPER_ADMIN accounts are billing-exempt: they are never charged and
+ * their wallet balance is never touched (all listing actions are free for them).
+ */
+async function isBillingExempt(userId: string): Promise<boolean> {
+  const row = await queryOne<{ role: string }>('SELECT role FROM users WHERE id = ?', [userId]);
+  return row?.role === 'ADMIN' || row?.role === 'SUPER_ADMIN';
+}
 
 export interface ListingFilter {
   catalog_id?: string;
@@ -535,11 +544,14 @@ export async function createListing(userId: string, data: any) {
   const cfg = await getMonetizationConfig();
   const activeDays = resolveActiveDays(cfg);
   const expiresAt = new Date(Date.now() + activeDays * 24 * 60 * 60 * 1000).toISOString();
-  const price = getListingPrice(cfg, catalogId);
+  // Admin accounts are billing-exempt — never charged, balance untouched.
+  const price = (await isBillingExempt(userId)) ? 0 : getListingPrice(cfg, catalogId);
+  // Charge FIRST so an insufficient balance aborts before any DB write.
   if (price > 0) {
     await charge(userId, price, { ref_type: 'LISTING_CREATE', ref_id: id, note: "E'lon joylash" });
   }
 
+  try {
   await runQuery(
     `INSERT INTO listings (
       id, owner_user_id, organization_id, catalog_id, type, title, description, category_id,
@@ -587,6 +599,13 @@ export async function createListing(userId: string, data: any) {
       [imgId, id, media[i], i, mediaType, now]
     );
   }
+  } catch (err) {
+    // Persist failed after we already charged → refund so the user never loses money.
+    if (price > 0) {
+      await refund(userId, price, { ref_type: 'LISTING_CREATE', ref_id: id, note: "E'lon yaratilmagani uchun pul qaytarildi" }).catch(() => {});
+    }
+    throw err;
+  }
 
   return getListingById(id, userId);
 }
@@ -608,7 +627,8 @@ export async function renewListing(listingId: string, userId: string) {
   // Faza 2 + 7: configurable active-days + optional renew charge when PAID
   const cfg = await getMonetizationConfig();
   const activeDays = resolveActiveDays(cfg);
-  const price = getRenewPrice(cfg, listing.catalog_id);
+  // Admin accounts are billing-exempt.
+  const price = (await isBillingExempt(userId)) ? 0 : getRenewPrice(cfg, listing.catalog_id);
   if (price > 0) {
     await charge(userId, price, { ref_type: 'LISTING_RENEW', ref_id: listingId, note: "E'lon uzaytirish" });
   }
@@ -617,12 +637,19 @@ export async function renewListing(listingId: string, userId: string) {
   const newExpiresAt = new Date(Date.now() + activeDays * 24 * 60 * 60 * 1000).toISOString();
 
   // Renew does NOT change created_at (prevents artificial aging change)
-  await runQuery(
-    `UPDATE listings 
-     SET status = 'ACTIVE', renewed_at = ?, expires_at = ?, archived_at = NULL, completed_at = NULL, updated_at = ? 
-     WHERE id = ?`,
-    [now, newExpiresAt, now, listingId]
-  );
+  try {
+    await runQuery(
+      `UPDATE listings 
+       SET status = 'ACTIVE', renewed_at = ?, expires_at = ?, archived_at = NULL, completed_at = NULL, updated_at = ? 
+       WHERE id = ?`,
+      [now, newExpiresAt, now, listingId]
+    );
+  } catch (err) {
+    if (price > 0) {
+      await refund(userId, price, { ref_type: 'LISTING_RENEW', ref_id: listingId, note: "Uzaytirish amalga oshmaganligi uchun pul qaytarildi" }).catch(() => {});
+    }
+    throw err;
+  }
 
   // Create notification
   const notifId = `notif_${crypto.randomUUID().slice(0, 16)}`;
@@ -648,7 +675,8 @@ export async function promoteListing(listingId: string, userId: string) {
   if (listing.owner_user_id !== userId) throw new Error("Siz faqat o'zingizning e'loningizni ko'tarishingiz mumkin");
 
   const cfg = await getMonetizationConfig();
-  const price = getPromoPrice(cfg, listing.catalog_id);
+  // Admin accounts are billing-exempt → treated as a free promo.
+  const price = (await isBillingExempt(userId)) ? 0 : getPromoPrice(cfg, listing.catalog_id);
   if (price <= 0) {
     // Free-test: still allow a short promo without charge
     const hours = cfg.promo_duration_hours || 24;
@@ -659,7 +687,12 @@ export async function promoteListing(listingId: string, userId: string) {
 
   await charge(userId, price, { ref_type: 'LISTING_PROMO', ref_id: listingId, note: "E'lonni topga ko'tarish" });
   const until = new Date(Date.now() + (cfg.promo_duration_hours || 24) * 60 * 60 * 1000).toISOString();
-  await runQuery('UPDATE listings SET promoted_until = ?, updated_at = ? WHERE id = ?', [until, new Date().toISOString(), listingId]);
+  try {
+    await runQuery('UPDATE listings SET promoted_until = ?, updated_at = ? WHERE id = ?', [until, new Date().toISOString(), listingId]);
+  } catch (err) {
+    await refund(userId, price, { ref_type: 'LISTING_PROMO', ref_id: listingId, note: "Promo o'rnatilmaganligi uchun pul qaytarildi" }).catch(() => {});
+    throw err;
+  }
   return getListingById(listingId, userId);
 }
 

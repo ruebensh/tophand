@@ -280,6 +280,20 @@ export async function initDatabase() {
     )
   `);
 
+  // 15b. push_subscriptions (Web Push endpoints per browser/device)
+  await createTableIfNotExists(`
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      endpoint TEXT PRIMARY KEY,
+      user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+      p256dh TEXT NOT NULL,
+      auth TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await createTableIfNotExists(
+    `CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id)`
+  );
+
   // 16. audit_logs
   await createTableIfNotExists(`
     CREATE TABLE IF NOT EXISTS audit_logs (
