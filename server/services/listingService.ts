@@ -601,7 +601,7 @@ export async function renewListing(listingId: string, userId: string) {
     throw new Error("Siz faqat o'zingizning e'loningizni uzaytirishingiz mumkin");
   }
 
-  if (!['ACTIVE', 'ARCHIVED', 'HIDDEN'].includes(listing.status)) {
+  if (!['ACTIVE', 'ARCHIVED', 'HIDDEN', 'COMPLETED'].includes(listing.status)) {
     throw new Error("Bu holatdagi e'lonni uzaytirib bo'lmaydi");
   }
 
@@ -619,7 +619,7 @@ export async function renewListing(listingId: string, userId: string) {
   // Renew does NOT change created_at (prevents artificial aging change)
   await runQuery(
     `UPDATE listings 
-     SET status = 'ACTIVE', renewed_at = ?, expires_at = ?, archived_at = NULL, updated_at = ? 
+     SET status = 'ACTIVE', renewed_at = ?, expires_at = ?, archived_at = NULL, completed_at = NULL, updated_at = ? 
      WHERE id = ?`,
     [now, newExpiresAt, now, listingId]
   );

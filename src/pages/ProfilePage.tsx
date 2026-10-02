@@ -119,7 +119,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   onNavigate,
   onOpenListing,
 }) => {
-  const { user: currentUser, logout, openLoginModal } = useAuth();
+  const { user: currentUser, logout, openLoginModal, refreshUser } = useAuth();
   const [profileUser, setProfileUser] = useState<User | null>(null);
   const [listings, setListings] = useState<Listing[]>([]);
   const [archivedListings, setArchivedListings] = useState<Listing[]>([]);
@@ -256,6 +256,18 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     }
   };
 
+  // Close a listing as fulfilled (ish bajarildi) → status COMPLETED, archived.
+  const handleCompleteListing = async (listingId: string) => {
+    if (!confirm('Ushbu e’lon bajarildi (yakunlandi) deb yopilsinmi? U arxivga o’tadi.')) return;
+    try {
+      await apiRequest(`/api/listings/${listingId}/complete`, { method: 'POST' });
+      alert('E’lon yakunlangan deb belgilandi va arxivlandi.');
+      fetchProfile();
+    } catch (err: any) {
+      alert(err.message || 'Yakunlashda xatolik');
+    }
+  };
+
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSavingProfile(true);
@@ -273,6 +285,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       });
       setIsEditing(false);
       fetchProfile();
+      // Sync the global auth user so the header avatar/name update immediately.
+      refreshUser().catch(() => {});
     } catch (err: any) {
       alert(err.message || 'Saqlashda xatolik');
     } finally {
@@ -785,6 +799,19 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                           <span>Tahrirlash</span>
                         </button>
                       )}
+                      {isOwner && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCompleteListing(l.id);
+                          }}
+                          title="Ish bajarildi — e’lonni yopish"
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full border border-emerald-200 hover:border-emerald-300 hover:bg-emerald-50 text-emerald-700 text-xs font-bold transition-all"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Yakunlash</span>
+                        </button>
+                      )}
                       <div className="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-full bg-blue-50 group-hover:bg-blue-600 text-blue-600 group-hover:text-white text-xs font-bold transition-all shadow-2xs">
                         <span>Batafsil ko‘rish</span>
                         <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
@@ -868,8 +895,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                           <Calendar className="w-3 h-3 text-gray-400 shrink-0" />
                           <span>{formatDateAgo(l.renewed_at || l.created_at)}</span>
                         </span>
-                        <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-bold text-[10px] border border-amber-200">
-                          Arxivda (Muddati tugagan)
+                        <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] border ${
+                          l.status === 'COMPLETED'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-amber-50 text-amber-700 border-amber-200'
+                        }`}>
+                          {l.status === 'COMPLETED' ? 'Yopilgan (Bajarilgan)' : 'Arxivda (Muddati tugagan)'}
                         </span>
                       </div>
                     </div>

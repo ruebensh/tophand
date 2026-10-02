@@ -45,7 +45,7 @@ router.get('/:id', optionalAuth, async (req: AuthRequest, res) => {
     user.is_profile_complete = Boolean(
       user.name && user.name.trim().length >= 2 &&
       user.phone && user.phone.trim().length >= 6 &&
-      user.profile_photo_url && user.region_id && user.district_id
+      user.region_id && user.district_id
     );
 
     // Follow status for viewer
@@ -375,11 +375,14 @@ router.get('/:id/listings', optionalAuth, async (req: AuthRequest, res) => {
 
     if (!isOwner) {
       sql += " AND l.status = 'ACTIVE'";
+    } else if (status === 'ARCHIVED') {
+      // The owner's "Arxiv" tab also shows completed (closed) listings.
+      sql += " AND l.status IN ('ARCHIVED', 'COMPLETED')";
     } else if (status) {
       sql += " AND l.status = ?";
       params.push(status);
     } else {
-      sql += " AND l.status IN ('ACTIVE', 'ARCHIVED', 'HIDDEN')";
+      sql += " AND l.status IN ('ACTIVE', 'ARCHIVED', 'HIDDEN', 'COMPLETED')";
     }
 
     sql += ' ORDER BY l.created_at DESC';

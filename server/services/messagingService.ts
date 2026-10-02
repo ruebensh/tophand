@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { queryAll, queryOne, runQuery, runTransaction } from '../db/database.ts';
 import type { PoolClient } from 'pg';
 import { hasMinLevel, Role } from '../auth/telegram.ts';
+import { signTopHand } from './notificationService.ts';
 
 function newId(prefix: string) {
   return `${prefix}_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
@@ -96,10 +97,11 @@ export async function sendStaffMessage(input: SendMessageInput) {
     await runTransaction(async (client: PoolClient) => {
       for (const u of batch) {
         const body = mode === 'PER_USER' ? renderBody(input.body, u) : input.body;
+        // Every TopHand broadcast (holidays, events, announcements) is signed.
         await client.query(
           `INSERT INTO notifications (id, user_id, type, title, body, link, created_at)
            VALUES ($1, $2, 'SYSTEM_ALERT', $3, $4, $5, $6)`,
-          [newId('notif'), u.id, title, body, input.link || null, now]
+          [newId('notif'), u.id, title, signTopHand(body), input.link || null, now]
         );
       }
     });

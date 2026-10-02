@@ -168,7 +168,7 @@ export async function initDatabase() {
       skills TEXT,
       contact_time TEXT DEFAULT 'ANY_TIME' CHECK(contact_time IN ('ANY_TIME','MORNING','AFTERNOON','EVENING','CUSTOM')),
       contact_custom_text TEXT,
-      status TEXT DEFAULT 'ACTIVE' CHECK(status IN ('ACTIVE','HIDDEN','ARCHIVED','REMOVED')),
+      status TEXT DEFAULT 'ACTIVE' CHECK(status IN ('ACTIVE','HIDDEN','ARCHIVED','REMOVED','COMPLETED')),
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       expires_at TIMESTAMPTZ NOT NULL,

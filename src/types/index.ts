@@ -128,11 +128,12 @@ export interface Listing {
   skills?: string | string[];
   contact_time: ContactTime;
   contact_custom_text?: string;
-  status: 'ACTIVE' | 'HIDDEN' | 'ARCHIVED' | 'REMOVED';
+  status: 'ACTIVE' | 'HIDDEN' | 'ARCHIVED' | 'REMOVED' | 'COMPLETED';
   created_at: string;
   updated_at: string;
   expires_at: string;
   archived_at?: string;
+  completed_at?: string | null;
   renewed_at?: string;
   promoted_until?: string | null;
   is_promoted?: boolean;

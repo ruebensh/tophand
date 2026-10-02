@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import { generateToken, requireAuth, verifyTelegramAuth, AuthRequest } from '../auth/telegram.ts';
 import { queryOne, runQuery, queryAll } from '../db/database.ts';
 import { sendVerificationCodeEmail } from '../services/emailService.ts';
+import { notifyWelcome } from '../services/notificationService.ts';
 
 const router = Router();
 
@@ -231,6 +232,9 @@ router.post('/register', async (req, res) => {
     const newUser = await queryOne<any>('SELECT * FROM users WHERE id = ?', [userId]);
     const token = generateToken(newUser);
 
+    // Welcome notification for the new account (signed by the TopHand team).
+    notifyWelcome(userId).catch(() => {});
+
     res.status(201).json({ token, user: serializeUser(newUser), is_new: true });
   } catch (err: any) {
     console.error('Register error:', err);
@@ -371,11 +375,16 @@ router.post('/google', async (req, res) => {
         [newId, lookupId, cleanEmail, displayName, photoUrl, now, now]
       );
       user = await queryOne<any>('SELECT * FROM users WHERE id = ?', [newId]);
+      // Welcome notification for accounts created via Google.
+      notifyWelcome(newId, displayName).catch(() => {});
     } else {
       // Google-verified email → mark verified when we attach/refresh it here.
+      // IMPORTANT: never overwrite a photo the user already uploaded with Google's.
+      // COALESCE(profile_photo_url, ?) keeps the existing value and only fills from
+      // Google when the user has no photo yet.
       await runQuery(
         `UPDATE users 
-         SET profile_photo_url = COALESCE(?, profile_photo_url),
+         SET profile_photo_url = COALESCE(profile_photo_url, ?),
              email = COALESCE(?, email),
              email_verified = CASE WHEN email IS NOT NULL THEN 1 ELSE email_verified END,
              updated_at = ? 

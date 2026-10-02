@@ -12,6 +12,7 @@ import {
 } from '../services/listingService.ts';
 import { autoFlagContentIfProfane, logSearchOrFilter } from '../services/autoModerationService.ts';
 import { enqueueListing } from '../services/moderationAssignService.ts';
+import { notifyFirstListing, createNotification } from '../services/notificationService.ts';
 import { queryOne, queryAll, runQuery } from '../db/database.ts';
 
 const router = Router();
@@ -202,6 +203,19 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
       videos: Array.isArray(videos) ? videos : [],
     });
 
+    // Debut milestone: congratulate the owner on publishing their very first listing.
+    try {
+      const cnt = await queryOne<{ count: number }>(
+        'SELECT COUNT(*) as count FROM listings WHERE owner_user_id = ?',
+        [req.user!.id]
+      );
+      if (Number(cnt?.count || 0) === 1) {
+        notifyFirstListing(req.user!.id, listing.title).catch(() => {});
+      }
+    } catch (e) {
+      console.error('First-listing milestone check failed:', e);
+    }
+
     // Notify all followers about this new listing
     try {
       const followers = await queryAll<{ follower_user_id: string }>(
@@ -375,6 +389,69 @@ router.post('/:id/renew', requireAuth, async (req: AuthRequest, res) => {
     res.json({ success: true, listing: renewed });
   } catch (err: any) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+// Mark a listing as completed — the request/task was fulfilled (e.g. a plumbing
+// job is done). The listing is closed and moved to the owner's archive (COMPLETED),
+// and both the owner and everyone who reached out are notified.
+router.post('/:id/complete', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const listing = await queryOne<any>('SELECT * FROM listings WHERE id = ?', [req.params.id]);
+    if (!listing) return res.status(404).json({ error: 'E’lon topilmadi' });
+
+    if (listing.owner_user_id !== req.user!.id && !hasMinLevel(req.user!.role, 'ADMIN')) {
+      return res.status(403).json({ error: 'Faqat e’lon egasi yakunlashi mumkin' });
+    }
+
+    if (listing.status === 'COMPLETED') {
+      return res.json({ success: true, status: 'COMPLETED', message: 'E’lon allaqachon yakunlangan' });
+    }
+
+    const now = new Date().toISOString();
+    await runQuery(
+      `UPDATE listings SET status = 'COMPLETED', completed_at = ?, updated_at = ? WHERE id = ?`,
+      [now, now, listing.id]
+    );
+
+    // Notify the owner (signed by the TopHand team).
+    createNotification({
+      userId: listing.owner_user_id,
+      type: 'LISTING_COMPLETED',
+      title: 'E’loningiz yakunlandi ✅',
+      body:
+        `"${listing.title}" e’loningiz muvaffaqiyatli amalga oshgan deb belgilandi va yopildi (arxivga o'tdi). ` +
+        `Yangi xohishingiz bo'lsa, istalgan vaqtda uni qayta faollashtirishingiz mumkin.`,
+      link: `/listing/${listing.id}`,
+    }).catch(() => {});
+
+    // Notify everyone who reached out about this listing (both chat sides), minus the owner.
+    try {
+      const contacts = await queryAll<{ user_id: string }>(
+        `SELECT DISTINCT initiator_user_id AS user_id FROM conversations WHERE listing_id = ? AND initiator_user_id <> ?
+         UNION
+         SELECT DISTINCT recipient_user_id AS user_id FROM conversations WHERE listing_id = ? AND recipient_user_id <> ?`,
+        [listing.id, listing.owner_user_id, listing.id, listing.owner_user_id]
+      );
+      for (const c of contacts) {
+        await createNotification({
+          userId: c.user_id,
+          type: 'LISTING_COMPLETED',
+          title: 'Bog’langan e’lon yakunlandi',
+          body:
+            `Siz murojaat qilgan "${listing.title}" e’loni bajarilgan holda yopildi. ` +
+            `Agar uchrashuvda bo'lgan bo'lsangiz, ijodkorga baho qoldirishingiz mumkin. Rahmat!`,
+          link: `/listing/${listing.id}`,
+        });
+      }
+    } catch (e) {
+      console.error('Failed to notify listing contacts on completion:', e);
+    }
+
+    res.json({ success: true, status: 'COMPLETED' });
+  } catch (err: any) {
+    console.error('Complete listing error:', err);
+    res.status(500).json({ error: err.message });
   }
 });
 

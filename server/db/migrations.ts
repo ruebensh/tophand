@@ -74,6 +74,31 @@ export async function runMigrations() {
   await addColumnIfNotExists('listing_images', 'media_type', "TEXT DEFAULT 'image' CHECK (media_type IN ('image','video'))");
   await addColumnIfNotExists('listing_images', 'thumbnail_url', 'TEXT');
 
+  // ── Listing lifecycle: allow an owner to CLOSE a fulfilled request as COMPLETED ──
+  await addColumnIfNotExists('listings', 'completed_at', 'TIMESTAMPTZ');
+  await pool.query(`
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+      FOR r IN
+        SELECT con.conname
+        FROM pg_constraint con
+        JOIN pg_class rel ON rel.oid = con.conrelid
+        JOIN pg_namespace nsp ON nsp.oid = con.connamespace
+        WHERE rel.relname = 'listings'
+          AND nsp.nspname = current_schema()
+          AND con.contype = 'c'
+          AND pg_get_constraintdef(con.oid) LIKE '%ACTIVE%'
+      LOOP
+        EXECUTE format('ALTER TABLE listings DROP CONSTRAINT %I', r.conname);
+      END LOOP;
+    END $$;
+  `);
+  await pool.query(`
+    ALTER TABLE listings ADD CONSTRAINT listings_status_check
+      CHECK (status IN ('ACTIVE','HIDDEN','ARCHIVED','REMOVED','COMPLETED'))
+  `);
+
   // ── Faza 7: wallets ──
   await pool.query(`
     CREATE TABLE IF NOT EXISTS wallets (
