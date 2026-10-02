@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { useNotifications } from '../../context/NotificationContext.tsx';
-import { useGeo } from '../../context/GeoContext.tsx';
 import {
   Search,
   PlusCircle,
@@ -48,7 +47,6 @@ const SECTIONS: { type: string; label: string; catalog: 'services' | 'jobs' }[] 
 export const Header: React.FC<HeaderProps> = ({ onSearch, onNavigate, currentRoute }) => {
   const { user, logout, openLoginModal } = useAuth();
   const { notifications, unreadCount, markAllAsRead, markAsRead } = useNotifications();
-  const { region } = useGeo();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
@@ -115,40 +113,8 @@ export const Header: React.FC<HeaderProps> = ({ onSearch, onNavigate, currentRou
     if (notif.link) onNavigate(notif.link);
   };
 
-  const regionLabel = region?.region_name || "Butun O‘zbekiston";
-
   return (
     <header className="sticky top-0 z-40 bg-white pt-safe">
-      {/* ── Tier 1: Utility bar (desktop only) ── */}
-      <div className="hidden md:block border-b border-[#EBECF0] bg-[#F9FAFB]">
-        <div className="max-w-[1440px] w-full mx-auto px-4 sm:px-8 h-9 flex items-center justify-between text-[11px] font-medium text-[#5E6C84]">
-          {/* Hudud badge — GPS aniqlangan joy (mavzu tanlanganini alohida e'lon qilmaydi) */}
-          <div className="flex items-center gap-2">
-            <span className="th-chip">
-              <MapIcon className="w-3 h-3" />
-              <span>{regionLabel}</span>
-            </span>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <button type="button" onClick={() => onNavigate('/saved')} className="hover:text-[#1673E6] transition-colors cursor-pointer">
-              Saqlanganlar
-            </button>
-            {user ? (
-              walletVisible ? (
-                <button type="button" onClick={() => onNavigate('/wallet')} className="hover:text-[#1673E6] transition-colors cursor-pointer">
-                  Balans
-                </button>
-              ) : null
-            ) : (
-              <button type="button" onClick={() => openLoginModal()} className="hover:text-[#1673E6] transition-colors cursor-pointer">
-                Kirish
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-
       {/* ── Tier 2: Main bar ── */}
       <div className="border-b border-[#EBECF0]">
         <div className="max-w-[1440px] w-full mx-auto px-4 sm:px-8 h-16 flex items-center gap-2 sm:gap-3">
