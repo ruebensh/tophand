@@ -33,6 +33,9 @@ export interface ListingFilter {
   work_format?: string;
   work_formats?: string[];
   experience?: string[];
+  // Structured per-category attributes (Avito-style). String/bool/color values
+  // are matched with JSONB containment (@>); numeric values with text equality.
+  attributes?: Record<string, string | number | boolean>;
   sort_by?: string;
   user_lat?: number;
   user_lng?: number;
@@ -119,14 +122,15 @@ export async function searchListings(filter: ListingFilter) {
   const params: any[] = [];
 
   if (filter.catalog_id) {
-    if (filter.catalog_id === 'services') {
-      sql += ` AND (l.catalog_id = 'services' OR l.type IN ('SERVICE_OFFER', 'SERVICE_REQUEST'))`;
-    } else if (filter.catalog_id === 'jobs') {
-      sql += ` AND (l.catalog_id = 'jobs' OR l.type IN ('JOB_OPENING', 'JOB_SEEKER'))`;
-    } else {
-      sql += ` AND l.catalog_id = ?`;
-      params.push(filter.catalog_id);
-    }
+    // Primary: match the denormalized catalog_id. Fallback for legacy rows
+    // (catalog_id NULL) via the catalog's own listing_types — no hardcoding.
+    sql += ` AND (
+      l.catalog_id = ?
+      OR (l.catalog_id IS NULL AND l.type IN (
+        SELECT unnest(string_to_array((SELECT listing_types FROM catalogs WHERE id = ?), ','))
+      ))
+    )`;
+    params.push(filter.catalog_id, filter.catalog_id);
   }
 
   if (filter.type) {
@@ -180,6 +184,27 @@ export async function searchListings(filter: ListingFilter) {
   if (filter.salary_max !== undefined && !isNaN(filter.salary_max)) {
     sql += ` AND (COALESCE(l.salary_min, l.salary_max) <= ?)`;
     params.push(filter.salary_max);
+  }
+
+  // Structured attributes filter (JSONB). Strings/bools via containment (@>
+  // uses the GIN index), numbers via extracted-text equality.
+  if (filter.attributes) {
+    const containment: Record<string, string | number | boolean> = {};
+    const numericCols: string[] = [];
+    for (const [k, v] of Object.entries(filter.attributes)) {
+      if (v === undefined || v === null || v === '') continue;
+      if (typeof v === 'number') {
+        numericCols.push(`(l.attributes->>'${k.replace(/[^a-zA-Z0-9_]/g, '')}') = ?`);
+        params.push(String(v));
+      } else {
+        containment[k] = v;
+      }
+    }
+    if (Object.keys(containment).length > 0) {
+      sql += ` AND l.attributes @> ?::jsonb`;
+      params.push(JSON.stringify(containment));
+    }
+    for (const cond of numericCols) sql += ` AND ${cond}`;
   }
 
   if (filter.keyword && filter.keyword.trim().length > 0) {
@@ -460,6 +485,13 @@ export async function getListingById(id: string, current_user_id?: string) {
 
   if (!listing) return null;
 
+  // Normalize structured attributes to a plain object (JSONB usually arrives
+  // pre-parsed, but defend against a raw string).
+  if (typeof listing.attributes === 'string') {
+    try { listing.attributes = JSON.parse(listing.attributes); } catch { listing.attributes = {}; }
+  }
+  if (!listing.attributes || typeof listing.attributes !== 'object') listing.attributes = {};
+
   // Images
   const images = await queryAll<{ url: string; sort_order: number }>(
     `SELECT url, sort_order FROM listing_images WHERE listing_id = ? ORDER BY sort_order ASC`,
@@ -528,7 +560,7 @@ export async function createListing(userId: string, data: any) {
   const videos: string[] = Array.isArray(data.videos) ? data.videos.slice(0, 2) : [];
   const media: string[] = [...images, ...videos];
 
-  // Determine catalog_id
+  // Determine catalog_id (authoritative from the client now, not derived from type)
   let catalogId = data.catalog_id;
   if (!catalogId) {
     if (['SERVICE_OFFER', 'SERVICE_REQUEST'].includes(data.type)) {
@@ -538,6 +570,33 @@ export async function createListing(userId: string, data: any) {
     } else {
       catalogId = 'services';
     }
+  }
+
+  // Validate the listing type against the catalog's allowed listing_types.
+  const catalogRow = await queryOne<{ listing_types: string | null }>(
+    'SELECT listing_types FROM catalogs WHERE id = ?',
+    [catalogId]
+  );
+  const allowedTypes = (catalogRow?.listing_types || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (allowedTypes.length > 0 && !allowedTypes.includes(data.type)) {
+    throw new Error(`Bu katalog uchun “${data.type}” e’lon turi ruxsat etilmagan`);
+  }
+
+  // Structured attributes: normalize + enforce the category's required schema.
+  const attributes: Record<string, any> =
+    data.attributes && typeof data.attributes === 'object' ? data.attributes : {};
+  const requiredRows = await queryAll<{ key: string; label_uz: string }>(
+    'SELECT key, label_uz FROM category_attributes WHERE category_id = ? AND required = 1',
+    [data.category_id]
+  );
+  const missing = requiredRows.filter(
+    (r) => attributes[r.key] === undefined || attributes[r.key] === null || attributes[r.key] === ''
+  );
+  if (missing.length > 0) {
+    throw new Error(`Majburiy atributlarni to'ldiring: ${missing.map((m) => m.label_uz).join(', ')}`);
   }
 
   // Faza 2 + 7: configurable active-days cycle + charge listing price when PAID
@@ -557,8 +616,8 @@ export async function createListing(userId: string, data: any) {
       id, owner_user_id, organization_id, catalog_id, type, title, description, category_id,
       region_id, district_id, latitude, longitude, price_type, price_min, price_max,
       currency, salary_type, salary_min, salary_max, work_format, experience_level,
-      skills, contact_time, contact_custom_text, status, created_at, updated_at, expires_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?, ?)`,
+      skills, contact_time, contact_custom_text, attributes, status, created_at, updated_at, expires_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, 'ACTIVE', ?, ?, ?)`,
     [
       id,
       userId,
@@ -584,6 +643,7 @@ export async function createListing(userId: string, data: any) {
       data.skills ? JSON.stringify(data.skills) : null,
       data.contact_time || 'ANY_TIME',
       data.contact_custom_text || null,
+      JSON.stringify(attributes),
       now,
       now,
       expiresAt,

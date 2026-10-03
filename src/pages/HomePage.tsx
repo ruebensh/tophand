@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Listing, Category, ListingType, Region, District } from '../types/index.ts';
-import { apiRequest } from '../lib/api.ts';
+import { Listing, Category, ListingType, Region, District, CategoryAttribute, Catalog } from '../types/index.ts';
+import { apiRequest, getCategoryAttributes } from '../lib/api.ts';
 import { ListingCard } from '../components/listings/ListingCard.tsx';
 import { CategoryFilter } from '../components/listings/CategoryFilter.tsx';
-import { CategoryIcon } from '../components/common/CategoryIcon.tsx';
+import { CategoryIcon, CategoryChip } from '../components/common/CategoryIcon.tsx';
 import { NearbyMapModal } from '../components/modals/NearbyMapModal.tsx';
 import {
   Search,
@@ -31,6 +31,43 @@ interface HomePageProps {
   onOpenListing: (id: string) => void;
 }
 
+// Bosh sahifa katalog kartochkasi — Avito uslubida: nomi tepada-chapda,
+// mahsulot rasmi (PNG) o'ng pastda. Manba: /catalogs/<id>.png -> (bo'lmasa) ikonka.
+const CatalogTile: React.FC<{ cat: Catalog; tone: string; index: number; onOpen: () => void }> = ({ cat, tone, index, onOpen }) => {
+  // Faqat shaffof fonli PNG ishlatiladi — e'lon fotolari (cover_image) o'z foni bilan
+  // kelgani uchun endi ishlatilmaydi; PNG bo'lmasa toza ikonka ko'rsatiladi.
+  const [imgFailed, setImgFailed] = useState(false);
+  const src = imgFailed ? '' : `/catalogs/${cat.id}.png`;
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      style={{ '--d': `${index * 60}ms` } as React.CSSProperties}
+      className="group th-card-in relative flex h-[92px] w-full flex-col items-center justify-center gap-1 overflow-hidden rounded-2xl border border-white/70 bg-gradient-to-br from-white/60 to-white/25 p-2 shadow-[0_8px_24px_rgba(23,43,77,0.10)] ring-1 ring-black/5 backdrop-blur-md transition-[transform,box-shadow] duration-300 hover:-translate-y-1 hover:from-white/75 hover:to-white/45 hover:shadow-[0_18px_44px_rgba(23,43,77,0.20)] cursor-pointer sm:h-[108px] sm:flex-row sm:items-stretch sm:justify-start sm:gap-0 sm:p-0 sm:pl-4 sm:pr-0 sm:pt-3.5"
+    >
+      <span className="th-shine" aria-hidden />
+      <span className="z-10 order-2 w-full text-center text-[10px] font-bold leading-tight text-[#172B4D] line-clamp-2 transition-transform duration-300 group-hover:-translate-y-0.5 sm:order-1 sm:w-auto sm:max-w-[58%] sm:self-start sm:text-left sm:text-[13px]">
+        {cat.name_uz}
+      </span>
+      {src ? (
+        <span className="th-float pointer-events-none order-1 flex h-[46px] w-full shrink-0 items-end justify-center sm:order-2 sm:ml-auto sm:h-[80%] sm:w-auto sm:max-w-[52%] sm:self-end">
+          <img
+            src={src}
+            alt={cat.name_uz}
+            loading="lazy"
+            onError={() => setImgFailed(true)}
+            className="h-full w-full object-contain mix-blend-multiply transition-transform duration-300 group-hover:scale-110 sm:object-right"
+          />
+        </span>
+      ) : (
+        <span className="th-float pointer-events-none order-1 flex w-full justify-center sm:order-2 sm:ml-auto sm:mr-3 sm:w-auto sm:self-center sm:justify-end">
+          <CategoryChip name={cat.icon} size="lg" tone={tone} />
+        </span>
+      )}
+    </button>
+  );
+};
+
 export const HomePage: React.FC<HomePageProps> = ({
   initialType,
   onNavigate,
@@ -56,7 +93,7 @@ export const HomePage: React.FC<HomePageProps> = ({
   const initialParams = getInitialParams();
 
   // Reference data
-  const [catalogs, setCatalogs] = useState<{ id: string; name_uz: string; icon: string; listings_count?: number }[]>([]);
+  const [catalogs, setCatalogs] = useState<Catalog[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [regions, setRegions] = useState<Region[]>([]);
   const [districts, setDistricts] = useState<District[]>([]);
@@ -97,6 +134,10 @@ export const HomePage: React.FC<HomePageProps> = ({
   const [priceMaxInput, setPriceMaxInput] = useState<string>('');
   const [sortBy, setSortBy] = useState<string>('newest');
   const [onlyFollowed, setOnlyFollowed] = useState<boolean>(false);
+
+  // Kategoriyaga mos (adaptiv) atribut filtrlari
+  const [attrSchema, setAttrSchema] = useState<CategoryAttribute[]>([]);
+  const [attrFilters, setAttrFilters] = useState<Record<string, string | number>>({});
 
   // Landing: 4 ta kategoriya (turi) kartochkalari uchun e'lon sonlari
   const [typeCounts, setTypeCounts] = useState<Record<string, number>>({});
@@ -179,7 +220,7 @@ export const HomePage: React.FC<HomePageProps> = ({
 
   // Load initial reference data: Catalogs and Regions
   useEffect(() => {
-    apiRequest<{ id: string; name_uz: string; icon: string; listings_count?: number }[]>('/api/catalogs')
+    apiRequest<Catalog[]>('/api/catalogs')
       .then(setCatalogs)
       .catch(console.error);
 
@@ -213,6 +254,18 @@ export const HomePage: React.FC<HomePageProps> = ({
       .catch(console.error);
   }, [selectedRegionId]);
 
+  // Kategoriya o'zgarganda — atribut sxemasini yukla va atribut filtrlarini tozala
+  useEffect(() => {
+    setAttrFilters({});
+    if (!selectedCategoryId) {
+      setAttrSchema([]);
+      return;
+    }
+    getCategoryAttributes(selectedCategoryId)
+      .then((attrs) => setAttrSchema(attrs.filter((a) => a.filterable)))
+      .catch(() => setAttrSchema([]));
+  }, [selectedCategoryId]);
+
   // Fetch listings with all filter parameters
   const fetchListings = async (page: number = 1, append: boolean = false) => {
     if (append) {
@@ -240,6 +293,9 @@ export const HomePage: React.FC<HomePageProps> = ({
       if (priceMax !== undefined && !isNaN(priceMax)) params.append('price_max', String(priceMax));
       if (selectedWorkSchedule.length > 0) params.append('work_format', selectedWorkSchedule.join(','));
       if (selectedExperience.length > 0) params.append('experience', selectedExperience.join(','));
+      Object.entries(attrFilters).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && String(v) !== '') params.append(`attr.${k}`, String(v));
+      });
       if (sortBy) params.append('sort_by', sortBy);
       if (onlyFollowed) params.append('only_followed', 'true');
       // GPS: yaqinlik bo'yicha saralash uchun koordinatalar (doimiy fonda)
@@ -287,6 +343,7 @@ export const HomePage: React.FC<HomePageProps> = ({
     selectedDistrictId,
     selectedWorkSchedule,
     selectedExperience,
+    attrFilters,
     priceMin,
     priceMax,
     sortBy,
@@ -318,6 +375,7 @@ export const HomePage: React.FC<HomePageProps> = ({
     setSelectedDistrictId(undefined);
     setSelectedWorkSchedule([]);
     setSelectedExperience([]);
+    setAttrFilters({});
     setKeyword('');
     setPriceMin(undefined);
     setPriceMax(undefined);
@@ -453,6 +511,36 @@ export const HomePage: React.FC<HomePageProps> = ({
     setSelectedType(type);
     setCurrentPage(1);
   };
+
+  // Sektor gridi uchun: katalog bo'yicha barqaror rang toni.
+  const CAT_TONE: Record<string, string> = {
+    transport: 'blue',
+    realty: 'amber',
+    jobs: 'violet',
+    services: 'teal',
+    personal: 'rose',
+    'home-dacha': 'orange',
+    parts: 'cyan',
+    electronics: 'indigo',
+    hobby: 'lime',
+    animals: 'emerald',
+    business: 'sky',
+    business360: 'fuchsia',
+    handmade: 'red',
+  };
+
+  // Bosh sahifa katalog gridida ko'rsatilmaydigan kataloglar (10 ta qoldiriladi)
+  const HIDDEN_LANDING_CATALOGS = new Set(['animals', 'hobby', 'personal']);
+
+  const openCatalog = (catalogId: string) => {
+    setKeyword('');
+    setSelectedCategoryId(undefined);
+    setSelectedType(undefined);
+    setSelectedCatalogId(catalogId);
+    setCurrentPage(1);
+  };
+
+  // Hero bloki olib tashlandi — qidiruv headerda mavjud.
 
   return (
     <div className={`max-w-[1440px] mx-auto flex-1 w-full flex flex-col ${isLanding ? '' : 'lg:grid lg:grid-cols-[300px_1fr]'} min-h-[calc(100vh-64px)] overflow-x-hidden`}>
@@ -601,6 +689,89 @@ export const HomePage: React.FC<HomePageProps> = ({
             onClose={() => setIsMobileFiltersOpen(false)}
           />
         </div>
+
+        {/* Section: Kategoriyaga mos atribut filtrlari (adaptiv) */}
+        {attrSchema.length > 0 && (
+          <div className="mb-6">
+            <span className="font-mono text-[11px] uppercase tracking-wider text-[#5E6C84] font-semibold mb-2.5 block">
+              Qo'shimcha parametrlar
+            </span>
+            <div className="flex flex-col gap-2.5">
+              {attrSchema.map((attr) => {
+                const val = attrFilters[attr.key] ?? '';
+                const setVal = (v: string | number) =>
+                  setAttrFilters((prev) => {
+                    const next = { ...prev };
+                    if (v === '' || v === undefined || v === null) delete next[attr.key];
+                    else next[attr.key] = v;
+                    return next;
+                  });
+                const label = attr.unit ? `${attr.label} (${attr.unit})` : attr.label;
+                if (attr.type === 'select' || attr.type === 'color') {
+                  return (
+                    <label key={attr.key} className="flex flex-col gap-1">
+                      <span className="text-[11px] text-[#5E6C84] font-medium">{label}</span>
+                      <select
+                        value={String(val)}
+                        onChange={(e) => setVal(e.target.value)}
+                        className="w-full bg-white border border-[#EBECF0] rounded-xl px-3 py-2 text-xs font-medium text-[#172B4D] focus:outline-hidden focus:border-[#1673E6] cursor-pointer"
+                      >
+                        <option value="">Belgilanmagan</option>
+                        {(attr.options || []).map((o) => (
+                          <option key={o} value={o}>{o}</option>
+                        ))}
+                      </select>
+                    </label>
+                  );
+                }
+                if (attr.type === 'bool') {
+                  return (
+                    <label key={attr.key} className="flex flex-col gap-1">
+                      <span className="text-[11px] text-[#5E6C84] font-medium">{label}</span>
+                      <select
+                        value={String(val)}
+                        onChange={(e) => setVal(e.target.value)}
+                        className="w-full bg-white border border-[#EBECF0] rounded-xl px-3 py-2 text-xs font-medium text-[#172B4D] focus:outline-hidden focus:border-[#1673E6] cursor-pointer"
+                      >
+                        <option value="">Farq qilmaydi</option>
+                        <option value="true">Ha</option>
+                        <option value="false">Yo'q</option>
+                      </select>
+                    </label>
+                  );
+                }
+                if (attr.type === 'number' || attr.type === 'year' || attr.type === 'range') {
+                  return (
+                    <label key={attr.key} className="flex flex-col gap-1">
+                      <span className="text-[11px] text-[#5E6C84] font-medium">{label}</span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={String(val)}
+                        onChange={(e) => setVal(e.target.value.replace(/\D/g, ''))}
+                        placeholder="Masalan: 50000"
+                        className="w-full bg-white border border-[#EBECF0] rounded-xl px-3 py-2 text-xs font-medium text-[#172B4D] focus:outline-hidden focus:border-[#1673E6] placeholder-gray-400"
+                      />
+                    </label>
+                  );
+                }
+                // text / multiselect → erkin matn
+                return (
+                  <label key={attr.key} className="flex flex-col gap-1">
+                    <span className="text-[11px] text-[#5E6C84] font-medium">{label}</span>
+                    <input
+                      type="text"
+                      value={String(val)}
+                      onChange={(e) => setVal(e.target.value)}
+                      placeholder={attr.label}
+                      className="w-full bg-white border border-[#EBECF0] rounded-xl px-3 py-2 text-xs font-medium text-[#172B4D] focus:outline-hidden focus:border-[#1673E6] placeholder-gray-400"
+                    />
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Section: Ish formati (Work Format) */}
         <div className="mb-6">
@@ -984,48 +1155,28 @@ export const HomePage: React.FC<HomePageProps> = ({
           </form>
           )}
 
-          {/* Landing: 4 ta asosiy kategoriya kartochkalari (faqat toza bosh sahifada) */}
+          {/* ─── SEKTOR (KATALOG) GRIDI (faqat toza bosh sahifada) ─── */}
           {isLanding && (
-            <section className="mb-6">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-base sm:text-lg font-extrabold text-[#172B4D] tracking-tight">
-                  Kategoriyalar
+            <>
+              <section className="mb-6">
+                <h2 className="text-base sm:text-lg font-extrabold text-[#172B4D] tracking-tight mb-3">
+                  Kategoriyalar bo‘yicha
                 </h2>
-                <button
-                  type="button"
-                  onClick={() => onNavigate('/categories')}
-                  className="text-xs font-bold th-accent-text hover:underline cursor-pointer"
-                >
-                  Barchasi →
-                </button>
-              </div>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                {TYPE_CARDS.map((card) => {
-                  const count = typeCounts[card.type] ?? 0;
-                  return (
-                    <button
-                      key={card.type}
-                      type="button"
-                      onClick={() => openTypeCard(card.catalogId, card.type)}
-                      className="group flex flex-col gap-3 p-4 rounded-2xl bg-[#F2F3F5] hover:bg-white hover:shadow-md hover:border-blue-100 border border-transparent transition-all text-left cursor-pointer"
-                    >
-                      <span className="w-12 h-12 rounded-xl th-accent-soft-bg group-hover:opacity-90 shadow-2xs flex items-center justify-center shrink-0">
-                        <card.Icon className="w-6 h-6 th-accent-text" />
-                      </span>
-                      <div className="min-w-0">
-                        <p className="text-sm font-extrabold text-[#172B4D] truncate group-hover:text-blue-700 transition-colors">
-                          {card.label}
-                        </p>
-                        <p className="text-[11px] text-[#5E6C84] mt-0.5 line-clamp-1">{card.hint}</p>
-                        <p className="text-[11px] font-bold th-accent-text mt-1">
-                          {count.toLocaleString()} ta e’lon
-                        </p>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
+                <div className="grid grid-cols-5 gap-1.5 sm:gap-3">
+                  {catalogs
+                    .filter((cat) => !HIDDEN_LANDING_CATALOGS.has(cat.id))
+                    .map((cat, i) => (
+                      <CatalogTile
+                        key={cat.id}
+                        cat={cat}
+                        tone={CAT_TONE[cat.id]}
+                        index={i}
+                        onOpen={() => openCatalog(cat.id)}
+                      />
+                    ))}
+                </div>
+              </section>
+            </>
           )}
 
           {/* Main Catalog Tabs — faqat kategoriya sahifasida (landing'da 4 kartochka bor) */}

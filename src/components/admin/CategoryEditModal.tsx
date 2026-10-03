@@ -1,6 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { apiRequest } from '../../lib/api.ts';
-import { X, Layers, Save, Trash2, FolderPlus, GitBranch, Briefcase, Wrench } from 'lucide-react';
+import { X, Layers, Save, Trash2, GitBranch } from 'lucide-react';
+import { CategoryChip } from '../common/CategoryIcon.tsx';
+import type { Catalog } from '../../types/index.ts';
+
+// Katalog bo'yicha barqaror rang toni (Header/AdminDashboard bilan mos).
+const CAT_TONE: Record<string, string> = {
+  transport: 'blue', realty: 'amber', jobs: 'violet', services: 'teal',
+  personal: 'rose', 'home-dacha': 'orange', parts: 'cyan', electronics: 'indigo',
+  hobby: 'lime', animals: 'emerald', business: 'sky', business360: 'fuchsia', handmade: 'red',
+};
+
+// Kataloglar API yuklanmaganda ishlatiladigan zaxira ro'yxat.
+const FALLBACK_CATALOGS: Catalog[] = [
+  { id: 'services', name_uz: 'Xizmatlar', slug: 'xizmatlar', icon: 'Wrench', listing_types: '', sort_order: 0, is_active: 1 },
+  { id: 'jobs', name_uz: 'Ish e’lonlari', slug: 'ish-elonlari', icon: 'Briefcase', listing_types: '', sort_order: 0, is_active: 1 },
+];
 
 interface CategoryEditModalProps {
   isOpen: boolean;
@@ -9,6 +24,7 @@ interface CategoryEditModalProps {
   defaultParentId?: string | null;
   defaultCatalogId?: string;
   parentCategories?: any[];
+  catalogs?: Catalog[];
   onSaved: () => void;
 }
 
@@ -19,8 +35,10 @@ export const CategoryEditModal: React.FC<CategoryEditModalProps> = ({
   defaultParentId = null,
   defaultCatalogId = 'services',
   parentCategories = [],
+  catalogs = [],
   onSaved,
 }) => {
+  const catalogOptions = catalogs.length > 0 ? catalogs : FALLBACK_CATALOGS;
   const isEditing = Boolean(category?.id);
   const [isSubcategory, setIsSubcategory] = useState<boolean>(false);
   const [parentId, setParentId] = useState<string>('');
@@ -208,47 +226,37 @@ export const CategoryEditModal: React.FC<CategoryEditModalProps> = ({
             </div>
           )}
 
-          {/* Catalog selector */}
+          {/* Catalog selector — barcha 13 katalog */}
           <div>
             <label className="font-bold text-gray-700 block mb-1.5">Tegishli Katalog *</label>
-            <div className="grid grid-cols-2 gap-2">
-              <label
-                className={`p-2.5 rounded-xl border flex items-center gap-2 cursor-pointer transition-all ${
-                  catalogId === 'services'
-                    ? 'border-blue-600 bg-blue-50/40 text-blue-700 font-bold'
-                    : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="catalog"
-                  value="services"
-                  checked={catalogId === 'services'}
-                  onChange={() => setCatalogId('services')}
-                  className="sr-only"
-                />
-                <Wrench className="w-4 h-4 text-blue-600 shrink-0" />
-                <span>Xizmatlar katalogi</span>
-              </label>
-
-              <label
-                className={`p-2.5 rounded-xl border flex items-center gap-2 cursor-pointer transition-all ${
-                  catalogId === 'jobs'
-                    ? 'border-blue-600 bg-blue-50/40 text-blue-700 font-bold'
-                    : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="catalog"
-                  value="jobs"
-                  checked={catalogId === 'jobs'}
-                  onChange={() => setCatalogId('jobs')}
-                  className="sr-only"
-                />
-                <Briefcase className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>Ish va Vakansiyalar</span>
-              </label>
+            <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+              {catalogOptions.map((c) => {
+                const active = catalogId === c.id;
+                return (
+                  <label
+                    key={c.id}
+                    className={`p-2 rounded-xl border flex items-center gap-2 cursor-pointer transition-all ${
+                      active
+                        ? 'border-blue-600 bg-blue-50/40 text-blue-800 font-bold'
+                        : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="catalog"
+                      value={c.id}
+                      checked={active}
+                      onChange={() => {
+                        setCatalogId(c.id);
+                        setParentId(''); // katalog o'zgarganda ota kategoriyani tozalash
+                      }}
+                      className="sr-only"
+                    />
+                    <CategoryChip name={c.icon} size="sm" tone={CAT_TONE[c.id]} className="w-7 h-7 shrink-0" />
+                    <span className="text-xs truncate">{c.name_uz}</span>
+                  </label>
+                );
+              })}
             </div>
           </div>
 
@@ -265,12 +273,21 @@ export const CategoryEditModal: React.FC<CategoryEditModalProps> = ({
                 className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl font-medium text-gray-900 focus:outline-hidden focus:border-blue-600"
               >
                 <option value="">-- Ota kategoriyani tanlang --</option>
-                {parentCategories.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name_uz} ({p.catalog_id === 'jobs' ? 'Ish' : 'Xizmat'})
-                  </option>
-                ))}
+                {parentCategories
+                  .filter((p) => (p.catalog_id || 'services') === catalogId)
+                  .map((p) => {
+                    const scope = p.scope === 'JOB_OPENING' ? ' · Vakansiya' : p.scope === 'JOB_SEEKER' ? ' · Rezyume' : '';
+                    return (
+                      <option key={p.id} value={p.id}>
+                        {p.name_uz}
+                        {scope}
+                      </option>
+                    );
+                  })}
               </select>
+              <p className="text-[10px] text-gray-400 mt-1">
+                Faqat tanlangan katalogdagi ota-kategoriyalar ko'rsatiladi.
+              </p>
             </div>
           )}
 

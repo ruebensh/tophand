@@ -143,6 +143,25 @@ export function promoteListingRequest(listingId: string): Promise<{ success: boo
   return apiRequest(`/api/listings/${listingId}/promote`, { method: 'POST' });
 }
 
+// ─── Catalogs / Categories / Attributes (multi-sector) ─────────────────
+import type { Catalog, Category, CategoryAttribute } from '../types/index.ts';
+
+export function getCatalogs(): Promise<Catalog[]> {
+  return apiRequest<Catalog[]>('/api/catalogs');
+}
+
+export function getCategoryTree(catalogId?: string, scope?: string): Promise<Category[]> {
+  const params = new URLSearchParams();
+  if (catalogId) params.set('catalog_id', catalogId);
+  if (scope) params.set('scope', scope);
+  const qs = params.toString();
+  return apiRequest<Category[]>(`/api/categories/tree${qs ? `?${qs}` : ''}`);
+}
+
+export function getCategoryAttributes(categoryId: string): Promise<CategoryAttribute[]> {
+  return apiRequest<CategoryAttribute[]>(`/api/categories/${encodeURIComponent(categoryId)}/attributes`);
+}
+
 // ─── Admin Excel import / export (Faza 12) ──────────────────────────────
 export async function exportEntityToExcel(entity: string): Promise<void> {
   const token = getStoredToken();

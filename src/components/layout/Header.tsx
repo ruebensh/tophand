@@ -18,9 +18,11 @@ import {
   X,
 } from 'lucide-react';
 import { formatDateAgo, isOfficialAccount, isStaffAccount } from '../../lib/utils.ts';
-import { getPublicMonetization } from '../../lib/api.ts';
+import { getPublicMonetization, getCatalogs, getCategoryTree } from '../../lib/api.ts';
+import type { Catalog, Category } from '../../types/index.ts';
 import { TopHandLogo } from '../common/TopHandLogo.tsx';
 import { VerifiedBadge } from '../common/VerifiedBadge.tsx';
+import { CategoryChip } from '../common/CategoryIcon.tsx';
 import { NearbyMapModal } from '../modals/NearbyMapModal.tsx';
 
 interface HeaderProps {
@@ -29,20 +31,38 @@ interface HeaderProps {
   currentRoute: string;
 }
 
-interface TreeNode {
-  id: string;
-  name_uz: string;
-  active_count?: number;
-  subs?: TreeNode[];
-}
+// Mega-menyu: bitta kategoriya ro'yxati shu sondan ortiq bo'lsa "Yana N ta" bilan yig'iladi.
+const MEGA_SUB_LIMIT = 6;
 
-// Mega-daraxt ustunlari — 4 ta kategoriya (listing turi)
-const SECTIONS: { type: string; label: string; catalog: 'services' | 'jobs' }[] = [
-  { type: 'SERVICE_OFFER', label: 'Xizmatlar', catalog: 'services' },
-  { type: 'JOB_OPENING', label: "Ish o'rinlari / Vakansiya", catalog: 'jobs' },
-  { type: 'SERVICE_REQUEST', label: 'Buyurtmalar', catalog: 'services' },
-  { type: 'JOB_SEEKER', label: 'Rezumelar', catalog: 'jobs' },
-];
+// Katalog bo'yicha barqaror rang toni (HomePage sektor gridi bilan mos).
+const CAT_TONE: Record<string, string> = {
+  transport: 'blue', realty: 'amber', jobs: 'violet', services: 'teal',
+  personal: 'rose', 'home-dacha': 'orange', parts: 'cyan', electronics: 'indigo',
+  hobby: 'lime', animals: 'emerald', business: 'sky', business360: 'fuchsia', handmade: 'red',
+};
+
+// Mega-menyu katalog relsidagi ikonka — iloji bo'lsa /catalogs/<id>.png rasmi
+// (bosh sahifa katalog kartochkalari bilan bir xil), aks holda CategoryChip.
+const CatalogRailIcon: React.FC<{ catalogId: string; icon: string; tone: string; mobile?: boolean }> = ({
+  catalogId,
+  icon,
+  tone,
+  mobile,
+}) => {
+  const [failed, setFailed] = useState(false);
+  if (!failed) {
+    return (
+      <img
+        src={`/catalogs/${catalogId}.png`}
+        alt=""
+        loading="lazy"
+        onError={() => setFailed(true)}
+        className={`${mobile ? 'h-9 w-9' : 'h-8 w-8'} shrink-0 object-contain mix-blend-multiply`}
+      />
+    );
+  }
+  return <CategoryChip name={icon} size="sm" tone={tone} />;
+};
 
 export const Header: React.FC<HeaderProps> = ({ onSearch, onNavigate, currentRoute }) => {
   const { user, logout, openLoginModal } = useAuth();
@@ -53,21 +73,35 @@ export const Header: React.FC<HeaderProps> = ({ onSearch, onNavigate, currentRou
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isMegaOpen, setIsMegaOpen] = useState(false);
   const [isMapOpen, setIsMapOpen] = useState(false);
-  const [tree, setTree] = useState<{ services: TreeNode[]; jobs: TreeNode[] }>({ services: [], jobs: [] });
+  const [catalogs, setCatalogs] = useState<Catalog[]>([]);
+  const [megaCatalogId, setMegaCatalogId] = useState<string>('');
+  const [megaTree, setMegaTree] = useState<Category[]>([]);
+  // Kengaytirilgan ("Yana N ta" bosilgan) ota-kategoriyalar to'plami
+  const [expandedParents, setExpandedParents] = useState<Set<string>>(new Set());
   // Wallet is only shown once monetization switches to PAID (hidden during the FREE_TEST / bepul davr).
   const [walletVisible, setWalletVisible] = useState(false);
 
+  // 13 katalog ro'yxatini bir marta yuklash
   useEffect(() => {
-    Promise.all([
-      fetch('/api/categories/tree?catalog_id=services').then((r) => r.json()).catch(() => []),
-      fetch('/api/categories/tree?catalog_id=jobs').then((r) => r.json()).catch(() => []),
-    ]).then(([services, jobs]) => {
-      setTree({
-        services: Array.isArray(services) ? services : [],
-        jobs: Array.isArray(jobs) ? jobs : [],
-      });
-    });
+    getCatalogs()
+      .then((cats) => {
+        setCatalogs(cats);
+        if (cats.length > 0) setMegaCatalogId(cats[0].id);
+      })
+      .catch(() => setCatalogs([]));
   }, []);
+
+  // Tanlangan katalog daraxtini lazy-yuklash
+  useEffect(() => {
+    if (!megaCatalogId) {
+      setMegaTree([]);
+      return;
+    }
+    setExpandedParents(new Set());
+    getCategoryTree(megaCatalogId)
+      .then((t) => setMegaTree(Array.isArray(t) ? t : []))
+      .catch(() => setMegaTree([]));
+  }, [megaCatalogId]);
 
   useEffect(() => {
     getPublicMonetization()
@@ -78,13 +112,18 @@ export const Header: React.FC<HeaderProps> = ({ onSearch, onNavigate, currentRou
   const userMenuRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
   const megaRef = useRef<HTMLDivElement>(null);
+  const megaMobileRef = useRef<HTMLDivElement>(null);
 
   // Close menus on outside click + Escape
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) setIsUserMenuOpen(false);
       if (notifRef.current && !notifRef.current.contains(e.target as Node)) setIsNotificationsOpen(false);
-      if (megaRef.current && !megaRef.current.contains(e.target as Node)) setIsMegaOpen(false);
+      const megaTarget = e.target as Node;
+      const megaInside =
+        (megaRef.current && megaRef.current.contains(megaTarget)) ||
+        (megaMobileRef.current && megaMobileRef.current.contains(megaTarget));
+      if (!megaInside) setIsMegaOpen(false);
     };
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { setIsMegaOpen(false); setIsUserMenuOpen(false); setIsNotificationsOpen(false); }
@@ -107,11 +146,100 @@ export const Header: React.FC<HeaderProps> = ({ onSearch, onNavigate, currentRou
     onNavigate(route);
   };
 
+  // Bitta ota-kategoriyaning ochiq/yopiq holatini almashtirish
+  const toggleParent = (id: string) => {
+    setExpandedParents((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   const handleNotificationClick = (notif: any) => {
     markAsRead(notif.id);
     setIsNotificationsOpen(false);
     if (notif.link) onNavigate(notif.link);
   };
+
+  // Mega-menyu tanasi — desktop (dropdown) va mobil (to'liq ekran) uchun umumiy.
+  const renderMegaBody = (mobile = false) => (
+    <>
+      {/* Chap: 13 katalog ro'yxati */}
+      <div className={`${mobile ? 'w-[78px] shrink-0' : 'w-60 shrink-0'} border-r border-gray-100 bg-[#F9FAFB] overflow-y-auto py-2`}>
+        {catalogs.map((cat) => (
+          <button
+            key={cat.id}
+            type="button"
+            onMouseEnter={() => { if (!mobile) setMegaCatalogId(cat.id); }}
+            onClick={() => setMegaCatalogId(cat.id)}
+            className={`w-full flex transition-colors cursor-pointer ${
+              mobile ? 'flex-col items-center gap-1 px-1.5 py-2.5 text-center' : 'items-center gap-2.5 px-3 py-2 text-left'
+            } ${megaCatalogId === cat.id ? 'bg-white text-[#1673E6] font-bold' : 'text-[#172B4D] hover:bg-white/70'}`}
+          >
+            <CatalogRailIcon catalogId={cat.id} icon={cat.icon} tone={CAT_TONE[cat.id]} mobile={mobile} />
+            <span className={mobile ? 'text-[9px] leading-tight line-clamp-2' : 'text-[13px] truncate'}>{cat.name_uz}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* O'ng: tanlangan katalog daraxti */}
+      <div className="flex-1 overflow-y-auto p-5">
+        <button
+          type="button"
+          onClick={() => go(`/?catalog=${megaCatalogId}`)}
+          className="text-sm font-extrabold text-[#1673E6] hover:underline mb-3 cursor-pointer"
+        >
+          {catalogs.find((c) => c.id === megaCatalogId)?.name_uz || ''} — barchasi →
+        </button>
+        <div className={`${mobile ? 'columns-1' : 'columns-2 xl:columns-3'} gap-x-6`}>
+          {megaTree.length === 0 && (
+            <p className="text-[11px] text-gray-400 italic">Kategoriyalar yuklanmoqda…</p>
+          )}
+          {megaTree.map((parent) => {
+            const subs = parent.subs || [];
+            const isExpanded = expandedParents.has(parent.id);
+            const visibleSubs = isExpanded ? subs : subs.slice(0, MEGA_SUB_LIMIT);
+            const hiddenCount = subs.length - MEGA_SUB_LIMIT;
+            return (
+              <div key={parent.id} className="break-inside-avoid mb-4">
+                <button
+                  type="button"
+                  onClick={() => go(`/?catalog=${megaCatalogId}&category=${parent.id}`)}
+                  className="text-[12px] font-bold text-[#172B4D] hover:text-[#1673E6] text-left cursor-pointer truncate"
+                >
+                  {parent.name_uz}
+                </button>
+                {subs.length > 0 && (
+                  <div className="mt-1 space-y-0.5">
+                    {visibleSubs.map((sub) => (
+                      <button
+                        key={sub.id}
+                        type="button"
+                        onClick={() => go(`/?catalog=${megaCatalogId}&category=${sub.id}`)}
+                        className="block w-full text-left text-[11px] text-[#5E6C84] hover:text-[#1673E6] cursor-pointer truncate"
+                      >
+                        {sub.name_uz}
+                      </button>
+                    ))}
+                    {hiddenCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => toggleParent(parent.id)}
+                        className="block w-full text-left text-[11px] font-semibold text-[#1673E6] hover:underline cursor-pointer mt-0.5"
+                      >
+                        {isExpanded ? "Yig'ish ↑" : `Yana ${hiddenCount} ta ↓`}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </>
+  );
 
   return (
     <header className="sticky top-0 z-40 bg-white pt-safe">
@@ -141,60 +269,8 @@ export const Header: React.FC<HeaderProps> = ({ onSearch, onNavigate, currentRou
 
             {isMegaOpen && (
               <div className="absolute left-0 top-full pt-2 z-50">
-                <div className="w-[min(1100px,92vw)] bg-white rounded-2xl border border-gray-100 shadow-2xl p-4 max-h-[72vh] overflow-y-auto">
-                  <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-                    {SECTIONS.map((section) => {
-                      const nodes = tree[section.catalog];
-                      return (
-                        <div key={section.type} className="border-t-2 th-accent-border pt-2">
-                          <button
-                            type="button"
-                            onClick={() => go(`/?type=${section.type}`)}
-                            className="w-full text-left font-bold text-[13px] mb-1.5 th-accent-text hover:underline cursor-pointer"
-                          >
-                            {section.label}
-                          </button>
-                          <div className="space-y-1.5">
-                            {nodes.length === 0 && (
-                              <p className="text-[11px] text-gray-400 italic">Kategoriyalar yo‘q</p>
-                            )}
-                            {nodes.map((parent) => (
-                              <div key={parent.id}>
-                                <button
-                                  type="button"
-                                  onClick={() => go(`/?type=${section.type}&category=${parent.id}`)}
-                                  className="text-[12px] font-semibold text-[#172B4D] hover:text-[#1673E6] text-left cursor-pointer truncate"
-                                >
-                                  {parent.name_uz}
-                                </button>
-                                {parent.subs && parent.subs.length > 0 && (
-                                  <div className="mt-0.5 ml-2 pl-2 border-l border-gray-100 space-y-0.5">
-                                    {parent.subs.map((sub) => (
-                                      <button
-                                        key={sub.id}
-                                        type="button"
-                                        onClick={() => go(`/?type=${section.type}&category=${sub.id}`)}
-                                        className="block w-full text-left text-[11px] text-[#5E6C84] hover:text-[#1673E6] cursor-pointer truncate"
-                                      >
-                                        {sub.name_uz}
-                                      </button>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => go('/categories')}
-                    className="mt-3 w-full px-3 py-2.5 rounded-xl text-sm font-bold th-accent-text hover:bg-gray-50 text-center transition-colors cursor-pointer"
-                  >
-                    Barcha kategoriyalar →
-                  </button>
+                <div className="w-[min(1100px,92vw)] bg-white rounded-2xl border border-gray-100 shadow-2xl p-0 max-h-[74vh] overflow-hidden flex">
+                  {renderMegaBody(false)}
                 </div>
               </div>
             )}
@@ -413,7 +489,7 @@ export const Header: React.FC<HeaderProps> = ({ onSearch, onNavigate, currentRou
           </form>
           <button
             type="button"
-            onClick={() => onNavigate('/categories')}
+            onClick={() => setIsMegaOpen(true)}
             aria-label="Kategoriyalar"
             className="shrink-0 flex items-center justify-center h-11 w-11 rounded-full border border-[#EBECF0] bg-white text-[#1673E6] active:bg-blue-50"
           >
@@ -421,6 +497,26 @@ export const Header: React.FC<HeaderProps> = ({ onSearch, onNavigate, currentRou
           </button>
         </div>
       </div>
+
+      {/* Mobil to'liq ekran kategoriyalar modal — xuddi shu mega-menyu (lg dan pastda) */}
+      {isMegaOpen && (
+        <div ref={megaMobileRef} className="lg:hidden fixed inset-0 z-50 bg-white flex flex-col">
+          <div className="flex items-center justify-between px-4 h-14 shrink-0 border-b border-gray-100">
+            <span className="flex items-center gap-2 font-extrabold text-sm text-[#172B4D]">
+              <LayoutGrid className="w-4 h-4 th-accent-text" /> Barcha kategoriyalar
+            </span>
+            <button
+              type="button"
+              onClick={() => setIsMegaOpen(false)}
+              aria-label="Yopish"
+              className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="flex-1 flex overflow-hidden">{renderMegaBody(true)}</div>
+        </div>
+      )}
 
       {/* Global map modal — barcha e'lonlar xaritada */}
       <NearbyMapModal

@@ -2,17 +2,35 @@ import React, { useState } from 'react';
 import { Listing } from '../../types/index.ts';
 import { ListingTypeBadge } from './ListingTypeBadge.tsx';
 import { PriceDisplay } from './PriceDisplay.tsx';
-import { formatDateAgo, isOfficialAccount, isStaffAccount } from '../../lib/utils.ts';
+import { formatDateAgo, isOfficialAccount, isStaffAccount, formatCurrency } from '../../lib/utils.ts';
+import { CategoryChip } from '../common/CategoryIcon.tsx';
 import {
   MapPin,
   Heart,
-  CheckCircle2,
   Flame,
   Clock,
   Play,
+  Star,
+  BadgeCheck,
 } from 'lucide-react';
 import { apiRequest } from '../../lib/api.ts';
 import { useAuth } from '../../context/AuthContext.tsx';
+
+// Sektor bo'yicha qisqa atribut spasi (attributes JSONB'dan).
+function attributeSpecs(listing: Listing): string[] {
+  const a = listing.attributes || {};
+  const out: string[] = [];
+  const g = (k: string) => (a[k] === undefined || a[k] === null || a[k] === '' ? undefined : a[k]);
+  if (g('xonalar')) out.push(`${g('xonalar')} xona`);
+  if (g('maydon')) out.push(`${g('maydon')} m²`);
+  if (g('probeg')) out.push(`${formatCurrency(Number(g('probeg')))} km`);
+  if (g('yil')) out.push(`${g('yil')}-yil`);
+  if (g('holat')) out.push(String(g('holat')));
+  if (g('brend')) out.push(String(g('brend')));
+  if (g('zot')) out.push(String(g('zot')));
+  if (g('material')) out.push(String(g('material')));
+  return out.slice(0, 3);
+}
 
 interface ListingCardProps {
   listing: Listing;
@@ -142,10 +160,17 @@ export const ListingCard: React.FC<ListingCardProps> = ({
   }
 
   // ── AVITO-STYLE GRID CARD ──
+  const specs = attributeSpecs(listing);
+  const rating =
+    listing.employer_rating !== null && listing.employer_rating !== undefined
+      ? Number(listing.employer_rating)
+      : null;
+  const reviewCount = Number(listing.employer_review_count || 0);
+
   return (
     <div
       onClick={onClick}
-      className="group relative th-card flex flex-col bg-white rounded-xl border border-gray-100 hover:shadow-md active:scale-[.99] transition-all duration-200 cursor-pointer overflow-hidden"
+      className="group relative th-card flex flex-col bg-surface rounded-2xl border border-black/5 shadow-soft hover:shadow-card active:scale-[.99] transition-all duration-200 cursor-pointer overflow-hidden"
     >
       {/* ── PHOTO ── */}
       <div className="relative w-full overflow-hidden bg-gray-100" style={{ paddingBottom: '75%' }}>
@@ -228,10 +253,10 @@ export const ListingCard: React.FC<ListingCardProps> = ({
       </div>
 
       {/* ── CONTENT (below photo, like Avito) ── */}
-      <div className="p-2.5 flex flex-col gap-0.5 flex-1">
+      <div className="p-3 flex flex-col gap-1 flex-1">
 
-        {/* Price — bold, dark blue like Avito */}
-        <div className="font-bold text-sm leading-tight text-gray-900">
+        {/* Price — bright, heavy, brand color */}
+        <div className="text-lg font-extrabold leading-tight text-ink">
           <PriceDisplay
             priceType={listing.price_type}
             priceMin={listing.price_min}
@@ -241,14 +266,36 @@ export const ListingCard: React.FC<ListingCardProps> = ({
             salaryMin={listing.salary_min}
             salaryMax={listing.salary_max}
             isJob={isJob}
-            className="text-gray-900 font-bold text-sm"
+            className="text-brand-dark font-extrabold text-lg"
           />
         </div>
 
         {/* Title */}
-        <h3 className="text-xs text-gray-700 line-clamp-2 leading-snug mt-0.5 group-hover:text-blue-600 transition-colors">
+        <h3 className="text-[13px] font-medium text-gray-700 line-clamp-2 leading-snug group-hover:text-blue-600 transition-colors">
           {listing.title}
         </h3>
+
+        {/* Sektor atribut spasi (bor bo'lsa) */}
+        {specs.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-0.5">
+            {specs.map((s, i) => (
+              <span
+                key={i}
+                className="text-[10px] font-medium text-ink-soft bg-surface-2 rounded-md px-1.5 py-0.5 leading-tight"
+              >
+                {s}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Kategoriya soft-colored tegi */}
+        {listing.category_name && (
+          <div className="mt-0.5 inline-flex items-center gap-1.5">
+            <CategoryChip name={listing.category_icon || 'Layers'} size="sm" className="!w-6 !h-6 !rounded-md" />
+            <span className="text-[11px] font-medium text-ink-soft truncate">{listing.category_name}</span>
+          </div>
+        )}
 
         {/* Location */}
         <div className="mt-1 flex items-center gap-0.5 text-[11px] text-gray-400">
@@ -258,20 +305,37 @@ export const ListingCard: React.FC<ListingCardProps> = ({
           </span>
         </div>
 
-        {/* Owner name + verified check */}
+        {/* Owner name + rating + verified badge */}
         <div className="mt-1.5 pt-1.5 border-t border-gray-100 flex items-center justify-between gap-1">
           <div className="flex items-center gap-1 min-w-0">
-            <span className="text-[11px] text-gray-500 font-medium truncate">
+            <span className="text-[11px] text-gray-600 font-medium truncate">
               {listing.organization_name || listing.owner_name || ''}
             </span>
             {isOfficialAccount(listing) ? (
-              <CheckCircle2 className="w-3 h-3 text-amber-500 shrink-0" />
+              <BadgeCheck className="w-3.5 h-3.5 text-amber-500 shrink-0" />
             ) : isStaffAccount(listing) ? (
-              <CheckCircle2 className="w-3 h-3 text-indigo-500 shrink-0" />
+              <BadgeCheck className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
             ) : listing.is_verified ? (
-              <CheckCircle2 className="w-3 h-3 text-blue-500 shrink-0" />
+              <span className="inline-flex items-center shrink-0" title="Tasdiqlangan">
+                <BadgeCheck className="w-3.5 h-3.5 text-blue-600" />
+              </span>
             ) : null}
           </div>
+          <div className="flex items-center gap-1 shrink-0">
+            {rating !== null && (
+              <span className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-ink">
+                <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                {rating.toFixed(1)}
+                {reviewCount > 0 && (
+                  <span className="text-gray-400 font-normal">({reviewCount})</span>
+                )}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Vaqt */}
+        <div className="flex items-center justify-end">
           <span className="text-[10px] text-gray-400 shrink-0 flex items-center gap-0.5">
             {daysLeft !== null && daysLeft <= 3 ? (
               <span className="text-amber-600 font-semibold flex items-center gap-0.5">

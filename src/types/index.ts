@@ -1,4 +1,12 @@
-export type ListingType = 'SERVICE_OFFER' | 'SERVICE_REQUEST' | 'JOB_OPENING' | 'JOB_SEEKER';
+export type ListingType =
+  | 'SELL'
+  | 'WANTED'
+  | 'RENT_OUT'
+  | 'RENT_WANTED'
+  | 'SERVICE_OFFER'
+  | 'SERVICE_REQUEST'
+  | 'JOB_OPENING'
+  | 'JOB_SEEKER';
 
 export type PriceType = 'FIXED' | 'FROM' | 'RANGE' | 'NEGOTIABLE' | 'FREE';
 
@@ -84,6 +92,7 @@ export interface Catalog {
   is_active: number;
   categories_count?: number;
   listings_count?: number;
+  cover_image?: string | null;
 }
 
 export interface Category {
@@ -93,10 +102,34 @@ export interface Category {
   slug: string;
   icon: string;
   parent_id?: string;
+  scope?: string | null;
   is_active: number;
   sort_order: number;
   active_count?: number;
   subs?: Category[];
+}
+
+export type AttributeType =
+  | 'select'
+  | 'multiselect'
+  | 'number'
+  | 'text'
+  | 'range'
+  | 'bool'
+  | 'year'
+  | 'color';
+
+export interface CategoryAttribute {
+  id: string;
+  category_id: string;
+  key: string;
+  label: string;
+  type: AttributeType;
+  options: string[];
+  unit?: string | null;
+  required: boolean;
+  filterable: boolean;
+  sort_order: number;
 }
 
 export interface Listing {
@@ -126,6 +159,7 @@ export interface Listing {
   work_format?: WorkFormat;
   experience_level?: string;
   skills?: string | string[];
+  attributes?: Record<string, string | number | boolean>;
   contact_time: ContactTime;
   contact_custom_text?: string;
   status: 'ACTIVE' | 'HIDDEN' | 'ARCHIVED' | 'REMOVED' | 'COMPLETED';

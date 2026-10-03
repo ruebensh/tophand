@@ -19,7 +19,6 @@ import { WalletPage } from './pages/WalletPage.tsx';
 import { OrganizationPage } from './pages/OrganizationPage.tsx';
 import { ModeratorDashboardPage } from './pages/ModeratorDashboardPage.tsx';
 import { AdminDashboardPage } from './pages/AdminDashboardPage.tsx';
-import { CategoriesPage } from './pages/CategoriesPage.tsx';
 import { RegionCategoryPage } from './pages/RegionCategoryPage.tsx';
 
 // Global Modals
@@ -137,19 +136,7 @@ const AppContent: React.FC = () => {
 
     // 7. Create Organization: removed (Faza 11 — user-facing org creation dropped)
 
-    // 8. Categories Page: /categories
-    if (
-      currentRoute === '/categories' ||
-      currentRoute.startsWith('/categories') ||
-      currentRoute === '/kategoriyalar'
-    ) {
-      return (
-        <CategoriesPage
-          onNavigate={navigate}
-          onSelectCategory={(categoryId) => navigate(`/?category=${categoryId}`)}
-        />
-      );
-    }
+    // 8. Categories Page: removed — kategoriyalar Header mega-menyu (modal) ichida ko'rsatiladi
 
     // 8b. Hudud landing: /hudud/:regionSlug/:categorySlug?
     if (currentRoute.startsWith('/hudud/')) {

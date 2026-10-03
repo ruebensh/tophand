@@ -10,7 +10,15 @@ router.get('/', async (_req, res) => {
     const catalogs = await queryAll(`
       SELECT c.*,
         (SELECT COUNT(*) FROM categories cat WHERE cat.catalog_id = c.id AND cat.parent_id IS NULL AND cat.is_active = 1) AS categories_count,
-        (SELECT COUNT(*) FROM listings l WHERE (l.catalog_id = c.id OR (c.id = 'services' AND l.type IN ('SERVICE_OFFER','SERVICE_REQUEST')) OR (c.id = 'jobs' AND l.type IN ('JOB_OPENING','JOB_SEEKER'))) AND l.status = 'ACTIVE') AS listings_count
+        (SELECT COUNT(*) FROM listings l WHERE (l.catalog_id = c.id OR (l.catalog_id IS NULL AND l.type IN (SELECT unnest(string_to_array(c.listing_types, ','))))) AND l.status = 'ACTIVE') AS listings_count,
+        (
+          SELECT li.url FROM listings l
+          JOIN listing_images li ON li.listing_id = l.id AND li.media_type = 'image'
+          WHERE (l.catalog_id = c.id OR (l.catalog_id IS NULL AND l.type IN (SELECT unnest(string_to_array(c.listing_types, ',')))))
+            AND l.status = 'ACTIVE'
+          ORDER BY l.created_at DESC, li.sort_order ASC
+          LIMIT 1
+        ) AS cover_image
       FROM catalogs c
       WHERE c.is_active = 1
       ORDER BY c.sort_order ASC, c.created_at ASC

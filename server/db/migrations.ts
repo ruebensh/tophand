@@ -259,5 +259,90 @@ export async function runMigrations() {
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id)`);
 
+  // ── Multi-sector expansion (Avito-style): flexible type + structured attributes ──
+  // 1) Drop the rigid listings.type CHECK (the old 4-value enum) so each catalog can
+  //    define its own allowed types via catalogs.listing_types (validated at the API layer).
+  await pool.query(`
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+      FOR r IN
+        SELECT con.conname
+        FROM pg_constraint con
+        JOIN pg_class rel ON rel.oid = con.conrelid
+        JOIN pg_namespace nsp ON nsp.oid = con.connamespace
+        WHERE rel.relname = 'listings'
+          AND nsp.nspname = current_schema()
+          AND con.contype = 'c'
+          AND pg_get_constraintdef(con.oid) LIKE '%SERVICE_OFFER%'
+      LOOP
+        EXECUTE format('ALTER TABLE listings DROP CONSTRAINT %I', r.conname);
+      END LOOP;
+    END $$;
+  `);
+
+  // 2) Structured per-listing attributes (JSONB) + GIN index for attribute filtering.
+  await addColumnIfNotExists('listings', 'attributes', `JSONB NOT NULL DEFAULT '{}'::jsonb`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_listings_attributes ON listings USING GIN (attributes jsonb_path_ops)`);
+
+  // 3) Category scope: lets a single catalog (jobs) carry two category trees
+  //    (vacancies by job-function vs resumes by industry).
+  await addColumnIfNotExists('categories', 'scope', 'TEXT DEFAULT NULL');
+
+  // 3b) Category slug can no longer be globally UNIQUE: the multi-sector tree
+  //     intentionally reuses generic names ("Boshqalar", "Aksessuarlar") across
+  //     parents/catalogs and even repeats parents across the two jobs scopes.
+  //     Rows are identified by the (globally-unique) id, so drop the legacy
+  //     UNIQUE(slug) constraint and keep a plain lookup index for SEO paths.
+  await pool.query(`ALTER TABLE categories DROP CONSTRAINT IF EXISTS categories_slug_key`);
+  await pool.query(`
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+      FOR r IN
+        SELECT con.conname
+        FROM pg_constraint con
+        JOIN pg_class rel ON rel.oid = con.conrelid
+        JOIN pg_namespace nsp ON nsp.oid = con.connamespace
+        WHERE rel.relname = 'categories'
+          AND nsp.nspname = current_schema()
+          AND con.contype = 'u'
+          AND pg_get_constraintdef(con.oid) LIKE '%slug%'
+      LOOP
+        EXECUTE format('ALTER TABLE categories DROP CONSTRAINT %I', r.conname);
+      END LOOP;
+    END $$;
+  `);
+  await pool.query(`DROP INDEX IF EXISTS categories_slug_key`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_categories_slug ON categories(slug)`);
+
+  // 4) Per-category attribute schema (drives dynamic create-forms + adaptive filters).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS category_attributes (
+      id TEXT PRIMARY KEY,
+      category_id TEXT NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+      key TEXT NOT NULL,
+      label_uz TEXT NOT NULL,
+      type TEXT NOT NULL,
+      options JSONB DEFAULT '[]'::jsonb,
+      unit TEXT,
+      required INTEGER DEFAULT 0,
+      filterable INTEGER DEFAULT 1,
+      sort_order INTEGER DEFAULT 0,
+      UNIQUE(category_id, key)
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_cat_attr_category ON category_attributes(category_id, sort_order)`);
+
+  // 5) Per-catalog monetization defaults (0 = free under FREE_TEST). Never overwrite admin edits.
+  for (const catalogId of [
+    'transport', 'realty', 'personal', 'home-dacha', 'parts',
+    'electronics', 'hobby', 'animals', 'business', 'business360', 'handmade',
+  ]) {
+    await seedSetting(`listing_price_${catalogId}`, '0');
+    await seedSetting(`renew_price_${catalogId}`, '0');
+    await seedSetting(`promo_price_${catalogId}`, '0');
+  }
+
   console.log('✅ Schema migrations complete.');
 }

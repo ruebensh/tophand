@@ -4,10 +4,10 @@ import { AuthRequest, requireAuth, requireRole } from '../auth/telegram.ts';
 
 const router = Router();
 
-// GET /api/categories - Kategoriyalar ro'yxati (ixtiyoriy ?catalog_id=services&parent_id=...)
+// GET /api/categories - Kategoriyalar ro'yxati (ixtiyoriy ?catalog_id=services&parent_id=...&scope=...)
 router.get('/', async (req, res) => {
   try {
-    const { catalog_id, parent_id, only_parents } = req.query;
+    const { catalog_id, parent_id, only_parents, scope } = req.query;
 
     let sql = `
       SELECT c.*, 
@@ -25,6 +25,12 @@ router.get('/', async (req, res) => {
     if (catalog_id) {
       sql += ` AND c.catalog_id = ?`;
       params.push(catalog_id);
+    }
+
+    // Jobs catalog carries two trees distinguished by `scope`.
+    if (scope) {
+      sql += ` AND c.scope = ?`;
+      params.push(scope);
     }
 
     if (only_parents === 'true' || only_parents === '1') {
@@ -50,7 +56,7 @@ router.get('/', async (req, res) => {
 // GET /api/categories/tree - Kategoriyalar va ularning subkategoriyalari daraxti
 router.get('/tree', async (req, res) => {
   try {
-    const { catalog_id } = req.query;
+    const { catalog_id, scope } = req.query;
 
     let sql = `
       SELECT c.*, 
@@ -68,6 +74,11 @@ router.get('/tree', async (req, res) => {
     if (catalog_id) {
       sql += ` AND c.catalog_id = ?`;
       params.push(catalog_id);
+    }
+
+    if (scope) {
+      sql += ` AND c.scope = ?`;
+      params.push(scope);
     }
 
     sql += ` ORDER BY c.sort_order ASC, c.name_uz ASC`;
@@ -117,6 +128,37 @@ router.get('/:id', async (req, res) => {
       ...category,
       subs,
     });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/categories/:id/attributes - Kategoriyaga mos atribut sxemasi
+router.get('/:id/attributes', async (req, res) => {
+  try {
+    const category = await queryOne(
+      'SELECT id FROM categories WHERE id = ? OR slug = ?',
+      [req.params.id, req.params.id]
+    );
+    if (!category) {
+      return res.status(404).json({ error: 'Kategoriya topilmadi' });
+    }
+
+    const attrs = await queryAll(
+      `SELECT id, category_id, key, label_uz as label, type, options, unit, required, filterable, sort_order
+       FROM category_attributes
+       WHERE category_id = ?
+       ORDER BY sort_order ASC`,
+      [category.id]
+    );
+    // options stored as JSONB -> ensure array
+    const parsed = attrs.map((a: any) => ({
+      ...a,
+      options: Array.isArray(a.options) ? a.options : (a.options ? JSON.parse(a.options) : []),
+      required: Number(a.required) === 1,
+      filterable: Number(a.filterable) === 1,
+    }));
+    res.json(parsed);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

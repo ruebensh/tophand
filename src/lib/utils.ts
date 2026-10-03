@@ -75,6 +75,14 @@ export function getListingTypeLabel(type: ListingType): string {
       return 'Ishchi qidiraman';
     case 'JOB_SEEKER':
       return 'Ish qidiraman';
+    case 'SELL':
+      return 'Sotaman';
+    case 'WANTED':
+      return 'Qidiraman';
+    case 'RENT_OUT':
+      return 'Ijaraga beraman';
+    case 'RENT_WANTED':
+      return 'Ijaraga olaman';
     default:
       return type;
   }
@@ -105,6 +113,36 @@ export function getListingTypeBadgeColors(type: ListingType) {
         bg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
         dot: 'bg-emerald-600',
         tabActive: 'bg-emerald-600 text-white',
+      };
+    case 'SELL':
+      return {
+        bg: 'bg-sky-50 text-sky-700 border-sky-200',
+        dot: 'bg-sky-600',
+        tabActive: 'bg-sky-600 text-white',
+      };
+    case 'WANTED':
+      return {
+        bg: 'bg-rose-50 text-rose-700 border-rose-200',
+        dot: 'bg-rose-600',
+        tabActive: 'bg-rose-600 text-white',
+      };
+    case 'RENT_OUT':
+      return {
+        bg: 'bg-teal-50 text-teal-700 border-teal-200',
+        dot: 'bg-teal-600',
+        tabActive: 'bg-teal-600 text-white',
+      };
+    case 'RENT_WANTED':
+      return {
+        bg: 'bg-orange-50 text-orange-700 border-orange-200',
+        dot: 'bg-orange-600',
+        tabActive: 'bg-orange-600 text-white',
+      };
+    default:
+      return {
+        bg: 'bg-gray-50 text-gray-700 border-gray-200',
+        dot: 'bg-gray-600',
+        tabActive: 'bg-gray-600 text-white',
       };
   }
 }

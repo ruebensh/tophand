@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { apiRequest } from '../lib/api.ts';
+import { apiRequest, getCatalogs } from '../lib/api.ts';
 import {
   Users,
   Building2,
@@ -26,8 +26,6 @@ import {
   ChevronDown,
   ChevronRight,
   GitBranch,
-  Wrench,
-  Briefcase,
   DollarSign,
   Table2,
   Users2,
@@ -44,7 +42,15 @@ import { StaffMessaging } from '../components/admin/StaffMessaging.tsx';
 import { UserPassportModal } from '../components/admin/UserPassportModal.tsx';
 import { CategoryEditModal } from '../components/admin/CategoryEditModal.tsx';
 import { OrganizationEditModal } from '../components/admin/OrganizationEditModal.tsx';
-import { Category } from '../types/index.ts';
+import { Category, Catalog } from '../types/index.ts';
+import { CategoryChip } from '../components/common/CategoryIcon.tsx';
+
+// Katalog bo'yicha barqaror rang toni (Header/HomePage bilan mos).
+const CAT_TONE: Record<string, string> = {
+  transport: 'blue', realty: 'amber', jobs: 'violet', services: 'teal',
+  personal: 'rose', 'home-dacha': 'orange', parts: 'cyan', electronics: 'indigo',
+  hobby: 'lime', animals: 'emerald', business: 'sky', business360: 'fuchsia', handmade: 'red',
+};
 
 interface AdminDashboardPageProps {
   onNavigate: (route: string) => void;
@@ -84,7 +90,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   const [isCategoriesLoading, setIsCategoriesLoading] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<any | null>(null);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
-  const [categoryCatalogFilter, setCategoryCatalogFilter] = useState<'all' | 'services' | 'jobs'>('all');
+  const [catalogsList, setCatalogsList] = useState<Catalog[]>([]);
+  const [categoryCatalogFilter, setCategoryCatalogFilter] = useState<string>('all');
   const [categorySearch, setCategorySearch] = useState('');
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const [modalDefaultParentId, setModalDefaultParentId] = useState<string | null>(null);
@@ -149,8 +156,12 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   const fetchCategories = async () => {
     setIsCategoriesLoading(true);
     try {
-      const data = await apiRequest('/api/categories/tree');
+      const [data, cats] = await Promise.all([
+        apiRequest('/api/categories/tree'),
+        catalogsList.length === 0 ? getCatalogs() : Promise.resolve(catalogsList),
+      ]);
       setCategoriesList(data || []);
+      setCatalogsList(Array.isArray(cats) ? cats : []);
     } catch (err) {
       console.error('Error fetching categories:', err);
     } finally {
@@ -956,20 +967,169 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
 
       {/* 5. Hierarchical Categories & Subcategories Tab */}
       {activeTab === 'categories' && (() => {
-        const filtered = categoriesList.filter((parent: any) => {
-          if (categoryCatalogFilter !== 'all' && (parent.catalog_id || 'services') !== categoryCatalogFilter) {
-            return false;
-          }
-          if (categorySearch.trim()) {
-            const q = categorySearch.toLowerCase().trim();
-            const matchParent = parent.name_uz?.toLowerCase().includes(q) || parent.slug?.toLowerCase().includes(q);
-            const matchSub = parent.subs?.some((s: any) => s.name_uz?.toLowerCase().includes(q) || s.slug?.toLowerCase().includes(q));
-            return matchParent || matchSub;
-          }
-          return true;
-        });
+        const q = categorySearch.trim().toLowerCase();
+        const parentMatches = (parent: any) => {
+          if (!q) return true;
+          const pm = parent.name_uz?.toLowerCase().includes(q) || parent.slug?.toLowerCase().includes(q);
+          const sm = parent.subs?.some((s: any) => s.name_uz?.toLowerCase().includes(q) || s.slug?.toLowerCase().includes(q));
+          return Boolean(pm || sm);
+        };
+        const visibleSubs = (parent: any) => {
+          const subs = parent.subs || [];
+          if (!q) return subs;
+          if (parent.name_uz?.toLowerCase().includes(q) || parent.slug?.toLowerCase().includes(q)) return subs;
+          return subs.filter((s: any) => s.name_uz?.toLowerCase().includes(q) || s.slug?.toLowerCase().includes(q));
+        };
 
         const totalSubs = categoriesList.reduce((acc: number, p: any) => acc + (p.subs?.length || 0), 0);
+
+        // catalog_id => ota-kategoriyalar soni (tab belgisi uchun, qidiruvsiz)
+        const countByCatalog: Record<string, number> = {};
+        categoriesList.forEach((p: any) => {
+          const cid = p.catalog_id || 'services';
+          countByCatalog[cid] = (countByCatalog[cid] || 0) + 1;
+        });
+
+        // catalog_id => ko'rinadigan ota-kategoriyalar (qidiruv filtri bilan)
+        const grouped: Record<string, any[]> = {};
+        categoriesList.forEach((parent: any) => {
+          if (!parentMatches(parent)) return;
+          const cid = parent.catalog_id || 'services';
+          (grouped[cid] = grouped[cid] || []).push(parent);
+        });
+
+        // Kataloglar meta (API) yoki zaxira — categories ichidagi catalog_id lar
+        const catalogMeta: Catalog[] =
+          catalogsList.length > 0
+            ? catalogsList
+            : Object.keys(countByCatalog).map((id) => ({
+                id, name_uz: id, slug: id, icon: 'Layers', listing_types: '', sort_order: 0, is_active: 1,
+              }));
+
+        const catalogsToShow = catalogMeta.filter(
+          (c) => categoryCatalogFilter === 'all' || c.id === categoryCatalogFilter
+        );
+
+        const openNewCategory = (catalogId: string) => {
+          setSelectedCategory(null);
+          setModalDefaultParentId(null);
+          setModalDefaultCatalogId(catalogId);
+          setIsCategoryModalOpen(true);
+        };
+
+        // Bitta ota-kategoriya + uning subkategoriyalari (accordion qatori)
+        const renderParent = (parent: any) => {
+          const subs = visibleSubs(parent);
+          const isExpanded = expandedCategories[parent.id] === true; // default yopiq
+          const isJobs = parent.catalog_id === 'jobs';
+          const scopeLabel = parent.scope === 'JOB_OPENING' ? 'Vakansiya' : parent.scope === 'JOB_SEEKER' ? 'Rezyume' : '';
+          return (
+            <div key={parent.id} className="border-t border-gray-100 first:border-t-0">
+              {/* Parent Category Row */}
+              <div className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-gray-50/60 transition-colors">
+                <div className="flex items-center gap-3 min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => setExpandedCategories((prev) => ({ ...prev, [parent.id]: !isExpanded }))}
+                    className="p-1.5 rounded-lg hover:bg-gray-200/60 text-gray-500 cursor-pointer transition-colors"
+                    title={isExpanded ? 'Subkategoriyalarni yopish' : 'Subkategoriyalarni ochish'}
+                  >
+                    {isExpanded ? <ChevronDown className="w-4 h-4 text-gray-700" /> : <ChevronRight className="w-4 h-4 text-gray-700" />}
+                  </button>
+
+                  <div className="w-9 h-9 rounded-xl bg-white border border-gray-100 text-gray-600 flex items-center justify-center font-bold text-sm shrink-0">
+                    {parent.icon && parent.icon.length <= 2 ? parent.icon : '📁'}
+                  </div>
+
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-extrabold text-sm text-gray-900">{parent.name_uz}</span>
+                      {isJobs && scopeLabel && (
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-violet-50 text-violet-700 border border-violet-200">
+                          {scopeLabel}
+                        </span>
+                      )}
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${parent.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'}`}>
+                        {parent.is_active ? 'Faol' : 'Nofaol'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 text-[11px] text-gray-400 mt-0.5">
+                      <span className="font-mono">slug: {parent.slug}</span>
+                      <span>•</span>
+                      <span>{parent.subs?.length || 0} ta subkategoriya</span>
+                      <span>•</span>
+                      <span>{parent.active_count || 0} ta faol e’lon</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Parent Actions */}
+                <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedCategory(null); setModalDefaultParentId(parent.id); setModalDefaultCatalogId(parent.catalog_id || 'services'); setIsCategoryModalOpen(true); }}
+                    className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                    title="Ushbu kategoriya ichiga yangi subkategoriya qo'shish"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Subkategoriya</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedCategory(parent); setModalDefaultParentId(null); setIsCategoryModalOpen(true); }}
+                    className="px-2.5 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-100 text-gray-700 text-xs font-medium cursor-pointer transition-colors"
+                  >
+                    Tahrirlash
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteCategory(parent.id, parent.name_uz, false)}
+                    className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold cursor-pointer transition-colors"
+                  >
+                    O‘chirish
+                  </button>
+                </div>
+              </div>
+
+              {/* Subcategories */}
+              {isExpanded && (
+                <div className="px-3.5 pb-4">
+                  {subs.length === 0 ? (
+                    <div className="p-4 text-center text-xs text-gray-400 bg-white rounded-xl border border-dashed border-gray-200">
+                      Ushbu kategoriyada hali subkategoriyalar mavjud emas. "+ Subkategoriya" orqali qo‘shing.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                      {subs.map((sub: any) => (
+                        <div key={sub.id} className="bg-white p-3 rounded-xl border border-gray-100 hover:border-blue-200 transition-all flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <GitBranch className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                              <span className="font-bold text-xs text-gray-900 truncate">{sub.name_uz}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-[10px] text-gray-400 mt-0.5">
+                              <span className="font-mono truncate">{sub.slug}</span>
+                              <span>•</span>
+                              <span className={sub.is_active ? 'text-emerald-600 font-semibold' : 'text-gray-400'}>{sub.is_active ? 'Faol' : 'Nofaol'}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button type="button" onClick={() => { setSelectedCategory(sub); setModalDefaultParentId(parent.id); setIsCategoryModalOpen(true); }} className="p-1 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-900 cursor-pointer" title="Subkategoriyani tahrirlash">
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button type="button" onClick={() => handleDeleteCategory(sub.id, sub.name_uz, true)} className="p-1 rounded-md text-rose-500 hover:bg-rose-50 cursor-pointer" title="Subkategoriyani o‘chirish">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        };
 
         return (
           <div className="space-y-4">
@@ -979,70 +1139,58 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                 <div>
                   <h3 className="font-extrabold text-base text-gray-900 flex items-center gap-2">
                     <Layers className="w-5 h-5 text-blue-600" />
-                    Katalog va Kategoriyalar Ierarxiyasi
+                    Katalog → Kategoriya → Subkategoriya
                   </h3>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    Jami {categoriesList.length} ta asosiy kategoriya va {totalSubs} ta subkategoriya
+                    Jami {catalogMeta.length} ta katalog, {categoriesList.length} ta asosiy kategoriya va {totalSubs} ta subkategoriya
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => {
-                      setSelectedCategory(null);
-                      setModalDefaultParentId(null);
-                      setModalDefaultCatalogId(categoryCatalogFilter === 'jobs' ? 'jobs' : 'services');
-                      setIsCategoryModalOpen(true);
-                    }}
-                    className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-xs cursor-pointer"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>Yangi asosiy kategoriya</span>
-                  </button>
-                </div>
+                <button
+                  onClick={() => openNewCategory(categoryCatalogFilter === 'all' ? 'services' : categoryCatalogFilter)}
+                  className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-xs cursor-pointer shrink-0"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Yangi kategoriya</span>
+                </button>
               </div>
 
-              {/* Filter by Catalog & Search bar */}
-              <div className="mt-5 pt-4 border-t border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
-                <div className="flex items-center gap-1.5 p-1 bg-gray-50 rounded-2xl border border-gray-100 w-fit">
+              {/* Catalog tabs + search */}
+              <div className="mt-5 pt-4 border-t border-gray-100 space-y-3">
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
                   <button
                     type="button"
                     onClick={() => setCategoryCatalogFilter('all')}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    className={`shrink-0 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                       categoryCatalogFilter === 'all'
-                        ? 'bg-white text-gray-900 shadow-xs'
-                        : 'text-gray-500 hover:text-gray-900'
+                        ? 'bg-gray-900 text-white shadow-xs'
+                        : 'bg-gray-50 text-gray-500 hover:text-gray-900 border border-gray-100'
                     }`}
                   >
                     Barchasi ({categoriesList.length})
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setCategoryCatalogFilter('services')}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                      categoryCatalogFilter === 'services'
-                        ? 'bg-blue-600 text-white shadow-xs'
-                        : 'text-gray-500 hover:text-gray-900'
-                    }`}
-                  >
-                    <Wrench className="w-3.5 h-3.5" />
-                    <span>Xizmatlar ({categoriesList.filter((c: any) => (c.catalog_id || 'services') === 'services').length})</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCategoryCatalogFilter('jobs')}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                      categoryCatalogFilter === 'jobs'
-                        ? 'bg-emerald-600 text-white shadow-xs'
-                        : 'text-gray-500 hover:text-gray-900'
-                    }`}
-                  >
-                    <Briefcase className="w-3.5 h-3.5" />
-                    <span>Ish va Vakansiyalar ({categoriesList.filter((c: any) => c.catalog_id === 'jobs').length})</span>
-                  </button>
+                  {catalogMeta.map((cat) => {
+                    const active = categoryCatalogFilter === cat.id;
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => setCategoryCatalogFilter(cat.id)}
+                        className={`shrink-0 flex items-center gap-1.5 pl-1.5 pr-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          active
+                            ? 'bg-blue-600 text-white shadow-xs'
+                            : 'bg-gray-50 text-gray-600 hover:text-gray-900 border border-gray-100'
+                        }`}
+                      >
+                        <CategoryChip name={cat.icon} size="sm" tone={CAT_TONE[cat.id]} />
+                        <span>{cat.name_uz}</span>
+                        <span className={`text-[10px] font-semibold ${active ? 'text-white/80' : 'text-gray-400'}`}>({countByCatalog[cat.id] || 0})</span>
+                      </button>
+                    );
+                  })}
                 </div>
 
-                <div className="relative w-full md:w-72">
+                <div className="relative w-full md:w-80">
                   <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
@@ -1055,182 +1203,49 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
               </div>
             </div>
 
-            {/* Hierarchical Categories Accordion List */}
-            <div className="space-y-3">
-              {isCategoriesLoading ? (
-                <div className="bg-white rounded-3xl p-12 text-center text-xs text-gray-400 border border-gray-100">
-                  Kategoriyalar va subkategoriyalar yuklanmoqda...
-                </div>
-              ) : filtered.length === 0 ? (
-                <div className="bg-white rounded-3xl p-12 text-center text-xs text-gray-400 border border-gray-100">
-                  Hech qanday kategoriya topilmadi
-                </div>
-              ) : (
-                filtered.map((parent: any) => {
-                  const subs = parent.subs || [];
-                  const isExpanded = expandedCategories[parent.id] !== false; // default expanded
-                  const isJobs = parent.catalog_id === 'jobs';
-
+            {/* Catalog-grouped sections */}
+            {isCategoriesLoading ? (
+              <div className="bg-white rounded-3xl p-12 text-center text-xs text-gray-400 border border-gray-100">
+                Kategoriyalar va subkategoriyalar yuklanmoqda...
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {catalogsToShow.map((cat) => {
+                  const parents = grouped[cat.id] || [];
+                  // Qidiruvda hech narsa mos kelmagan bo'sh katalog bo'limini yashiramiz
+                  if (categoryCatalogFilter === 'all' && q && parents.length === 0) return null;
                   return (
-                    <div
-                      key={parent.id}
-                      className="bg-white rounded-2xl border border-gray-100 shadow-2xs overflow-hidden transition-all hover:border-gray-200"
-                    >
-                      {/* Parent Category Row */}
-                      <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-gray-50/70 to-white">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setExpandedCategories((prev) => ({
-                                ...prev,
-                                [parent.id]: !isExpanded,
-                              }))
-                            }
-                            className="p-1.5 rounded-lg hover:bg-gray-200/60 text-gray-500 cursor-pointer transition-colors"
-                            title={isExpanded ? 'Subkategoriyalarni yopish' : 'Subkategoriyalarni ochish'}
-                          >
-                            {isExpanded ? (
-                              <ChevronDown className="w-4 h-4 text-gray-700" />
-                            ) : (
-                              <ChevronRight className="w-4 h-4 text-gray-700" />
-                            )}
-                          </button>
-
-                          <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-sm shrink-0">
-                            {parent.icon && parent.icon.length <= 2 ? parent.icon : '📁'}
-                          </div>
-
+                    <section key={cat.id} className="bg-white rounded-2xl border border-gray-100 shadow-2xs overflow-hidden">
+                      {/* Catalog header */}
+                      <div className="flex items-center justify-between gap-3 px-4 py-3 bg-gradient-to-r from-gray-50 to-white border-b border-gray-100">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <CategoryChip name={cat.icon} size="md" tone={CAT_TONE[cat.id]} />
                           <div className="min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-extrabold text-sm text-gray-900">{parent.name_uz}</span>
-                              <span
-                                className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                                  isJobs
-                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                    : 'bg-blue-50 text-blue-700 border border-blue-200'
-                                }`}
-                              >
-                                {isJobs ? 'Ish / Vakansiya' : 'Xizmatlar'}
-                              </span>
-                              <span
-                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                  parent.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'
-                                }`}
-                              >
-                                {parent.is_active ? 'Faol' : 'Nofaol'}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-3 text-[11px] text-gray-400 mt-0.5">
-                              <span className="font-mono">slug: {parent.slug}</span>
-                              <span>•</span>
-                              <span>{subs.length} ta subkategoriya</span>
-                              <span>•</span>
-                              <span>{parent.active_count || 0} ta faol e’lon</span>
-                            </div>
+                            <div className="font-extrabold text-sm text-gray-900 truncate">{cat.name_uz}</div>
+                            <div className="text-[11px] text-gray-400">{parents.length} ta kategoriya · katalog: {cat.id}</div>
                           </div>
                         </div>
-
-                        {/* Parent Actions */}
-                        <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedCategory(null);
-                              setModalDefaultParentId(parent.id);
-                              setModalDefaultCatalogId(parent.catalog_id || 'services');
-                              setIsCategoryModalOpen(true);
-                            }}
-                            className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors"
-                            title="Ushbu kategoriya ichiga yangi subkategoriya qo'shish"
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                            <span>Subkategoriya</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedCategory(parent);
-                              setModalDefaultParentId(null);
-                              setIsCategoryModalOpen(true);
-                            }}
-                            className="px-2.5 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-100 text-gray-700 text-xs font-medium cursor-pointer transition-colors"
-                          >
-                            Tahrirlash
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteCategory(parent.id, parent.name_uz, false)}
-                            className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold cursor-pointer transition-colors"
-                          >
-                            O‘chirish
-                          </button>
-                        </div>
+                        <button
+                          onClick={() => openNewCategory(cat.id)}
+                          className="shrink-0 px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">Kategoriya</span>
+                        </button>
                       </div>
 
-                      {/* Subcategories Accordion Content */}
-                      {isExpanded && (
-                        <div className="border-t border-gray-100 bg-gray-50/40 p-3 sm:p-4">
-                          {subs.length === 0 ? (
-                            <div className="p-4 text-center text-xs text-gray-400 bg-white rounded-xl border border-dashed border-gray-200">
-                              Ushbu kategoriyada hali subkategoriyalar mavjud emas. Yuqoridagi "+ Subkategoriya" tugmasi orqali qo‘shishingiz mumkin.
-                            </div>
-                          ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                              {subs.map((sub: any) => (
-                                <div
-                                  key={sub.id}
-                                  className="bg-white p-3 rounded-xl border border-gray-100 hover:border-blue-200 hover:shadow-2xs transition-all flex items-center justify-between gap-2"
-                                >
-                                  <div className="min-w-0">
-                                    <div className="flex items-center gap-1.5">
-                                      <GitBranch className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                                      <span className="font-bold text-xs text-gray-900 truncate">{sub.name_uz}</span>
-                                    </div>
-                                    <div className="flex items-center gap-2 text-[10px] text-gray-400 mt-0.5">
-                                      <span className="font-mono truncate">{sub.slug}</span>
-                                      <span>•</span>
-                                      <span className={sub.is_active ? 'text-emerald-600 font-semibold' : 'text-gray-400'}>
-                                        {sub.is_active ? 'Faol' : 'Nofaol'}
-                                      </span>
-                                    </div>
-                                  </div>
-
-                                  <div className="flex items-center gap-1 shrink-0">
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setSelectedCategory(sub);
-                                        setModalDefaultParentId(parent.id);
-                                        setIsCategoryModalOpen(true);
-                                      }}
-                                      className="p-1 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-900 cursor-pointer"
-                                      title="Subkategoriyani tahrirlash"
-                                    >
-                                      <Edit2 className="w-3.5 h-3.5" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDeleteCategory(sub.id, sub.name_uz, true)}
-                                      className="p-1 rounded-md text-rose-500 hover:bg-rose-50 cursor-pointer"
-                                      title="Subkategoriyani o‘chirish"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
+                      {parents.length === 0 ? (
+                        <div className="p-8 text-center text-xs text-gray-400">
+                          Ushbu katalogda kategoriya topilmadi. "+ Kategoriya" orqali qo'shing.
                         </div>
+                      ) : (
+                        parents.map(renderParent)
                       )}
-                    </div>
+                    </section>
                   );
-                })
-              )}
-            </div>
+                })}
+              </div>
+            )}
           </div>
         );
       })()}
@@ -1349,6 +1364,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         defaultParentId={modalDefaultParentId}
         defaultCatalogId={modalDefaultCatalogId}
         parentCategories={categoriesList}
+        catalogs={catalogsList}
         onSaved={fetchCategories}
       />
 

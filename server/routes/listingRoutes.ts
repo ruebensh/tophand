@@ -31,6 +31,22 @@ router.get('/', optionalAuth, async (req: AuthRequest, res) => {
       ? expQuery.split(',').map((e) => e.trim()).filter(Boolean)
       : undefined;
 
+    // Structured attribute filters: `attr.<key>=<value>` query params.
+    let attributeFilters: Record<string, string | number | boolean> | undefined;
+    for (const [key, val] of Object.entries(req.query)) {
+      if (!key.startsWith('attr.') || val === undefined || val === '') continue;
+      if (!attributeFilters) attributeFilters = {};
+      const attrKey = key.slice(5);
+      const strVal = String(val);
+      attributeFilters[attrKey] = /^-?\d+(\.\d+)?$/.test(strVal)
+        ? Number(strVal)
+        : strVal === 'true'
+        ? true
+        : strVal === 'false'
+        ? false
+        : strVal;
+    }
+
     const filter = {
       catalog_id: (req.query.catalog_id as string) || undefined,
       type: (req.query.type as string) || undefined,
@@ -46,6 +62,7 @@ router.get('/', optionalAuth, async (req: AuthRequest, res) => {
       work_format: (req.query.work_format as string) || undefined,
       work_formats: workFormats,
       experience: experiences,
+      attributes: attributeFilters,
       sort_by: (req.query.sort_by as string) || undefined,
       user_lat: req.query.user_lat ? parseFloat(req.query.user_lat as string) : undefined,
       user_lng: req.query.user_lng ? parseFloat(req.query.user_lng as string) : undefined,
@@ -120,6 +137,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
   try {
     const {
       type,
+      catalog_id,
       title,
       description,
       category_id,
@@ -139,12 +157,16 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
       contact_time,
       contact_custom_text,
       organization_id,
+      attributes,
       images,
       videos,
     } = req.body;
 
     // Validation
-    const allowedTypes = ['SERVICE_OFFER', 'SERVICE_REQUEST', 'JOB_OPENING', 'JOB_SEEKER'];
+    const allowedTypes = [
+      'SELL', 'WANTED', 'RENT_OUT', 'RENT_WANTED',
+      'SERVICE_OFFER', 'SERVICE_REQUEST', 'JOB_OPENING', 'JOB_SEEKER',
+    ];
     if (!type || !allowedTypes.includes(type)) {
       return res.status(400).json({ error: 'E’lon turi noto‘g‘ri tanlangan' });
     }
@@ -181,6 +203,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
 
     const listing = await createListing(req.user!.id, {
       type,
+      catalog_id,
       title,
       description: finalDescription,
       category_id,
@@ -200,6 +223,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
       contact_time,
       contact_custom_text,
       organization_id,
+      attributes: attributes && typeof attributes === 'object' ? attributes : {},
       images: Array.isArray(images) ? images : [],
       videos: Array.isArray(videos) ? videos : [],
     });
@@ -294,6 +318,7 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res) => {
       skills,
       contact_time,
       contact_custom_text,
+      attributes,
       images,
       videos,
     } = req.body;
@@ -321,6 +346,7 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res) => {
            skills = ?,
            contact_time = COALESCE(?, contact_time),
            contact_custom_text = ?,
+           attributes = COALESCE(?::jsonb, attributes),
            status = COALESCE(?, status),
            updated_at = ?
        WHERE id = ?`,
@@ -341,6 +367,7 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res) => {
         skills ? JSON.stringify(skills) : null,
         contact_time || null,
         contact_custom_text || null,
+        attributes && typeof attributes === 'object' ? JSON.stringify(attributes) : null,
         status || null,
         now,
         listingId,

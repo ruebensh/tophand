@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Listing } from '../types/index.ts';
-import { apiRequest, getPublicMonetization, promoteListingRequest, type PublicMonetization } from '../lib/api.ts';
+import { Listing, CategoryAttribute } from '../types/index.ts';
+import { apiRequest, getPublicMonetization, promoteListingRequest, getCategoryAttributes, type PublicMonetization } from '../lib/api.ts';
 import { ListingTypeBadge } from '../components/listings/ListingTypeBadge.tsx';
 import { PriceDisplay } from '../components/listings/PriceDisplay.tsx';
 import { getContactTimeLabel, formatDateAgo, isOfficialAccount, isStaffAccount } from '../lib/utils.ts';
@@ -76,8 +76,21 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
 
   // Monetization state (Faza 5)
   const [monetization, setMonetization] = useState<PublicMonetization | null>(null);
+  // Kategoriya atribut sxemasi (label + birlik uchun)
+  const [attrSchema, setAttrSchema] = useState<CategoryAttribute[]>([]);
   const [isPromoting, setIsPromoting] = useState(false);
   const [promoMsg, setPromoMsg] = useState('');
+
+  useEffect(() => {
+    const catId = listing?.category_id;
+    if (!catId) {
+      setAttrSchema([]);
+      return;
+    }
+    getCategoryAttributes(catId)
+      .then(setAttrSchema)
+      .catch(() => setAttrSchema([]));
+  }, [listing?.category_id]);
 
   useEffect(() => {
     getPublicMonetization().then(setMonetization).catch(() => {});
@@ -282,6 +295,10 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
 
   // Build structured "Подробности / Tafsilotlar" list
   const typeLabels: Record<string, string> = {
+    SELL: 'Sotuvga',
+    WANTED: "Izlayman",
+    RENT_OUT: 'Ijaraga beriladi',
+    RENT_WANTED: 'Ijara izlanmoqda',
     SERVICE_OFFER: "Xizmat taklifi",
     SERVICE_REQUEST: "Xizmat so'rovi (Buyurtma)",
     JOB_OPENING: "Vakansiya / Ish o'rni",
@@ -677,6 +694,39 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
               ))}
             </div>
           </div>
+
+          {/* 3b. Xususiyatlar (Atributlar) — sektor uchun maxsus spec jadvali */}
+          {(() => {
+            const attrs = (typeof listing.attributes === 'string'
+              ? (() => { try { return JSON.parse(listing.attributes || '{}'); } catch { return {}; } })()
+              : (listing.attributes || {})) as Record<string, string | number | boolean>;
+            const keys = Object.keys(attrs).filter((k) => attrs[k] !== undefined && attrs[k] !== '' && attrs[k] !== null);
+            if (keys.length === 0) return null;
+            const labelFor = (k: string) => attrSchema.find((a) => a.key === k)?.label || k.charAt(0).toUpperCase() + k.slice(1);
+            const unitFor = (k: string) => attrSchema.find((a) => a.key === k)?.unit || '';
+            const ordered = [
+              ...attrSchema.filter((a) => keys.includes(a.key)),
+              ...keys.filter((k) => !attrSchema.some((a) => a.key === k)).map((k) => ({ key: k } as CategoryAttribute)),
+            ];
+            return (
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-xs overflow-hidden">
+                <div className="px-4 sm:px-5 py-3.5 border-b border-gray-100 bg-gray-50/60">
+                  <h2 className="font-bold text-sm text-gray-900">Xususiyatlar</h2>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 divide-y divide-gray-50 sm:divide-y-0">
+                  {ordered.map((a) => (
+                    <div key={a.key} className="flex items-center justify-between px-4 sm:px-5 py-2.5 text-xs border-b border-gray-50">
+                      <span className="text-gray-500">{labelFor(a.key)}</span>
+                      <span className="font-semibold text-gray-900 text-right ml-4">
+                        {typeof attrs[a.key] === 'boolean' ? (attrs[a.key] ? 'Ha' : "Yo'q") : String(attrs[a.key])}
+                        {unitFor(a.key) ? ` ${unitFor(a.key)}` : ''}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* 4. Ko'nikmalar / Skills */}
           {skillsList.length > 0 && (

@@ -32,6 +32,20 @@
   --color-blue-700: #125FD0;
   --color-blue-800: #114FAE;
   --color-blue-900: #123F85;
+
+  /* Sahifa / surface va matn rollari (vizual chuqurlik uchun fon-qog'oz farqi) */
+  --color-page: #F7F8FA;
+  --color-surface: #FFFFFF;
+  --color-surface-2: #F1F4F8;
+  --color-ink: #0F172A;
+  --color-ink-soft: #64748B;
+  --color-ink-faint: #94A3B8;
+
+  /* Yumshoq soyalar — kartalar/panelar uchun chuqurlik */
+  --shadow-soft: 0 1px 2px rgba(15, 23, 42, .04), 0 4px 12px rgba(15, 23, 42, .06);
+  --shadow-card: 0 1px 3px rgba(15, 23, 42, .06), 0 8px 24px rgba(15, 23, 42, .08);
+  --shadow-card-hover: 0 4px 8px rgba(15, 23, 42, .08), 0 16px 40px rgba(15, 23, 42, .14);
+  --shadow-float: 0 12px 40px rgba(15, 23, 42, .18);
 }
 
 @layer base {
@@ -40,6 +54,10 @@
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background-color: var(--color-page);
+    color: var(--color-ink);
   }
   /* Mobil: yoqimsiz ko'k tap-yorug'ligi va 300ms kechikishni olib tashlash */
   a, button, [role="button"], input, select, label, summary {
@@ -295,3 +313,33 @@ html, body {
 /* Bosilganda nozik qisqarish (tap feedback) */
 .tap-scale { transition: transform .12s ease; }
 .tap-scale:active { transform: scale(.97); }
+
+/* ── Katalog kartochkalari: kirish (stagger), suzish va glass "shine" ── */
+@keyframes th-card-in {
+  from { opacity: 0; transform: translateY(14px) scale(.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.th-card-in {
+  animation: th-card-in .5s cubic-bezier(.22,1,.36,1) backwards;
+  animation-delay: var(--d, 0ms);
+}
+@keyframes th-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-5px); }
+}
+.th-float { animation: th-float 4.5s ease-in-out infinite; }
+/* glass yuzasidan o'tib ketadigan nur (shine) — hover'da silliq siljiydi */
+.th-shine {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 32%, rgba(255,255,255,.6) 48%, transparent 64%);
+  transform: translateX(-130%);
+  transition: transform .9s cubic-bezier(.22,1,.36,1);
+}
+.group:hover .th-shine { transform: translateX(130%); }
+@media (prefers-reduced-motion: reduce) {
+  .th-card-in, .th-float { animation: none; }
+  .th-shine { transition: none; }
+}

@@ -1,5 +1,6 @@
 import { pool } from './database.ts';
 import { CATALOGS_LIST, ALL_CATALOG_CATEGORIES } from './categoriesData.ts';
+import { syncCategoryAttributes } from './attributesData.ts';
 import { UZBEKISTAN_DISTRICTS } from './districtsData.ts';
 import { runMigrations } from './migrations.ts';
 
@@ -56,7 +57,7 @@ export async function initDatabase() {
       id TEXT PRIMARY KEY,
       catalog_id TEXT REFERENCES catalogs(id) ON DELETE SET NULL,
       name_uz TEXT NOT NULL,
-      slug TEXT UNIQUE NOT NULL,
+      slug TEXT NOT NULL,
       icon TEXT NOT NULL DEFAULT 'Layers',
       parent_id TEXT REFERENCES categories(id) ON DELETE SET NULL,
       is_active INTEGER DEFAULT 1,
@@ -434,11 +435,12 @@ export async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_email_verification ON email_verification_codes(email, code);
   `);
 
-  // ─── Seed data ────────────────────────────────────────────────────────
-  await seedInitialData();
-
-  // ─── Idempotent schema migrations + monetization defaults (Faza 16) ────
+  // ─── Idempotent schema migrations FIRST (adds listings.attributes, categories.scope,
+  //     category_attributes table, drops the rigid type CHECK) so seeding can use them ───
   await runMigrations();
+
+  // ─── Seed data (regions, districts, catalogs, categories, attributes) ───
+  await seedInitialData();
 
   console.log('✅ PostgreSQL schema initialized successfully.');
 }
@@ -464,37 +466,56 @@ export async function syncCategories() {
   }
   console.log(`✅ Catalogs synced: ${CATALOGS_LIST.length} catalogs.`);
 
-  // 2. Sync categories (services + jobs)
+  // 2. Sync categories (all catalogs). Collects seeded ids so removed ones can be
+  //    deactivated (kept for FK integrity) instead of deleted.
+  const seededIds: string[] = [];
   let order = 1;
   for (const parent of ALL_CATALOG_CATEGORIES) {
     const catalogId = parent.catalog_id || 'services';
+    const scope = parent.scope ?? null;
+    seededIds.push(parent.id);
     await pool.query(`
-      INSERT INTO categories (id, catalog_id, name_uz, slug, icon, parent_id, is_active, sort_order, created_at, updated_at)
-      VALUES ($1,$2,$3,$4,$5,NULL,1,$6,$7,$8)
+      INSERT INTO categories (id, catalog_id, name_uz, slug, icon, parent_id, scope, is_active, sort_order, created_at, updated_at)
+      VALUES ($1,$2,$3,$4,$5,NULL,$6,1,$7,$8,$9)
       ON CONFLICT (id) DO UPDATE SET
         catalog_id = EXCLUDED.catalog_id,
         name_uz = EXCLUDED.name_uz,
         slug = EXCLUDED.slug,
         icon = EXCLUDED.icon,
         parent_id = NULL,
+        scope = EXCLUDED.scope,
+        is_active = 1,
         sort_order = EXCLUDED.sort_order,
         updated_at = EXCLUDED.updated_at
-    `, [parent.id, catalogId, parent.name_uz, parent.slug, parent.icon, order++, now, now]);
+    `, [parent.id, catalogId, parent.name_uz, parent.slug, parent.icon, scope, order++, now, now]);
 
     let subOrder = 1;
     for (const sub of parent.subs) {
+      seededIds.push(sub.id);
       await pool.query(`
-        INSERT INTO categories (id, catalog_id, name_uz, slug, icon, parent_id, is_active, sort_order, created_at, updated_at)
-        VALUES ($1,$2,$3,$4,'Layers',$5,1,$6,$7,$8)
+        INSERT INTO categories (id, catalog_id, name_uz, slug, icon, parent_id, scope, is_active, sort_order, created_at, updated_at)
+        VALUES ($1,$2,$3,$4,'Layers',$5,$6,1,$7,$8,$9)
         ON CONFLICT (id) DO UPDATE SET
           catalog_id = EXCLUDED.catalog_id,
           name_uz = EXCLUDED.name_uz,
           slug = EXCLUDED.slug,
           parent_id = EXCLUDED.parent_id,
+          scope = EXCLUDED.scope,
+          is_active = 1,
           sort_order = EXCLUDED.sort_order,
           updated_at = EXCLUDED.updated_at
-      `, [sub.id, catalogId, sub.name_uz, sub.slug, parent.id, subOrder++, now, now]);
+      `, [sub.id, catalogId, sub.name_uz, sub.slug, parent.id, scope, subOrder++, now, now]);
     }
+  }
+
+  // Deactivate any category that is no longer in the seed (old taxonomy) — never
+  // DELETE, because listings.category_id has an FK to categories.
+  if (seededIds.length > 0) {
+    const ph = seededIds.map((_, i) => `$${i + 1}`).join(',');
+    await pool.query(
+      `UPDATE categories SET is_active = 0 WHERE id NOT IN (${ph})`,
+      seededIds
+    );
   }
 
   // Update existing listings catalog_id if null, based on listing type
@@ -557,6 +578,9 @@ async function seedInitialData() {
 
   // Seed categories
   await syncCategories();
+
+  // Seed per-category attribute schemas (Avito-style structured attributes)
+  await syncCategoryAttributes();
 
   console.log(`✅ Reference data synced: ${regions.length} regions and ${UZBEKISTAN_DISTRICTS.length} districts.`);
 }
