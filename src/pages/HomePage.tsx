@@ -43,7 +43,7 @@ const CatalogTile: React.FC<{ cat: Catalog; tone: string; index: number; onOpen:
       type="button"
       onClick={onOpen}
       style={{ '--d': `${index * 60}ms` } as React.CSSProperties}
-      className="group th-card-in relative flex h-[92px] w-full flex-col items-center justify-center gap-1 overflow-hidden rounded-2xl border border-white/70 bg-gradient-to-br from-white/60 to-white/25 p-2 shadow-[0_8px_24px_rgba(23,43,77,0.10)] ring-1 ring-black/5 backdrop-blur-md transition-[transform,box-shadow] duration-300 hover:-translate-y-1 hover:from-white/75 hover:to-white/45 hover:shadow-[0_18px_44px_rgba(23,43,77,0.20)] cursor-pointer sm:h-[108px] sm:flex-row sm:items-stretch sm:justify-start sm:gap-0 sm:p-0 sm:pl-4 sm:pr-0 sm:pt-3.5"
+      className="group th-card-in th-gpu th-isolate relative flex h-[92px] w-full flex-col items-center justify-center gap-1 overflow-hidden rounded-2xl border border-white/70 bg-gradient-to-br from-white/60 to-white/25 p-2 shadow-[0_8px_24px_rgba(23,43,77,0.10)] ring-1 ring-black/5 backdrop-blur-md transition-[transform,box-shadow] duration-300 hover:-translate-y-1 hover:from-white/75 hover:to-white/45 hover:shadow-[0_18px_44px_rgba(23,43,77,0.20)] cursor-pointer sm:h-[108px] sm:flex-row sm:items-stretch sm:justify-start sm:gap-0 sm:p-0 sm:pl-4 sm:pr-0 sm:pt-3.5"
     >
       <span className="th-shine" aria-hidden />
       <span className="z-10 order-2 w-full text-center text-[10px] font-bold leading-tight text-[#172B4D] line-clamp-2 transition-transform duration-300 group-hover:-translate-y-0.5 sm:order-1 sm:w-auto sm:max-w-[58%] sm:self-start sm:text-left sm:text-[13px]">

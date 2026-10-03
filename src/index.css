@@ -332,9 +332,57 @@ html, body {
   background: linear-gradient(115deg, transparent 32%, rgba(255,255,255,.6) 48%, transparent 64%);
   transform: translateX(-130%);
   transition: transform .9s cubic-bezier(.22,1,.36,1);
+  will-change: transform;
 }
 .group:hover .th-shine { transform: translateX(130%); }
 @media (prefers-reduced-motion: reduce) {
   .th-card-in { animation: none; }
   .th-shine { transition: none; }
+}
+
+/* ── Yuqori chastotali ekranlar (90/120Hz) — maksimal silliqlik ──────
+   Brauzer ekran yangilanish chastotasigacha chizadi; vazifamiz —
+   animatsiyalarni kompozitor (GPU)ga o'tkazish va scroll/tap jankini
+   yo'qotish. Natijada harakat 120fpsgacha silliq bo'ladi. */
+html { overscroll-behavior-y: none; }
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+}
+/* Aylantiriladigan idishlarda iOS momentum + ingichka skrollbar */
+.overflow-y-auto, .overflow-x-auto, .overflow-auto,
+.overflow-y-scroll, .overflow-x-scroll, .overflow-scroll {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+/* GPU qatlamga ko'tarish — transform/translate/scale uchun */
+.th-gpu {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  will-change: transform;
+}
+/* Qayta bo'yalishni (paint) element ichida izolyatsiya qilish */
+.th-isolate { contain: paint; }
+
+/* ── Butun sayt bo'ylab 120fps: interaktiv kartalar va transformlar ──
+   ListingCard kabi mavzuli kartalar (th-card) va istalgan hover/scale/
+   translate elementi GPU kompozitorida ishlaydi. */
+.th-card {
+  contain: paint;
+  backface-visibility: hidden;
+}
+[class*="hover:-translate"],
+[class*="hover:scale"],
+[class*="group-hover:scale"],
+[class*="active:scale"] {
+  backface-visibility: hidden;
+  transform-style: preserve-3d;
+}
+/* Faqat interaction paytida qatlamga ko'tariladi — doimiy will-change
+   emas, shuning uchun uzun ro'yxatlarda GPU xotirasi to'lib qolmaydi. */
+@media (hover: hover) and (pointer: fine) {
+  [class*="hover:-translate"]:hover,
+  [class*="hover:scale"]:hover,
+  .group:hover [class*="group-hover:scale"] {
+    will-change: transform;
+  }
 }
