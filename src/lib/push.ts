@@ -23,6 +23,20 @@ export function getPermission(): NotificationPermission {
   return Notification.permission;
 }
 
+/**
+ * Faqat brauzer Notification ruxsatini so'raydi (obuna emas — auth talab qilmaydi).
+ * Qaror hali berilmagan ('default') bo'lsa prompt chiqaradi; aks holda joriy holatni qaytaradi.
+ */
+export async function requestPushPermission(): Promise<NotificationPermission> {
+  if (typeof window === 'undefined' || !('Notification' in window)) return 'denied';
+  if (getPermission() !== 'default') return getPermission();
+  try {
+    return await Notification.requestPermission();
+  } catch {
+    return getPermission();
+  }
+}
+
 let registering: Promise<ServiceWorkerRegistration> | null = null;
 
 /** Register (once) and return the TopHand service worker registration. */

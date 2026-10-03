@@ -5,6 +5,7 @@ import { useAuth } from './AuthContext.tsx';
 import {
   isPushSupported,
   getPermission,
+  requestPushPermission,
   registerSW,
   enablePush as enablePushLib,
   disablePush as disablePushLib,
@@ -57,6 +58,36 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       .then((r) => setPushEnabled(Boolean(r.subscribed)))
       .catch(() => setPushEnabled(false));
   }, [user]);
+
+  // Kirishda darhol push ruxsatini so'rash (login shart emas). Har yangi
+  // sahifaga kirishda qayta ishga tushadi — ruxsat berilmaguncha so'rayveradi.
+  useEffect(() => {
+    if (!pushSupported) return;
+    if (getPermission() === 'default') {
+      requestPushPermission().then(setPushPermission).catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pushSupported]);
+
+  // Login bo'lgach: ruxsat 'default' bo'lsa yana so'raymiz, 'granted' bo'lsa
+  // avtomatik obuna bo'lamiz — push default YOQIQ holatda ishlaydi.
+  useEffect(() => {
+    if (!user || !pushSupported) return;
+    let cancelled = false;
+    (async () => {
+      if (getPermission() === 'default') {
+        await requestPushPermission();
+        if (!cancelled) setPushPermission(getPermission());
+      }
+      if (!cancelled && getPermission() === 'granted' && !pushEnabled) {
+        const res = await enablePushLib();
+        if (cancelled) return;
+        setPushPermission(getPermission());
+        if (res === 'ok') setPushEnabled(true);
+      }
+    })().catch(() => {});
+    return () => { cancelled = true; };
+  }, [user, pushSupported, pushEnabled]);
 
   const refreshNotifications = async () => {
     if (!user) {
