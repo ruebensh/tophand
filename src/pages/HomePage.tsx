@@ -50,7 +50,7 @@ const CatalogTile: React.FC<{ cat: Catalog; tone: string; index: number; onOpen:
         {cat.name_uz}
       </span>
       {src ? (
-        <span className="th-float pointer-events-none order-1 flex h-[46px] w-full shrink-0 items-end justify-center sm:order-2 sm:ml-auto sm:h-[80%] sm:w-auto sm:max-w-[52%] sm:self-end">
+        <span className="pointer-events-none order-1 flex h-[46px] w-full shrink-0 items-end justify-center sm:order-2 sm:ml-auto sm:h-[80%] sm:w-auto sm:max-w-[52%] sm:self-end">
           <img
             src={src}
             alt={cat.name_uz}
@@ -60,7 +60,7 @@ const CatalogTile: React.FC<{ cat: Catalog; tone: string; index: number; onOpen:
           />
         </span>
       ) : (
-        <span className="th-float pointer-events-none order-1 flex w-full justify-center sm:order-2 sm:ml-auto sm:mr-3 sm:w-auto sm:self-center sm:justify-end">
+        <span className="pointer-events-none order-1 flex w-full justify-center sm:order-2 sm:ml-auto sm:mr-3 sm:w-auto sm:self-center sm:justify-end">
           <CategoryChip name={cat.icon} size="lg" tone={tone} />
         </span>
       )}
