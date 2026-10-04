@@ -118,7 +118,7 @@ function TileGrid<T>({
       // 0 = piksel (Chrome/Edge ~100/notch), 1 = qator (Firefox ~3/notch), 2 = sahifa.
       // Hammasini pikselga normallashtiramiz — shunda tezlik hamma brauzerda bir xil.
       const unit = e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? el.clientWidth : 1;
-      el.scrollLeft += raw * unit * 0.5; // 0.5 — umumiy tezlik koeffitsiyenti
+      el.scrollLeft += raw * unit * 1; // 1 — umumiy tezlik koeffitsiyenti (2x tezlashtirildi)
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
