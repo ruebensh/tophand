@@ -387,8 +387,28 @@ router.get('/:id/listings', optionalAuth, async (req: AuthRequest, res) => {
 
     sql += ' ORDER BY l.created_at DESC';
 
-    const listings = await queryAll(sql, params);
-    res.json(listings);
+    const listings = await queryAll<any>(sql, params);
+
+    // ListingCard `images` massiviga tayanadi — shuni to'ldiramiz.
+    const ids = listings.map((l) => l.id);
+    const imagesByListingId: Record<string, string[]> = {};
+    if (ids.length > 0) {
+      const placeholders = ids.map(() => '?').join(',');
+      const rows = await queryAll<{ listing_id: string; url: string }>(
+        `SELECT listing_id, url FROM listing_images WHERE listing_id IN (${placeholders}) ORDER BY sort_order ASC`,
+        ids
+      );
+      for (const r of rows) {
+        (imagesByListingId[r.listing_id] ||= []).push(r.url);
+      }
+    }
+
+    res.json(
+      listings.map((l) => ({
+        ...l,
+        images: imagesByListingId[l.id] || (l.cover_image ? [l.cover_image] : []),
+      }))
+    );
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
