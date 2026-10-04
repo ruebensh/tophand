@@ -26,6 +26,8 @@ export interface User {
   telegram_username?: string;
   name: string;
   profile_photo_url?: string;
+  cover_photo_url?: string;
+  cover_gradient?: string;
   phone?: string;
   bio?: string;
   region_id?: string;

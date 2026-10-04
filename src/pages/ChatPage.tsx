@@ -49,9 +49,9 @@ export const ChatPage: React.FC<ChatPageProps> = ({
     try {
       const list = await apiRequest<Conversation[]>('/api/chat/conversations');
       setConversations(list);
-      if (!selectedConvId && list.length > 0) {
-        setSelectedConvId(list[0].id);
-      }
+      // Suhbatlar sahifasi ochilganda oxirgi chat avtomatik ochilmaydi —
+      // ro'yxat holatida turadi. Chat faqat bosilganda yoki e'lon sahifasidan
+      // (initialConversationId) kelganda ochiladi.
     } catch (err) {
       console.error('Failed to load conversations:', err);
     }

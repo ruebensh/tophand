@@ -442,6 +442,10 @@ router.post('/:id/complete', requireAuth, async (req: AuthRequest, res) => {
       [now, now, listing.id]
     );
 
+    // Yakunlangan e'lon yoqtirilganlar ro'yxatidan chiqib ketadi — saqlangan
+    // (saved) yozuvlarni tozalaymiz.
+    await runQuery(`DELETE FROM saved_listings WHERE listing_id = ?`, [listing.id]).catch(() => {});
+
     // Notify the owner (signed by the TopHand team).
     createNotification({
       userId: listing.owner_user_id,

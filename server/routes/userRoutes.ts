@@ -5,12 +5,12 @@ import { queryOne, queryAll, runQuery } from '../db/database.ts';
 
 const router = Router();
 
-// Public user profile (Section 8: Phone number must NOT be publicly displayed on profile)
+// Public user profile
 router.get('/:id', optionalAuth, async (req: AuthRequest, res) => {
   try {
     const user = await queryOne<any>(
       `SELECT 
-        u.id, u.telegram_username, u.name, u.profile_photo_url, u.bio, u.phone,
+        u.id, u.telegram_username, u.name, u.profile_photo_url, u.cover_photo_url, u.cover_gradient, u.bio, u.phone,
         u.region_id, u.district_id,
         u.created_at, u.role, u.is_banned, u.verification_status,
         r.name_uz as region_name, d.name_uz as district_name
@@ -58,12 +58,6 @@ router.get('/:id', optionalAuth, async (req: AuthRequest, res) => {
       user.is_followed = Boolean(follow);
     }
 
-    // Phone is private: only the account owner may see it in the profile payload.
-    // Contact reveal for other users goes through the dedicated /:id/phone endpoint.
-    if (req.user?.id !== user.id) {
-      user.phone = null;
-    }
-
     res.json(user);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -95,19 +89,36 @@ router.get('/:id/phone', requireAuth, async (req: AuthRequest, res) => {
 // Update profile
 router.put('/me', requireAuth, async (req: AuthRequest, res) => {
   try {
-    const { name, bio, region_id, district_id, profile_photo_url, phone } = req.body;
-    if (!name || !name.trim()) {
+    const { name, bio, region_id, district_id, profile_photo_url, cover_photo_url, cover_gradient, phone } = req.body;
+    if (name !== undefined && (!name || !name.trim())) {
       return res.status(400).json({ error: 'Ism kiritilishi shart' });
     }
 
     const now = new Date().toISOString();
     await runQuery(
       `UPDATE users 
-       SET name = ?, bio = ?, region_id = COALESCE(?, region_id), district_id = COALESCE(?, district_id), 
+       SET name = COALESCE(?, name), 
+           bio = COALESCE(?, bio), 
+           region_id = COALESCE(?, region_id), 
+           district_id = COALESCE(?, district_id), 
            profile_photo_url = COALESCE(?, profile_photo_url),
-           phone = COALESCE(?, phone), updated_at = ?
+           cover_photo_url = COALESCE(?, cover_photo_url),
+           cover_gradient = COALESCE(?, cover_gradient),
+           phone = COALESCE(?, phone), 
+           updated_at = ?
        WHERE id = ?`,
-      [name.trim(), bio || null, region_id || null, district_id || null, profile_photo_url || null, phone || null, now, req.user!.id]
+      [
+        name !== undefined ? name.trim() : null,
+        bio !== undefined ? bio : null,
+        region_id !== undefined ? region_id : null,
+        district_id !== undefined ? district_id : null,
+        profile_photo_url !== undefined ? profile_photo_url : null,
+        cover_photo_url !== undefined ? cover_photo_url : null,
+        cover_gradient !== undefined ? cover_gradient : null,
+        phone !== undefined ? phone : null,
+        now,
+        req.user!.id,
+      ]
     );
 
     const updated = await queryOne('SELECT * FROM users WHERE id = ?', [req.user!.id]);

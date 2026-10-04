@@ -277,9 +277,10 @@ html, body {
 
 /* ── Mobil-first UX yordamchilari ─────────────────────────────── */
 /* Mobil pastki navigatsiya (MobileNav) balandligi — barcha sahifalar
-   shu qiymat orqali kontent ostida joy ochadi, qat'iy bar kontentni bosmasligi uchun. */
+   shu qiymat orqali kontent ostida joy ochadi, qat'iy bar kontentni bosmasligi uchun.
+   Yangi suzuvchi pill: bar 64px + pastki bo'shliq 12px + ko'tarilgan bubble ~8px. */
 :root {
-  --mobile-nav-h: 58px;
+  --mobile-nav-h: 84px;
 }
 
 /* iOS/Android notch va home-indikator uchun xavfsi maydonlar */

@@ -26,12 +26,28 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
        JOIN regions r ON l.region_id = r.id
        JOIN districts d ON l.district_id = d.id
        WHERE s.user_id = ?
+         AND l.status <> 'COMPLETED'
        ORDER BY s.created_at DESC`,
       [req.user!.id]
     );
 
+    // ListingCard `images` massiviga tayanadi — shuni to'ldiramiz.
+    const ids = saved.map((l) => l.id);
+    const imagesByListingId: Record<string, string[]> = {};
+    if (ids.length > 0) {
+      const placeholders = ids.map(() => '?').join(',');
+      const rows = await queryAll<{ listing_id: string; url: string }>(
+        `SELECT listing_id, url FROM listing_images WHERE listing_id IN (${placeholders}) ORDER BY sort_order ASC`,
+        ids
+      );
+      for (const r of rows) {
+        (imagesByListingId[r.listing_id] ||= []).push(r.url);
+      }
+    }
+
     const result = saved.map((l) => ({
       ...l,
+      images: imagesByListingId[l.id] || (l.cover_image ? [l.cover_image] : []),
       is_verified: l.owner_verification_status === 'VERIFIED',
     }));
 

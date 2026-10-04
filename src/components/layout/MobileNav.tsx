@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { useNotifications } from '../../context/NotificationContext.tsx';
 import { Home, Heart, Plus, MessageSquare, User } from 'lucide-react';
@@ -6,109 +6,191 @@ import { Home, Heart, Plus, MessageSquare, User } from 'lucide-react';
 interface MobileNavProps {
   currentRoute: string;
   onNavigate: (route: string) => void;
-  /** listing sahifasida pastki amallar paneli bilan to'qnashmasligi uchun
-      FAB ko'tarilishi olib tashlanadi (tekis bar). */
   flat?: boolean;
 }
 
-export const MobileNav: React.FC<MobileNavProps> = ({ currentRoute, onNavigate, flat = false }) => {
+export const MobileNav: React.FC<MobileNavProps> = ({ currentRoute, onNavigate }) => {
   const { user, openLoginModal } = useAuth();
   const { unreadCount } = useNotifications();
+  const navRef = useRef<HTMLDivElement>(null);
+  const [bubbleLeft, setBubbleLeft] = useState(0);
+  const [ready, setReady] = useState(false);
 
-  const handleCreate = () => {
-    if (!user) {
-      openLoginModal(() => onNavigate('/create'));
-    } else {
-      onNavigate('/create');
+  const go = (route: string, requireAuth = false) => {
+    if (route.startsWith('/profile')) {
+      if (!user) {
+        openLoginModal();
+      } else {
+        onNavigate(`/profile/${user.id}`);
+      }
+      return;
     }
+    if (requireAuth && !user) {
+      openLoginModal(() => onNavigate(route));
+      return;
+    }
+    onNavigate(route);
   };
 
-  const handleProfile = () => {
-    if (!user) {
-      openLoginModal();
-    } else {
-      onNavigate(`/profile/${user.id}`);
-    }
-  };
+  const items = [
+    { icon: Home, label: 'Asosiy', route: '/', auth: false, match: currentRoute === '/' },
+    { icon: Heart, label: 'Yoqtirilganlar', route: '/saved', auth: true, match: currentRoute === '/saved' },
+    { icon: Plus, label: "E'lon", route: '/create', auth: true, match: currentRoute === '/create' },
+    { icon: MessageSquare, label: 'Suhbatlar', route: '/chat', auth: true, match: currentRoute === '/chat' },
+    { icon: User, label: user ? 'Profil' : 'Kirish', route: '/profile', auth: false, match: currentRoute.startsWith('/profile') },
+  ];
+
+  const activeIndex = items.findIndex((i) => i.match);
+
+  // Compute active bubble position
+  useEffect(() => {
+    if (!navRef.current) return;
+    const buttons = navRef.current.querySelectorAll<HTMLButtonElement>('[data-nav-btn]');
+    const idx = activeIndex >= 0 ? activeIndex : 0;
+    const btn = buttons[idx];
+    if (!btn) return;
+    const navRect = navRef.current.getBoundingClientRect();
+    const btnRect = btn.getBoundingClientRect();
+    setBubbleLeft(btnRect.left - navRect.left + btnRect.width / 2);
+    setReady(true);
+  }, [activeIndex, currentRoute]);
+
+  const ActiveIcon = activeIndex >= 0 ? items[activeIndex].icon : null;
 
   return (
-    <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-gray-200 px-1 pt-1.5 pb-safe shadow-lg">
-      <div className="flex items-center justify-around h-[52px]">
-        {/* Asosiy */}
-        <button
-          onClick={() => onNavigate('/')}
-          className={`flex flex-1 min-w-0 flex-col items-center justify-center min-h-[46px] px-1 text-[10px] font-medium transition-colors ${
-            currentRoute === '/' ? 'text-blue-600' : 'text-gray-500 hover:text-gray-900'
-          }`}
-        >
-          <Home className="w-5 h-5 mb-0.5" />
-          <span>Asosiy</span>
-        </button>
+    <>
+      <style>{`
+        .mnav-bar {
+          position: relative;
+          height: 64px;
+          background: rgba(255, 255, 255, 0.98);
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+          border: 1px solid rgba(22, 115, 230, 0.14);
+          border-radius: 32px;
+          display: flex;
+          align-items: stretch;
+          box-shadow: 0 10px 30px -4px rgba(22, 115, 230, 0.16), 0 4px 12px rgba(0, 0, 0, 0.04);
+        }
 
-        {/* Yoqtirilganlar */}
-        <button
-          onClick={() => {
-            if (!user) {
-              openLoginModal(() => onNavigate('/saved'));
-            } else {
-              onNavigate('/saved');
-            }
+        .mnav-bubble {
+          position: absolute;
+          top: -20px;
+          width: 50px;
+          height: 50px;
+          background: linear-gradient(135deg, #1673E6 0%, #125FD0 100%);
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transform: translateX(-50%);
+          transition: left 320ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease;
+          box-shadow: 0 6px 20px rgba(22, 115, 230, 0.45), 0 0 0 4px rgba(255, 255, 255, 0.95);
+          z-index: 10;
+          pointer-events: none;
+        }
+
+        .mnav-bubble svg {
+          color: #ffffff;
+          stroke-width: 2.3px;
+        }
+
+        .mnav-btn {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: flex-end;
+          padding-bottom: 8px;
+          gap: 3px;
+          background: none;
+          border: none;
+          cursor: pointer;
+          position: relative;
+          z-index: 5;
+          -webkit-tap-highlight-color: transparent;
+        }
+
+        .mnav-btn-icon {
+          width: 21px;
+          height: 21px;
+          color: #64748b;
+          transition: opacity 200ms, color 200ms, transform 200ms;
+        }
+
+        .mnav-btn-icon.active {
+          opacity: 0;
+          transform: translateY(-4px);
+        }
+
+        .mnav-btn-label {
+          font-size: 10px;
+          font-weight: 600;
+          letter-spacing: 0.01em;
+          color: #64748b;
+          transition: color 200ms, font-weight 200ms;
+          white-space: nowrap;
+        }
+
+        .mnav-btn-label.active {
+          color: #1673E6;
+          font-weight: 700;
+        }
+
+        .mnav-badge {
+          position: absolute;
+          top: 6px;
+          right: calc(50% - 16px);
+          width: 8px;
+          height: 8px;
+          background: #ef4444;
+          border-radius: 50%;
+          border: 1.5px solid #ffffff;
+        }
+      `}</style>
+
+      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-40">
+        <div
+          style={{
+            padding: '0 16px',
+            paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
+            background: 'transparent',
           }}
-          className={`flex flex-1 min-w-0 flex-col items-center py-1 px-1 text-[10px] font-medium transition-colors ${
-            currentRoute === '/saved' ? 'text-rose-600 font-semibold' : 'text-gray-500 hover:text-gray-900'
-          }`}
         >
-          <Heart
-            className={`w-5 h-5 mb-0.5 ${currentRoute === '/saved' ? 'fill-rose-600' : ''}`}
-          />
-          <span>Yoqtirilganlar</span>
-        </button>
+          <div className="mnav-bar" ref={navRef}>
+            {/* TopHand Blue floating active bubble indicator */}
+            {ready && activeIndex >= 0 && ActiveIcon && (
+              <div className="mnav-bubble" style={{ left: bubbleLeft }}>
+                <ActiveIcon style={{ width: 22, height: 22 }} />
+              </div>
+            )}
 
-        {/* Elevated Plus Button */}
-        <button
-          onClick={handleCreate}
-          className={`flex flex-1 min-w-0 flex-col items-center ${flat ? '' : '-mt-3'}`}
-          aria-label="E’lon joylash"
-        >
-          <div className={`${flat ? 'w-11 h-11' : 'w-12 h-12'} rounded-full bg-blue-600 text-white flex items-center justify-center shadow-lg active:scale-95 transition-transform`}>
-            <Plus className="w-6 h-6 stroke-[3]" />
+            {/* Nav buttons */}
+            {items.map((item, idx) => {
+              const Icon = item.icon;
+              const active = item.match;
+              return (
+                <button
+                  key={idx}
+                  data-nav-btn
+                  className="mnav-btn"
+                  onClick={() => go(item.route, item.auth)}
+                >
+                  <Icon className={`mnav-btn-icon${active ? ' active' : ''}`} />
+                  <span className={`mnav-btn-label${active ? ' active' : ''}`}>
+                    {item.label}
+                  </span>
+                  {idx === 3 && unreadCount > 0 && !active && (
+                    <span className="mnav-badge" />
+                  )}
+                </button>
+              );
+            })}
           </div>
-          {!flat && (
-            <span className="text-[10px] font-bold text-blue-600 mt-0.5">E’lon berish</span>
-          )}
-        </button>
-
-        {/* Suhbatlar */}
-        <button
-          onClick={() => {
-            if (!user) {
-              openLoginModal(() => onNavigate('/chat'));
-            } else {
-              onNavigate('/chat');
-            }
-          }}
-          className={`relative flex flex-1 min-w-0 flex-col items-center py-1 px-1 text-[10px] font-medium transition-colors ${
-            currentRoute === '/chat' ? 'text-blue-600' : 'text-gray-500 hover:text-gray-900'
-          }`}
-        >
-          <MessageSquare className="w-5 h-5 mb-0.5" />
-          {unreadCount > 0 && (
-            <span className="absolute top-1 right-2 w-2 h-2 rounded-full bg-rose-600 animate-ping" />
-          )}
-          <span>Suhbatlar</span>
-        </button>
-
-        {/* Profil */}
-        <button
-          onClick={handleProfile}
-          className={`flex flex-1 min-w-0 flex-col items-center py-1 px-1 text-[10px] font-medium transition-colors ${
-            currentRoute.startsWith('/profile') ? 'text-blue-600' : 'text-gray-500 hover:text-gray-900'
-          }`}
-        >
-          <User className="w-5 h-5 mb-0.5" />
-          <span>{user ? 'Profil' : 'Kirish'}</span>
-        </button>
-      </div>
-    </nav>
+        </div>
+      </nav>
+    </>
   );
 };
+
+export default MobileNav;

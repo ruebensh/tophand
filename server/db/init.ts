@@ -87,6 +87,8 @@ export async function initDatabase() {
       telegram_username TEXT,
       name TEXT NOT NULL,
       profile_photo_url TEXT,
+      cover_photo_url TEXT,
+      cover_gradient TEXT,
       phone TEXT,
       bio TEXT,
       region_id TEXT REFERENCES regions(id),
@@ -108,6 +110,24 @@ export async function initDatabase() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
+  `);
+
+  await pool.query(`
+    DO $$ 
+    BEGIN 
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name='users' AND column_name='cover_photo_url'
+      ) THEN 
+        ALTER TABLE users ADD COLUMN cover_photo_url TEXT; 
+      END IF; 
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name='users' AND column_name='cover_gradient'
+      ) THEN 
+        ALTER TABLE users ADD COLUMN cover_gradient TEXT; 
+      END IF; 
+    END $$;
   `);
 
   // 5. organizations

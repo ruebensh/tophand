@@ -8,6 +8,25 @@ import { notifyWelcome } from '../services/notificationService.ts';
 
 const router = Router();
 
+// ─── Default cover gradients (same 10 presets as frontend COVER_GRADIENTS) ──
+const COVER_GRADIENT_STYLES = [
+  'linear-gradient(135deg, #a5b4fc 0%, #c084fc 35%, #f472b6 70%, #fed7aa 100%)',
+  'linear-gradient(135deg, #1673E6 0%, #38BDF8 50%, #818CF8 100%)',
+  'linear-gradient(135deg, #0EA5E9 0%, #06B6D4 50%, #3B82F6 100%)',
+  'linear-gradient(135deg, #F97316 0%, #EC4899 50%, #8B5CF6 100%)',
+  'linear-gradient(135deg, #059669 0%, #10B981 50%, #6EE7B7 100%)',
+  'linear-gradient(135deg, #0F172A 0%, #1E1B4B 50%, #312E81 100%)',
+  'linear-gradient(135deg, #E0E7FF 0%, #DDD6FE 40%, #FCE7F3 100%)',
+  'linear-gradient(135deg, #4C1D95 0%, #7C3AED 50%, #C084FC 100%)',
+  'linear-gradient(135deg, #F59E0B 0%, #F97316 60%, #EF4444 100%)',
+  'linear-gradient(135deg, #334155 0%, #475569 50%, #64748B 100%)',
+];
+
+/** Returns a random cover gradient for new users */
+function randomGradient(): string {
+  return COVER_GRADIENT_STYLES[Math.floor(Math.random() * COVER_GRADIENT_STYLES.length)];
+}
+
 // ─── Auth helpers (email codes + profile state) ─────────────────────────
 const EMAIL_CODE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
@@ -99,10 +118,10 @@ async function loginHandler(req: any, res: any) {
         const newId = 'usr_admin';
         const now = new Date().toISOString();
         await runQuery(
-          `INSERT INTO users (id, email, name, role, is_banned, created_at, updated_at)
-           VALUES (?, ?, ?, 'ADMIN', 0, ?, ?)
+          `INSERT INTO users (id, email, name, cover_gradient, role, is_banned, created_at, updated_at)
+           VALUES (?, ?, ?, ?, 'ADMIN', 0, ?, ?)
            ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, role = 'ADMIN'`,
-          [newId, cleanEmail, 'TopHand Admin', now, now]
+          [newId, cleanEmail, 'TopHand Admin', randomGradient(), now, now]
         );
         adminUser = await queryOne<any>('SELECT * FROM users WHERE id = ?', [newId]);
       }
@@ -232,9 +251,9 @@ router.post('/register', async (req, res) => {
     const placeholderName = cleanEmail.split('@')[0];
 
     await runQuery(
-      `INSERT INTO users (id, email, password_hash, name, role, email_verified, is_banned, created_at, updated_at)
-       VALUES (?, ?, ?, ?, 'USER', 1, 0, ?, ?)`,
-      [userId, cleanEmail, passwordHash, placeholderName, now, now]
+      `INSERT INTO users (id, email, password_hash, name, cover_gradient, role, email_verified, is_banned, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, 'USER', 1, 0, ?, ?)`,
+      [userId, cleanEmail, passwordHash, placeholderName, randomGradient(), now, now]
     );
 
     await clearEmailCodes(cleanEmail, 'EMAIL_VERIFICATION');
@@ -380,9 +399,9 @@ router.post('/google', async (req, res) => {
       created = true;
       const newId = `usr_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
       await runQuery(
-        `INSERT INTO users (id, telegram_id, email, name, profile_photo_url, role, email_verified, is_banned, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, 'USER', 1, 0, ?, ?)`,
-        [newId, lookupId, cleanEmail, displayName, photoUrl, now, now]
+        `INSERT INTO users (id, telegram_id, email, name, profile_photo_url, cover_gradient, role, email_verified, is_banned, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'USER', 1, 0, ?, ?)`,
+        [newId, lookupId, cleanEmail, displayName, photoUrl, randomGradient(), now, now]
       );
       user = await queryOne<any>('SELECT * FROM users WHERE id = ?', [newId]);
       // Welcome notification for accounts created via Google.
