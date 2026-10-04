@@ -115,7 +115,7 @@ function TileGrid<T>({
       if (delta === 0) return;
       e.preventDefault();
       // Tezlikni 4x pasaytiramiz — ancha tekis/astta siljiydi.
-      el.scrollLeft += delta * 0.2;
+      el.scrollLeft += delta * 0.5;
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
