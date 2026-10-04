@@ -43,57 +43,57 @@ interface ProfilePageProps {
   onOpenListing: (id: string) => void;
 }
 
-// 10 xil tayyor ranglar aralashmasi (Preset cover gradients)
+// 10 xil tayyor ranglar aralashmasi (Preset cover gradients) — och, sayt stilliga mos
 export const COVER_GRADIENTS = [
   {
-    id: 'aurora-dream',
-    name: 'Aurora Dream',
-    style: 'linear-gradient(135deg, #a5b4fc 0%, #c084fc 35%, #f472b6 70%, #fed7aa 100%)',
+    id: 'sky-bliss',
+    name: 'Sky Bliss',
+    style: 'linear-gradient(135deg, #DBEAFE 0%, #BFDBFE 40%, #C7D2FE 100%)',
   },
   {
-    id: 'tophand-blue',
-    name: 'TopHand Blue',
-    style: 'linear-gradient(135deg, #1673E6 0%, #38BDF8 50%, #818CF8 100%)',
+    id: 'peach-glow',
+    name: 'Peach Glow',
+    style: 'linear-gradient(135deg, #FEF3C7 0%, #FDE68A 40%, #FED7AA 100%)',
   },
   {
-    id: 'ocean-breeze',
-    name: 'Ocean Breeze',
-    style: 'linear-gradient(135deg, #0EA5E9 0%, #06B6D4 50%, #3B82F6 100%)',
+    id: 'rose-blush',
+    name: 'Rose Blush',
+    style: 'linear-gradient(135deg, #FCE7F3 0%, #FBCFE8 40%, #FDE8D8 100%)',
   },
   {
-    id: 'sunset-glow',
-    name: 'Sunset Glow',
-    style: 'linear-gradient(135deg, #F97316 0%, #EC4899 50%, #8B5CF6 100%)',
+    id: 'mint-fresh',
+    name: 'Mint Fresh',
+    style: 'linear-gradient(135deg, #D1FAE5 0%, #A7F3D0 40%, #CFFAFE 100%)',
   },
   {
-    id: 'emerald-mint',
-    name: 'Emerald Mint',
-    style: 'linear-gradient(135deg, #059669 0%, #10B981 50%, #6EE7B7 100%)',
+    id: 'lavender-soft',
+    name: 'Lavender Soft',
+    style: 'linear-gradient(135deg, #EDE9FE 0%, #DDD6FE 45%, #E0E7FF 100%)',
   },
   {
-    id: 'midnight-slate',
-    name: 'Midnight Slate',
-    style: 'linear-gradient(135deg, #0F172A 0%, #1E1B4B 50%, #312E81 100%)',
+    id: 'tophand-light',
+    name: 'TopHand Light',
+    style: 'linear-gradient(135deg, #DBEAFE 0%, #E0F2FE 50%, #F0F9FF 100%)',
   },
   {
-    id: 'lavender-mist',
-    name: 'Lavender Mist',
-    style: 'linear-gradient(135deg, #E0E7FF 0%, #DDD6FE 40%, #FCE7F3 100%)',
+    id: 'sunrise-peach',
+    name: 'Sunrise Peach',
+    style: 'linear-gradient(135deg, #FEF9C3 0%, #FED7AA 50%, #FECACA 100%)',
   },
   {
-    id: 'cosmic-purple',
-    name: 'Cosmic Purple',
-    style: 'linear-gradient(135deg, #4C1D95 0%, #7C3AED 50%, #C084FC 100%)',
+    id: 'soft-lilac',
+    name: 'Soft Lilac',
+    style: 'linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 45%, #FCE7F3 100%)',
   },
   {
-    id: 'warm-amber',
-    name: 'Warm Amber',
-    style: 'linear-gradient(135deg, #F59E0B 0%, #F97316 60%, #EF4444 100%)',
+    id: 'cool-mist',
+    name: 'Cool Mist',
+    style: 'linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 45%, #CFFAFE 100%)',
   },
   {
-    id: 'clean-slate',
-    name: 'Clean Slate',
-    style: 'linear-gradient(135deg, #334155 0%, #475569 50%, #64748B 100%)',
+    id: 'cream-cloud',
+    name: 'Cream Cloud',
+    style: 'linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 45%, #E2E8F0 100%)',
   },
 ];
 

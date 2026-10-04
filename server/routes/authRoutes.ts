@@ -8,18 +8,18 @@ import { notifyWelcome } from '../services/notificationService.ts';
 
 const router = Router();
 
-// ─── Default cover gradients (same 10 presets as frontend COVER_GRADIENTS) ──
+// ─── Default cover gradients (same 10 pastel presets as frontend COVER_GRADIENTS) ──
 const COVER_GRADIENT_STYLES = [
-  'linear-gradient(135deg, #a5b4fc 0%, #c084fc 35%, #f472b6 70%, #fed7aa 100%)',
-  'linear-gradient(135deg, #1673E6 0%, #38BDF8 50%, #818CF8 100%)',
-  'linear-gradient(135deg, #0EA5E9 0%, #06B6D4 50%, #3B82F6 100%)',
-  'linear-gradient(135deg, #F97316 0%, #EC4899 50%, #8B5CF6 100%)',
-  'linear-gradient(135deg, #059669 0%, #10B981 50%, #6EE7B7 100%)',
-  'linear-gradient(135deg, #0F172A 0%, #1E1B4B 50%, #312E81 100%)',
-  'linear-gradient(135deg, #E0E7FF 0%, #DDD6FE 40%, #FCE7F3 100%)',
-  'linear-gradient(135deg, #4C1D95 0%, #7C3AED 50%, #C084FC 100%)',
-  'linear-gradient(135deg, #F59E0B 0%, #F97316 60%, #EF4444 100%)',
-  'linear-gradient(135deg, #334155 0%, #475569 50%, #64748B 100%)',
+  'linear-gradient(135deg, #DBEAFE 0%, #BFDBFE 40%, #C7D2FE 100%)',   // Sky Bliss
+  'linear-gradient(135deg, #FEF3C7 0%, #FDE68A 40%, #FED7AA 100%)',   // Peach Glow
+  'linear-gradient(135deg, #FCE7F3 0%, #FBCFE8 40%, #FDE8D8 100%)',   // Rose Blush
+  'linear-gradient(135deg, #D1FAE5 0%, #A7F3D0 40%, #CFFAFE 100%)',   // Mint Fresh
+  'linear-gradient(135deg, #EDE9FE 0%, #DDD6FE 45%, #E0E7FF 100%)',   // Lavender Soft
+  'linear-gradient(135deg, #DBEAFE 0%, #E0F2FE 50%, #F0F9FF 100%)',   // TopHand Light
+  'linear-gradient(135deg, #FEF9C3 0%, #FED7AA 50%, #FECACA 100%)',   // Sunrise Peach
+  'linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 45%, #FCE7F3 100%)',   // Soft Lilac
+  'linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 45%, #CFFAFE 100%)',   // Cool Mist
+  'linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 45%, #E2E8F0 100%)',   // Cream Cloud
 ];
 
 /** Returns a random cover gradient for new users */
