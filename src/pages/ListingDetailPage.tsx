@@ -5,6 +5,7 @@ import { ListingTypeBadge } from '../components/listings/ListingTypeBadge.tsx';
 import { PriceDisplay } from '../components/listings/PriceDisplay.tsx';
 import { getContactTimeLabel, formatDateAgo, isOfficialAccount, isStaffAccount } from '../lib/utils.ts';
 import { useAuth } from '../context/AuthContext.tsx';
+import { useGeo } from '../context/GeoContext.tsx';
 import {
   MapPin,
   Clock,
@@ -80,6 +81,23 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
   const [attrSchema, setAttrSchema] = useState<CategoryAttribute[]>([]);
   const [isPromoting, setIsPromoting] = useState(false);
   const [promoMsg, setPromoMsg] = useState('');
+
+  // Foydalanuvchi GPS koordinatalari — e'lon manziligacha bo'lgan masofani
+  // client-side (haversine) hisoblash uchun.
+  const { coords } = useGeo();
+  const distanceToListing = React.useMemo(() => {
+    const lat = listing?.latitude;
+    const lon = listing?.longitude;
+    if (!coords || lat == null || lon == null) return null;
+    const R = 6371;
+    const toRad = (d: number) => (d * Math.PI) / 180;
+    const dLat = toRad(lat - coords.lat);
+    const dLng = toRad(lon - coords.lng);
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(toRad(coords.lat)) * Math.cos(toRad(lat)) * Math.sin(dLng / 2) ** 2;
+    return Math.round(2 * R * Math.asin(Math.sqrt(a)) * 10) / 10;
+  }, [coords, listing?.latitude, listing?.longitude]);
 
   useEffect(() => {
     const catId = listing?.category_id;
@@ -784,12 +802,20 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
               {/* Inline mini-map when coordinates available */}
               {listing.latitude && listing.longitude ? (
                 <div className="mt-3">
-                  <MiniMap
-                    lat={listing.latitude}
-                    lon={listing.longitude}
-                    label={[listing.district_name, listing.region_name].filter(Boolean).join(', ')}
-                    height={180}
-                  />
+                  <div className="relative">
+                    <MiniMap
+                      lat={listing.latitude}
+                      lon={listing.longitude}
+                      label={[listing.district_name, listing.region_name].filter(Boolean).join(', ')}
+                      height={180}
+                    />
+                    {distanceToListing !== null && (
+                      <div className="absolute top-2 left-2 flex items-center gap-1 bg-black/60 backdrop-blur-sm text-white text-[11px] px-2 py-1 rounded-md font-medium">
+                        <MapPin className="w-3 h-3" />
+                        Sizdan {distanceToListing} km
+                      </div>
+                    )}
+                  </div>
                   <a
                     href={`https://www.google.com/maps?q=${listing.latitude},${listing.longitude}`}
                     target="_blank"

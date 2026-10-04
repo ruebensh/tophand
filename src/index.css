@@ -251,19 +251,26 @@
   animation: badge-gentle-glow 3s ease-in-out infinite;
 }
 
-/* Prevent horizontal scroll on all screens */
+/* Prevent horizontal scroll on all screens.
+   `clip` (not `hidden`): gorizontal oqishni oladi, lekin scroll konteyner
+   yaratmaydi — shunda ichidagi `position: sticky` header viewport'ga nisbatan
+   to'g'ri ishlaydi (hidden sticky'ni buzardi). */
 html, body {
-  overflow-x: hidden;
+  overflow-x: clip;
   max-width: 100%;
 }
 
-/* Hide scrollbar utility */
+/* Hide scrollbar utility — global `.overflow-x-auto { scrollbar-width: thin }`
+   qoidasidan ustun bo'lishi uchun !important ishlatiladi (desktoptagi
+   pastdagi qora chiziqni yashiradi). */
 .no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
 }
 .no-scrollbar::-webkit-scrollbar {
-  display: none;
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
 
 /* Scrollbar none for listings thumbnail row */

@@ -2,42 +2,16 @@ import React, { useState } from 'react';
 import { Listing } from '../../types/index.ts';
 import { ListingTypeBadge } from './ListingTypeBadge.tsx';
 import { PriceDisplay } from './PriceDisplay.tsx';
-import { formatDateAgo, isOfficialAccount, isStaffAccount, formatCurrency } from '../../lib/utils.ts';
-import { CategoryChip } from '../common/CategoryIcon.tsx';
+import { formatDateAgo } from '../../lib/utils.ts';
 import {
   MapPin,
   Heart,
   Flame,
-  Clock,
   Play,
-  Star,
   BadgeCheck,
 } from 'lucide-react';
 import { apiRequest } from '../../lib/api.ts';
 import { useAuth } from '../../context/AuthContext.tsx';
-
-// Sektor bo'yicha qisqa atribut spasi (attributes JSONB'dan).
-function attributeSpecs(listing: Listing): string[] {
-  let a: any = listing.attributes || {};
-  if (typeof a === 'string') {
-    try {
-      a = JSON.parse(a);
-    } catch {
-      a = {};
-    }
-  }
-  const out: string[] = [];
-  const g = (k: string) => (a[k] === undefined || a[k] === null || a[k] === '' ? undefined : a[k]);
-  if (g('xonalar')) out.push(`${g('xonalar')} xona`);
-  if (g('maydon')) out.push(`${g('maydon')} m²`);
-  if (g('probeg')) out.push(`${formatCurrency(Number(g('probeg')))} km`);
-  if (g('yil')) out.push(`${g('yil')}-yil`);
-  if (g('holat')) out.push(String(g('holat')));
-  if (g('brend')) out.push(String(g('brend')));
-  if (g('zot')) out.push(String(g('zot')));
-  if (g('material')) out.push(String(g('material')));
-  return out.slice(0, 3);
-}
 
 interface ListingCardProps {
   listing: Listing;
@@ -67,6 +41,8 @@ export const ListingCard: React.FC<ListingCardProps> = ({
   const { user, openLoginModal } = useAuth();
   const [isSaved, setIsSaved] = useState(listing.is_saved || false);
   const [isSaving, setIsSaving] = useState(false);
+  // Tashqi rasm (masalan Unsplash) yuklanmasa — chiroyli placeholder'ga qaytamiz.
+  const [imgFailed, setImgFailed] = useState(false);
 
   const handleSave = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -96,9 +72,6 @@ export const ListingCard: React.FC<ListingCardProps> = ({
 
   const coverImage = listing.images && listing.images.length > 0 ? listing.images[0] : null;
   const isJob = listing.type === 'JOB_OPENING' || listing.type === 'JOB_SEEKER';
-  const daysLeft = listing.expires_at
-    ? Math.max(0, Math.ceil((new Date(listing.expires_at).getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
-    : null;
   const isPromoted = Boolean(listing.is_promoted) ||
     (Boolean(listing.promoted_until) && new Date(listing.promoted_until as string).getTime() > Date.now());
   const isVideoCover = !!coverImage && /\.(mp4|webm|mov|m4v)(\?|$)/i.test(coverImage);
@@ -112,11 +85,12 @@ export const ListingCard: React.FC<ListingCardProps> = ({
       >
         {/* Left: Image */}
         <div className="relative w-40 sm:w-48 shrink-0 bg-gray-100 overflow-hidden">
-          {coverImage ? (
+          {coverImage && !imgFailed ? (
             <img
               src={coverImage}
               alt={listing.title}
               loading="lazy"
+              onError={() => setImgFailed(true)}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 absolute inset-0"
             />
           ) : (
@@ -179,13 +153,6 @@ export const ListingCard: React.FC<ListingCardProps> = ({
   }
 
   // ── AVITO-STYLE GRID CARD ──
-  const specs = attributeSpecs(listing);
-  const rating =
-    listing.employer_rating !== null && listing.employer_rating !== undefined
-      ? Number(listing.employer_rating)
-      : null;
-  const reviewCount = Number(listing.employer_review_count || 0);
-
   return (
     <div
       onClick={onClick}
@@ -195,13 +162,14 @@ export const ListingCard: React.FC<ListingCardProps> = ({
     >
       {/* ── PHOTO ── */}
       <div className="relative w-full overflow-hidden bg-gray-100" style={{ paddingBottom: '75%' }}>
-        {coverImage ? (
+        {coverImage && !imgFailed ? (
           isVideoCover ? (
             <video
               src={coverImage}
               muted
               playsInline
               preload="metadata"
+              onError={() => setImgFailed(true)}
               className="absolute inset-0 w-full h-full object-cover"
             />
           ) : (
@@ -209,6 +177,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
               src={coverImage}
               alt={listing.title}
               loading="lazy"
+              onError={() => setImgFailed(true)}
               className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             />
           )
@@ -262,12 +231,6 @@ export const ListingCard: React.FC<ListingCardProps> = ({
           </div>
         )}
 
-        {/* Distance badge if available */}
-        {listing.distance_km !== null && listing.distance_km !== undefined && (
-          <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm text-white text-[10px] px-1.5 py-0.5 rounded-md font-medium">
-            📍 {listing.distance_km} km
-          </div>
-        )}
         {isVideoCover && (
           <div className="absolute bottom-2 right-2 flex items-center gap-1 bg-black/60 backdrop-blur-sm text-white text-[10px] px-1.5 py-0.5 rounded-md font-medium">
             <Play className="w-3 h-3" /> Video
@@ -308,75 +271,11 @@ export const ListingCard: React.FC<ListingCardProps> = ({
           {listing.title}
         </h3>
 
-        {/* Sektor atribut spasi (bor bo'lsa) */}
-        {specs.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-0.5">
-            {specs.map((s, i) => (
-              <span
-                key={i}
-                className="text-[10px] font-medium text-ink-soft bg-surface-2 rounded-md px-1.5 py-0.5 leading-tight"
-              >
-                {s}
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* Kategoriya soft-colored tegi */}
-        {listing.category_name && (
-          <div className="mt-0.5 inline-flex items-center gap-1.5">
-            <CategoryChip name={listing.category_icon || 'Layers'} size="sm" className="!w-6 !h-6 !rounded-md" />
-            <span className="text-[11px] font-medium text-ink-soft truncate">{listing.category_name}</span>
-          </div>
-        )}
-
         {/* Location */}
         <div className="mt-1 flex items-center gap-0.5 text-[11px] text-gray-400">
           <MapPin className="w-3 h-3 shrink-0" />
           <span className="truncate leading-none">
             {[listing.district_name, listing.region_name].filter(Boolean).join(', ')}
-          </span>
-        </div>
-
-        {/* Owner name + rating + verified badge */}
-        <div className="mt-1.5 pt-1.5 border-t border-gray-100 flex items-center justify-between gap-1">
-          <div className="flex items-center gap-1 min-w-0">
-            <span className="text-[11px] text-gray-600 font-medium truncate">
-              {listing.organization_name || listing.owner_name || ''}
-            </span>
-            {isOfficialAccount(listing) ? (
-              <BadgeCheck className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-            ) : isStaffAccount(listing) ? (
-              <BadgeCheck className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-            ) : listing.is_verified ? (
-              <span className="inline-flex items-center shrink-0" title="Tasdiqlangan">
-                <BadgeCheck className="w-3.5 h-3.5 text-blue-600" />
-              </span>
-            ) : null}
-          </div>
-          <div className="flex items-center gap-1 shrink-0">
-            {rating !== null && (
-              <span className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-ink">
-                <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-                {rating.toFixed(1)}
-                {reviewCount > 0 && (
-                  <span className="text-gray-400 font-normal">({reviewCount})</span>
-                )}
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Vaqt */}
-        <div className="flex items-center justify-end">
-          <span className="text-[10px] text-gray-400 shrink-0 flex items-center gap-0.5">
-            {daysLeft !== null && daysLeft <= 3 ? (
-              <span className="text-amber-600 font-semibold flex items-center gap-0.5">
-                <Clock className="w-3 h-3" /> {daysLeft} kun
-              </span>
-            ) : (
-              formatDateAgo(listing.renewed_at || listing.created_at)
-            )}
           </span>
         </div>
 

@@ -26,7 +26,6 @@ import { CategoryChip } from '../common/CategoryIcon.tsx';
 import { NearbyMapModal } from '../modals/NearbyMapModal.tsx';
 
 interface HeaderProps {
-  onSearch?: (query: string) => void;
   onNavigate: (route: string) => void;
   currentRoute: string;
 }
@@ -64,7 +63,7 @@ const CatalogRailIcon: React.FC<{ catalogId: string; icon: string; tone: string;
   return <CategoryChip name={icon} size="sm" tone={tone} />;
 };
 
-export const Header: React.FC<HeaderProps> = ({ onSearch, onNavigate, currentRoute }) => {
+export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
   const { user, logout, openLoginModal } = useAuth();
   const { notifications, unreadCount, markAllAsRead, markAsRead } = useNotifications();
 
@@ -81,6 +80,15 @@ export const Header: React.FC<HeaderProps> = ({ onSearch, onNavigate, currentRou
   // Wallet is only shown once monetization switches to PAID (hidden during the FREE_TEST / bepul davr).
   const [walletVisible, setWalletVisible] = useState(false);
 
+  // Joriy katalog konteksti (URL ?catalog=) — bo'lsa, mega-menyu shu katalogga
+  // qaytariladi va tugma "Barcha kategoriyalar" bo'lib o'zgaradi.
+  const activeCatalogId = React.useMemo(() => {
+    const qi = currentRoute.indexOf('?');
+    if (qi < 0) return '';
+    return new URLSearchParams(currentRoute.slice(qi + 1)).get('catalog') || '';
+  }, [currentRoute]);
+  const activeCatalogName = catalogs.find((c) => c.id === activeCatalogId)?.name_uz || '';
+
   // 13 katalog ro'yxatini bir marta yuklash
   useEffect(() => {
     getCatalogs()
@@ -90,6 +98,11 @@ export const Header: React.FC<HeaderProps> = ({ onSearch, onNavigate, currentRou
       })
       .catch(() => setCatalogs([]));
   }, []);
+
+  // Katalog konteksti o'zgarganda mega-menyuni shu katalogga moslashtirish.
+  useEffect(() => {
+    if (activeCatalogId) setMegaCatalogId(activeCatalogId);
+  }, [activeCatalogId]);
 
   // Tanlangan katalog daraxtini lazy-yuklash
   useEffect(() => {
@@ -138,7 +151,9 @@ export const Header: React.FC<HeaderProps> = ({ onSearch, onNavigate, currentRou
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (onSearch) onSearch(searchQuery);
+    // Boshqa sahifaga o'tmaymiz — joriy sahifa kontenti ichida qidirishni
+    // darhol qo'llaymiz (debounce kutmasdan, remountsiz).
+    window.dispatchEvent(new CustomEvent('tophand:search', { detail: searchQuery }));
   };
 
   const go = (route: string) => {
@@ -163,88 +178,123 @@ export const Header: React.FC<HeaderProps> = ({ onSearch, onNavigate, currentRou
   };
 
   // Mega-menyu tanasi — desktop (dropdown) va mobil (to'liq ekran) uchun umumiy.
-  const renderMegaBody = (mobile = false) => (
-    <>
-      {/* Chap: 13 katalog ro'yxati */}
-      <div className={`${mobile ? 'w-[78px] shrink-0' : 'w-60 shrink-0'} border-r border-gray-100 bg-[#F9FAFB] overflow-y-auto py-2 ${mobile ? 'pb-[calc(var(--mobile-nav-h)+12px+env(safe-area-inset-bottom))]' : ''}`}>
-        {catalogs.map((cat) => (
-          <button
-            key={cat.id}
-            type="button"
-            onMouseEnter={() => { if (!mobile) setMegaCatalogId(cat.id); }}
-            onClick={() => setMegaCatalogId(cat.id)}
-            className={`w-full flex transition-colors cursor-pointer ${
-              mobile ? 'flex-col items-center gap-1 px-1.5 py-2.5 text-center' : 'items-center gap-2.5 px-3 py-2 text-left'
-            } ${megaCatalogId === cat.id ? 'bg-white text-[#1673E6] font-bold' : 'text-[#172B4D] hover:bg-white/70'}`}
-          >
-            <CatalogRailIcon catalogId={cat.id} icon={cat.icon} tone={CAT_TONE[cat.id]} mobile={mobile} />
-            <span className={mobile ? 'text-[9px] leading-tight line-clamp-2' : 'text-[13px] truncate'}>{cat.name_uz}</span>
-          </button>
-        ))}
-      </div>
+  const renderMegaBody = (mobile = false) => {
+    const linkCatalog = activeCatalogId || megaCatalogId;
 
-      {/* O'ng: tanlangan katalog daraxti */}
-      <div className={`flex-1 overflow-y-auto p-5 ${mobile ? 'pb-[calc(var(--mobile-nav-h)+16px+env(safe-area-inset-bottom))]' : ''}`}>
-        <button
-          type="button"
-          onClick={() => go(`/?catalog=${megaCatalogId}`)}
-          className="text-sm font-extrabold text-[#1673E6] hover:underline mb-3 cursor-pointer"
-        >
-          {catalogs.find((c) => c.id === megaCatalogId)?.name_uz || ''} — barchasi →
-        </button>
-        <div className={`${mobile ? 'columns-1' : 'columns-2 xl:columns-3'} gap-x-6`}>
-          {megaTree.length === 0 && (
-            <p className="text-[11px] text-gray-400 italic">Kategoriyalar yuklanmoqda…</p>
-          )}
-          {megaTree.map((parent) => {
-            const subs = parent.subs || [];
-            const isExpanded = expandedParents.has(parent.id);
-            const visibleSubs = isExpanded ? subs : subs.slice(0, MEGA_SUB_LIMIT);
-            const hiddenCount = subs.length - MEGA_SUB_LIMIT;
-            return (
-              <div key={parent.id} className="break-inside-avoid mb-4">
-                <button
-                  type="button"
-                  onClick={() => go(`/?catalog=${megaCatalogId}&category=${parent.id}`)}
-                  className="text-[12px] font-bold text-[#172B4D] hover:text-[#1673E6] text-left cursor-pointer truncate"
-                >
-                  {parent.name_uz}
-                </button>
-                {subs.length > 0 && (
-                  <div className="mt-1 space-y-0.5">
-                    {visibleSubs.map((sub) => (
-                      <button
-                        key={sub.id}
-                        type="button"
-                        onClick={() => go(`/?catalog=${megaCatalogId}&category=${sub.id}`)}
-                        className="block w-full text-left text-[11px] text-[#5E6C84] hover:text-[#1673E6] cursor-pointer truncate"
-                      >
-                        {sub.name_uz}
-                      </button>
-                    ))}
-                    {hiddenCount > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => toggleParent(parent.id)}
-                        className="block w-full text-left text-[11px] font-semibold text-[#1673E6] hover:underline cursor-pointer mt-0.5"
-                      >
-                        {isExpanded ? "Yig'ish ↑" : `Yana ${hiddenCount} ta ↓`}
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+    // Kategoriyalar ustunlari (ikkala rejimda ham bir xil).
+    const tree = (
+      <div className={`${mobile ? 'columns-1' : 'columns-2 xl:columns-3'} gap-x-6`}>
+        {megaTree.length === 0 && (
+          <p className="text-[11px] text-gray-400 italic">Kategoriyalar yuklanmoqda…</p>
+        )}
+        {megaTree.map((parent) => {
+          const subs = parent.subs || [];
+          const isExpanded = expandedParents.has(parent.id);
+          const visibleSubs = isExpanded ? subs : subs.slice(0, MEGA_SUB_LIMIT);
+          const hiddenCount = subs.length - MEGA_SUB_LIMIT;
+          return (
+            <div key={parent.id} className="break-inside-avoid mb-4">
+              <button
+                type="button"
+                onClick={() => go(`/?catalog=${linkCatalog}&category=${parent.id}`)}
+                className="text-[12px] font-bold text-[#172B4D] hover:text-[#1673E6] text-left cursor-pointer truncate"
+              >
+                {parent.name_uz}
+              </button>
+              {subs.length > 0 && (
+                <div className="mt-1 space-y-0.5">
+                  {visibleSubs.map((sub) => (
+                    <button
+                      key={sub.id}
+                      type="button"
+                      onClick={() => go(`/?catalog=${linkCatalog}&category=${sub.id}`)}
+                      className="block w-full text-left text-[11px] text-[#5E6C84] hover:text-[#1673E6] cursor-pointer truncate"
+                    >
+                      {sub.name_uz}
+                    </button>
+                  ))}
+                  {hiddenCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => toggleParent(parent.id)}
+                      className="block w-full text-left text-[11px] font-semibold text-[#1673E6] hover:underline cursor-pointer mt-0.5"
+                    >
+                      {isExpanded ? "Yig'ish ↑" : `Yana ${hiddenCount} ta ↓`}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
-    </>
-  );
+    );
+
+    // Katalog konteksti — faqat shu katalog daraxti, to'liq kenglikda (rail yo'q).
+    if (activeCatalogId) {
+      return (
+        <div className={`flex-1 overflow-y-auto p-5 ${mobile ? 'pb-[calc(var(--mobile-nav-h)+16px+env(safe-area-inset-bottom))]' : ''}`}>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={() => go(`/?catalog=${activeCatalogId}`)}
+              className="truncate text-sm font-extrabold text-[#1673E6] hover:underline cursor-pointer"
+            >
+              {activeCatalogName || 'Katalog'} — barchasi →
+            </button>
+            <button
+              type="button"
+              onClick={() => go('/')}
+              className="shrink-0 text-[11px] font-semibold text-[#5E6C84] hover:text-[#1673E6] cursor-pointer"
+            >
+              ← Barcha kataloglar
+            </button>
+          </div>
+          {tree}
+        </div>
+      );
+    }
+
+    // Standart — chapda 13 katalog reli, o'ngda tanlangan katalog daraxti.
+    return (
+      <>
+        {/* Chap: 13 katalog ro'yxati */}
+        <div className={`${mobile ? 'w-[78px] shrink-0' : 'w-60 shrink-0'} border-r border-gray-100 bg-[#F9FAFB] overflow-y-auto py-2 ${mobile ? 'pb-[calc(var(--mobile-nav-h)+12px+env(safe-area-inset-bottom))]' : ''}`}>
+          {catalogs.map((cat) => (
+            <button
+              key={cat.id}
+              type="button"
+              onMouseEnter={() => { if (!mobile) setMegaCatalogId(cat.id); }}
+              onClick={() => setMegaCatalogId(cat.id)}
+              className={`w-full flex transition-colors cursor-pointer ${
+                mobile ? 'flex-col items-center gap-1 px-1.5 py-2.5 text-center' : 'items-center gap-2.5 px-3 py-2 text-left'
+              } ${megaCatalogId === cat.id ? 'bg-white text-[#1673E6] font-bold' : 'text-[#172B4D] hover:bg-white/70'}`}
+            >
+              <CatalogRailIcon catalogId={cat.id} icon={cat.icon} tone={CAT_TONE[cat.id]} mobile={mobile} />
+              <span className={mobile ? 'text-[9px] leading-tight line-clamp-2' : 'text-[13px] truncate'}>{cat.name_uz}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* O'ng: tanlangan katalog daraxti */}
+        <div className={`flex-1 overflow-y-auto p-5 ${mobile ? 'pb-[calc(var(--mobile-nav-h)+16px+env(safe-area-inset-bottom))]' : ''}`}>
+          <button
+            type="button"
+            onClick={() => go(`/?catalog=${megaCatalogId}`)}
+            className="text-sm font-extrabold text-[#1673E6] hover:underline mb-3 cursor-pointer"
+          >
+            {catalogs.find((c) => c.id === megaCatalogId)?.name_uz || ''} — barchasi →
+          </button>
+          {tree}
+        </div>
+      </>
+    );
+  };
 
   return (
-    <header className="sticky top-0 z-40 bg-white pt-safe">
-      {/* ── Tier 2: Main bar ── */}
-      <div className="border-b border-[#EBECF0]">
+    <>
+      {/* ── Tier-1: Brend qatori — oddiy oqim (scroll'da tepaga chiqib ketadi) ── */}
+      <header className="relative z-30 bg-white pt-safe border-b border-[#EBECF0]">
         <div className="max-w-[1440px] w-full mx-auto px-4 sm:px-8 h-16 flex items-center gap-2 sm:gap-3">
           {/* Brand Logo */}
           <div
@@ -255,57 +305,8 @@ export const Header: React.FC<HeaderProps> = ({ onSearch, onNavigate, currentRou
             <TopHandLogo size="md" showText={true} imgClassName="w-8 h-8 sm:w-9 sm:h-9 object-contain bg-transparent" alt="tophand.uz" />
           </div>
 
-          {/* Barcha kategoriyalar — mega button (Avito style) */}
-          <div className="relative hidden lg:block" ref={megaRef}>
-            <button
-              type="button"
-              onClick={() => setIsMegaOpen((v) => !v)}
-              className={`flex items-center gap-1.5 h-10 px-4 rounded-xl font-semibold text-sm transition-colors cursor-pointer th-accent-bg text-white ${isMegaOpen ? 'opacity-90' : ''}`}
-            >
-              <LayoutGrid className="w-4 h-4" />
-              <span>Barcha kategoriyalar</span>
-              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isMegaOpen ? 'rotate-180' : ''}`} />
-            </button>
-
-            {isMegaOpen && (
-              <div className="absolute left-0 top-full pt-2 z-50">
-                <div className="w-[min(1100px,92vw)] bg-white rounded-2xl border border-gray-100 shadow-2xl p-0 max-h-[74vh] overflow-hidden flex">
-                  {renderMegaBody(false)}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Xarita tugmasi — region selector o'rnini bosadi (barcha vakansiyalar xaritada) */}
-          <button
-            type="button"
-            onClick={() => setIsMapOpen(true)}
-            className="flex items-center gap-1.5 h-10 px-3 rounded-xl text-sm font-semibold text-[#172B4D] hover:bg-gray-50 border border-[#EBECF0] transition-colors cursor-pointer shrink-0"
-            title="Barcha e'lonlar xaritada"
-          >
-            <MapIcon className="w-4 h-4 th-accent-text" />
-            <span className="hidden sm:inline">Xarita</span>
-          </button>
-
-          {/* Search — butun sahifalarda (home'da ham) */}
-          <form
-            onSubmit={handleSearchSubmit}
-            className="hidden md:flex items-center flex-1 max-w-sm lg:max-w-xl mx-1 lg:mx-3 bg-[#F2F3F5] hover:bg-[#EDEFF2] focus-within:bg-white border border-transparent focus-within:border-[#1673E6] focus-within:ring-2 focus-within:ring-blue-100 rounded-full px-4 py-2 transition-all"
-          >
-            <button type="submit" className="shrink-0 text-[#5E6C84]" aria-label="Qidirish">
-              <Search className="w-4 h-4" />
-            </button>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Kasb, usta yoki xizmat qidirish..."
-              className="w-full bg-transparent text-sm text-[#172B4D] placeholder-[#5E6C84] focus:outline-hidden mx-2 min-w-0"
-            />
-          </form>
-
           {/* Right: Action Buttons & User Menu */}
-          <div className="flex items-center gap-1 sm:gap-2 shrink-0 ml-auto md:ml-0">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0 ml-auto">
             <button
               type="button"
               onClick={() => onNavigate('/saved')}
@@ -463,38 +464,73 @@ export const Header: React.FC<HeaderProps> = ({ onSearch, onNavigate, currentRou
             )}
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* ── Mobil qidiruv qatori (telefonlarda doim ko'rinadi) ── */}
-      <div className="md:hidden px-3 pb-2.5 bg-white">
-        <div className="flex items-center gap-2">
+      {/* ── Toolbar: qidiruv + kataloglar/xarita — sticky; header tepaga ketgach,
+          uning o'rnini bosib tepada qoladi. Desktop'da MobileNav uslubidagi pill-bar. ── */}
+      <div className="sticky top-0 z-40 bg-white">
+        <div className="max-w-[1440px] w-full mx-auto px-3 sm:px-8 py-2 sm:py-3">
+          <div className="flex w-full items-center gap-2 rounded-[26px] border border-[#1673E6]/15 bg-white/90 px-2.5 py-2.5 shadow-[0_10px_30px_-6px_rgba(22,115,230,0.18),0_3px_10px_rgba(0,0,0,0.05)] backdrop-blur-xl">
+          {/* Barcha kataloglar — mega tugma (desktop dropdown / mobil full-screen) */}
+          <div className="relative shrink-0" ref={megaRef}>
+            <button
+              type="button"
+              onClick={() => setIsMegaOpen((v) => !v)}
+              className={`flex items-center gap-1.5 h-10 px-2.5 sm:px-4 rounded-xl font-semibold text-sm transition-colors cursor-pointer th-accent-bg text-white ${isMegaOpen ? 'opacity-90' : ''}`}
+            >
+              <LayoutGrid className="w-5 h-5 sm:w-4 sm:h-4 shrink-0" />
+              <span className="hidden sm:inline">{activeCatalogId ? 'Kategoriyalar' : 'Kataloglar'}</span>
+              <ChevronDown className={`hidden sm:block w-3.5 h-3.5 transition-transform ${isMegaOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {isMegaOpen && (
+              <div className="absolute left-0 top-full pt-2 z-50 hidden lg:block">
+                <div className="w-[min(1100px,92vw)] bg-white rounded-2xl border border-gray-100 shadow-2xl p-0 max-h-[74vh] overflow-hidden flex">
+                  {renderMegaBody(false)}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Qidiruv */}
           <form
             onSubmit={handleSearchSubmit}
-            className="flex items-center flex-1 min-w-0 bg-[#F2F3F5] focus-within:bg-white border border-transparent focus-within:border-[#1673E6] rounded-full px-3.5 h-11 transition-all"
+            className="flex items-center flex-1 min-w-0 h-10 bg-[#F2F3F5] hover:bg-[#EDEFF2] focus-within:bg-white border border-transparent focus-within:border-[#1673E6] focus-within:ring-2 focus-within:ring-blue-100 rounded-full px-3.5 transition-all"
           >
-            <Search className="w-5 h-5 shrink-0 text-[#5E6C84]" />
+            <button type="submit" className="shrink-0 text-[#5E6C84]" aria-label="Qidirish">
+              <Search className="w-5 h-5 sm:w-4 sm:h-4" />
+            </button>
             <input
               type="text"
               inputMode="search"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                const v = e.target.value;
+                setSearchQuery(v);
+                // Real-time: sahifani qayta mount qilmasdan HomePage'ga uzatamiz.
+                window.dispatchEvent(new CustomEvent('tophand:search', { detail: v }));
+              }}
               placeholder="Kasb, usta yoki xizmat qidirish..."
-              className="w-full bg-transparent text-[15px] text-[#172B4D] placeholder-[#5E6C84] focus:outline-hidden mx-2 min-w-0"
+              className="w-full bg-transparent text-[15px] sm:text-sm text-[#172B4D] placeholder-[#5E6C84] focus:outline-hidden mx-2 min-w-0"
             />
             {searchQuery && (
-              <button type="button" onClick={() => setSearchQuery('')} aria-label="Tozalash" className="shrink-0 text-[#5E6C84] p-1">
+              <button type="button" onClick={() => { setSearchQuery(''); window.dispatchEvent(new CustomEvent('tophand:search', { detail: '' })); }} aria-label="Tozalash" className="shrink-0 text-[#5E6C84] p-1">
                 <X className="w-4 h-4" />
               </button>
             )}
           </form>
+
+          {/* Xarita tugmasi — qidiruvdan keyin (3-o'rin) */}
           <button
             type="button"
-            onClick={() => setIsMegaOpen(true)}
-            aria-label="Kategoriyalar"
-            className="shrink-0 flex items-center justify-center h-11 w-11 rounded-full border border-[#EBECF0] bg-white text-[#1673E6] active:bg-blue-50"
+            onClick={() => setIsMapOpen(true)}
+            className="flex items-center gap-1.5 h-10 w-10 sm:w-auto sm:px-3 justify-center shrink-0 rounded-xl text-sm font-semibold text-[#172B4D] hover:bg-gray-50 border border-[#EBECF0] transition-colors cursor-pointer"
+            title="Barcha e'lonlar xaritada"
           >
-            <LayoutGrid className="w-5 h-5" />
+            <MapIcon className="w-5 h-5 sm:w-4 sm:h-4 th-accent-text shrink-0" />
+            <span className="hidden sm:inline">Xarita</span>
           </button>
+          </div>
         </div>
       </div>
 
@@ -503,7 +539,7 @@ export const Header: React.FC<HeaderProps> = ({ onSearch, onNavigate, currentRou
         <div ref={megaMobileRef} className="lg:hidden fixed inset-0 z-50 bg-white flex flex-col">
           <div className="flex items-center justify-between px-4 h-14 shrink-0 border-b border-gray-100">
             <span className="flex items-center gap-2 font-extrabold text-sm text-[#172B4D]">
-              <LayoutGrid className="w-4 h-4 th-accent-text" /> Barcha kategoriyalar
+              <LayoutGrid className="w-4 h-4 th-accent-text" /> {activeCatalogId ? 'Barcha kategoriyalar' : 'Barcha kataloglar'}
             </span>
             <button
               type="button"
@@ -524,6 +560,6 @@ export const Header: React.FC<HeaderProps> = ({ onSearch, onNavigate, currentRou
         onClose={() => setIsMapOpen(false)}
         onOpenListing={(id) => { setIsMapOpen(false); onNavigate(`/listing/${id}`); }}
       />
-    </header>
+    </>
   );
 };

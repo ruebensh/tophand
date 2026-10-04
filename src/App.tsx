@@ -42,6 +42,39 @@ const AppContent: React.FC = () => {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  // Butun sahifa (window) vertikal scroll'ini 2x sekinlashtiramiz (faqat desktop
+  // g'ildirak; mobil touch tegizmaydi). Ichki aylanadigan konteynerlar (modal,
+  // chat, katalog strip) o'z harakatini oladi — ular chekkaga yetgandagina yoki
+  // umuman ustida bo'lmaganda sahifaga tegamiz.
+  useEffect(() => {
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey) return;          // pinch-zoom ga aralashmaymiz
+      if (e.defaultPrevented) return; // boshqa handler (masalan strip) oldi
+      let dy = e.deltaY;
+      if (e.deltaMode === 1) dy *= 16;                 // qator → piksel
+      else if (e.deltaMode === 2) dy *= window.innerHeight; // sahifa → piksel
+      if (dy === 0) return;
+      // Kursor ostida kerakli yo'nalishda aylanadigan ichki ajbor bormi?
+      let node = e.target as HTMLElement | null;
+      while (node && node !== document.body) {
+        const oy = getComputedStyle(node).overflowY;
+        const canY =
+          (oy === 'auto' || oy === 'scroll' || oy === 'overlay') &&
+          node.scrollHeight > node.clientHeight + 1;
+        if (canY) {
+          const atTop = node.scrollTop <= 0;
+          const atBottom = node.scrollTop + node.clientHeight >= node.scrollHeight - 1;
+          if ((dy < 0 && !atTop) || (dy > 0 && !atBottom)) return; // ichki oladi
+        }
+        node = node.parentElement;
+      }
+      e.preventDefault();
+      window.scrollBy({ top: dy * 0.5, left: 0, behavior: 'instant' });
+    };
+    window.addEventListener('wheel', onWheel, { passive: false });
+    return () => window.removeEventListener('wheel', onWheel);
+  }, []);
+
   const navigate = (route: string) => {
     window.history.pushState({}, '', route);
     setCurrentRoute(route);
@@ -221,7 +254,7 @@ const AppContent: React.FC = () => {
   };
 
   return (
-    <div className="relative min-h-screen flex flex-col bg-gray-50/50 font-sans text-gray-900 selection:bg-blue-600 selection:text-white overflow-x-hidden w-full max-w-full">
+    <div className="relative min-h-screen flex flex-col bg-gray-50/50 font-sans text-gray-900 selection:bg-blue-600 selection:text-white overflow-x-clip w-full max-w-full">
       {/* Mavzu muhiti: hudud foni/naqshi + bayram animatsiyalari (kontent ortasi/ustida) */}
       <ThemeAtmosphere />
 
@@ -229,19 +262,6 @@ const AppContent: React.FC = () => {
       <Header
         onNavigate={navigate}
         currentRoute={currentRoute}
-        onSearch={(q) => {
-          // Global qidiruv joriy sahifa kontekstini saqlab qolsin: katalog/kategoriya/tur
-          // tanlangan bo'lsa, faqat shu doirada qidiradi; toza bosh sahifada — hamma e'lonlar.
-          const cur = new URLSearchParams(window.location.search);
-          const next = new URLSearchParams();
-          (['catalog', 'category', 'type'] as const).forEach((k) => {
-            const v = cur.get(k);
-            if (v) next.set(k, v);
-          });
-          if (q && q.trim()) next.set('search', q.trim());
-          const qs = next.toString();
-          navigate(qs ? `/?${qs}` : '/');
-        }}
       />
 
       {/* Main Content Area — mobil pastki bar (MobileNav) hamma sahifada turadi,

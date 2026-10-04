@@ -225,7 +225,7 @@ export const CategoryFilter: React.FC<CategoryFilterProps> = ({
           <Layers
             className={`w-3.5 h-3.5 shrink-0 ${!selectedCategoryId ? 'text-white' : 'text-gray-400'}`}
           />
-          <span>Barcha kategoriyalar</span>
+          <span>Barcha kataloglar</span>
           {!selectedCategoryId && <Check className="w-3 h-3 ml-auto" />}
         </button>
 

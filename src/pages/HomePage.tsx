@@ -21,6 +21,7 @@ import {
   Wrench,
   ClipboardList,
   UserRound,
+  ArrowUpDown,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.tsx';
 import { useGeo } from '../context/GeoContext.tsx';
@@ -31,13 +32,23 @@ interface HomePageProps {
   onOpenListing: (id: string) => void;
 }
 
-// Bosh sahifa katalog kartochkasi — Avito uslubida: nomi tepada-chapda,
-// mahsulot rasmi (PNG) o'ng pastda. Manba: /catalogs/<id>.png -> (bo'lmasa) ikonka.
-const CatalogTile: React.FC<{ cat: Catalog; tone: string; index: number; onOpen: () => void }> = ({ cat, tone, index, onOpen }) => {
+// Bosh sahifa / katalog-landing kartochkasi — Avito uslubida: nomi tepada-chapda,
+// rasm (PNG) o'ng pastda. PNG bo'lmasa ikonka (CategoryChip) ko'rsatiladi.
+// Bosh sahifada: imgSrc=/catalogs/<id>.png. Katalog landingda: /categories/<catalogId>/<id>.png.
+interface TileProps {
+  label: string;
+  icon: string;
+  imgSrc: string;
+  tone?: string;
+  index: number;
+  count?: number;
+  onOpen: () => void;
+}
+const CatalogTile: React.FC<TileProps> = ({ label, icon, imgSrc, tone, index, count, onOpen }) => {
   // Faqat shaffof fonli PNG ishlatiladi — e'lon fotolari (cover_image) o'z foni bilan
   // kelgani uchun endi ishlatilmaydi; PNG bo'lmasa toza ikonka ko'rsatiladi.
   const [imgFailed, setImgFailed] = useState(false);
-  const src = imgFailed ? '' : `/catalogs/${cat.id}.png`;
+  const src = imgFailed ? '' : imgSrc;
   return (
     <button
       type="button"
@@ -47,13 +58,18 @@ const CatalogTile: React.FC<{ cat: Catalog; tone: string; index: number; onOpen:
     >
       <span className="th-shine" aria-hidden />
       <span className="z-10 order-2 w-full text-center text-[10px] font-bold leading-tight text-[#172B4D] line-clamp-2 transition-transform duration-300 group-hover:-translate-y-0.5 sm:order-1 sm:w-auto sm:max-w-[58%] sm:self-start sm:text-left sm:text-[13px]">
-        {cat.name_uz}
+        {label}
+        {typeof count === 'number' && count > 0 && (
+          <span className="mt-0.5 block text-[9px] font-medium text-[#5E6C84] sm:mt-1 sm:text-[11px]">
+            {count.toLocaleString('ru-RU')} ta e’lon
+          </span>
+        )}
       </span>
       {src ? (
         <span className="pointer-events-none order-1 flex h-[46px] w-full shrink-0 items-end justify-center sm:order-2 sm:ml-auto sm:h-[80%] sm:w-auto sm:max-w-[52%] sm:self-end">
           <img
             src={src}
-            alt={cat.name_uz}
+            alt={label}
             loading="lazy"
             onError={() => setImgFailed(true)}
             className="h-full w-full object-contain mix-blend-multiply transition-transform duration-300 group-hover:scale-110 sm:object-right"
@@ -61,12 +77,76 @@ const CatalogTile: React.FC<{ cat: Catalog; tone: string; index: number; onOpen:
         </span>
       ) : (
         <span className="pointer-events-none order-1 flex w-full justify-center sm:order-2 sm:ml-auto sm:mr-3 sm:w-auto sm:self-center sm:justify-end">
-          <CategoryChip name={cat.icon} size="lg" tone={tone} />
+          <CategoryChip name={icon} size="lg" tone={tone} />
         </span>
       )}
     </button>
   );
 };
+
+// Kartalar soniga qarab grid rejimi (BARCHA breakpointlarda — smartfon + desktop):
+//  ≤5   → 'fit'  : sayt eniga moslashgan bitta qator grid (siljimaydi)
+//  6-10 → 'row1' : 1 qator, gorizontal siljiydigan
+//  >10  → 'row2' : 2 qator, gorizontal siljiydigan
+function TileGrid<T>({
+  items,
+  getKey,
+  renderItem,
+}: {
+  items: T[];
+  getKey: (item: T) => string;
+  renderItem: (item: T, index: number) => React.ReactNode;
+}) {
+  const count = items.length;
+  const mode = count <= 5 ? 'fit' : count <= 10 ? 'row1' : 'row2';
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Kursor ustida turganda sichqoncha g'ildiragi (vertikal wheel) stripni gorizontal
+  // siljitadi. Strip ichida g'ildirak HARMON gorizontal oladi — chekkaga yetganda
+  // ham sahifaga bermaydi (sahifa faqat strip tashqarisida scroll bo'ladi).
+  useEffect(() => {
+    if (mode === 'fit') return;
+    const el = scrollRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      const max = el.scrollWidth - el.clientWidth;
+      if (max <= 0) return;
+      const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      if (delta === 0) return;
+      e.preventDefault();
+      // Tezlikni 4x pasaytiramiz — ancha tekis/astta siljiydi.
+      el.scrollLeft += delta * 0.2;
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [mode, count]);
+  // Rejim barcha breakpointlarda bir xil ishlaydi (smartfon + desktop).
+  const containerCls =
+    mode === 'fit'
+      ? 'grid gap-1.5 sm:gap-3'
+      : mode === 'row1'
+        ? 'no-scrollbar scroll-smooth flex snap-x gap-1.5 overflow-x-auto pb-1 sm:gap-3'
+        : 'no-scrollbar scroll-smooth grid grid-flow-col grid-rows-2 auto-cols-[104px] gap-1.5 overflow-x-auto pb-1 sm:auto-cols-[220px] sm:gap-3';
+  const wrapperCls =
+    mode === 'fit'
+      ? 'w-full'
+      : mode === 'row1'
+        ? 'w-[104px] shrink-0 snap-start sm:w-[220px]'
+        : 'w-full snap-start';
+  const style =
+    mode === 'fit'
+      ? ({ gridTemplateColumns: `repeat(${count}, minmax(0, 1fr))` } as React.CSSProperties)
+      : undefined;
+  return (
+    <div ref={scrollRef} className={containerCls} style={style}>
+      {items.map((item, i) => (
+        <div key={getKey(item)} className={wrapperCls}>
+          {renderItem(item, i)}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export const HomePage: React.FC<HomePageProps> = ({
   initialType,
@@ -365,6 +445,32 @@ export const HomePage: React.FC<HomePageProps> = ({
     onlyFollowed,
   ]);
 
+  // Real-time qidiruv: kalit so'z o'zgarganda kichik pauza (debounce) bilan
+  // joyida qayta izlaydi — Enter tugmasi shart emas. Sahifa qayta mount
+  // bo'lmaydi, scroll sakramaydi (navigate'siz, in-place fetch).
+  const searchDebounceRef = useRef<number | undefined>(undefined);
+  const lastKeywordRef = useRef(keyword);
+  useEffect(() => {
+    if (keyword === lastKeywordRef.current) return; // mount qiymatini trigger effekt allaqachon oladi
+    lastKeywordRef.current = keyword;
+    window.clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = window.setTimeout(() => {
+      fetchListings(1, false);
+    }, 350);
+    return () => window.clearTimeout(searchDebounceRef.current);
+  }, [keyword]);
+
+  // Header toolbar'dagi qidiruv vidjeti real-time: tashqi event orqali kalit
+  // so'zni qabul qilamiz (navigate/remount yo'q). Yuqoridagi debounce-fetch ishga tushadi.
+  useEffect(() => {
+    const onLiveSearch = (e: Event) => {
+      const q = (e as CustomEvent<string>).detail;
+      setKeyword(typeof q === 'string' ? q : '');
+    };
+    window.addEventListener('tophand:search', onLiveSearch);
+    return () => window.removeEventListener('tophand:search', onLiveSearch);
+  }, []);
+
   // Landing kartochkalari uchun tur bo'yicha e'lon sonlarini yuklash
   useEffect(() => {
     const types = ['SERVICE_OFFER', 'JOB_OPENING', 'SERVICE_REQUEST', 'JOB_SEEKER'];
@@ -502,14 +608,27 @@ export const HomePage: React.FC<HomePageProps> = ({
     setCurrentPage(1);
   };
 
-  // Avito-style landing: category tiles shown only on the pure, unfiltered home view
-  const isLanding =
-    !keyword.trim() &&
-    !selectedCategoryId &&
-    !selectedType &&
-    !selectedCatalogId &&
-    !selectedRegionId &&
-    activeFiltersCount === 0;
+  // "Toza" (landing) holatlari — boshqa filtrlar yo'q.
+  // DIQQAT: `keyword` ataylab kiritilmagan — toolbar'dan qidirish sahifani
+  // filtrlangan layout'ga (yon panel + ikkinchi qidiruv formasi) o'tkazmasin,
+  // balki shu landing ko'rinishidagi "Barcha e'lonlar" ro'yxatini joyida filtrlasin.
+  const otherFiltersActive =
+    Boolean(selectedCategoryId) ||
+    Boolean(selectedType) ||
+    Boolean(selectedRegionId) ||
+    Boolean(selectedDistrictId) ||
+    priceMin !== undefined ||
+    priceMax !== undefined ||
+    selectedWorkSchedule.length > 0 ||
+    selectedExperience.length > 0 ||
+    onlyFollowed;
+  // Sof bosh sahifa — 13 katalog gridi.
+  const isLanding = !selectedCatalogId && !otherFiltersActive;
+  // Katalog landing — tanlangan katalogning top-kategoriyalari gridi (home kabi).
+  const isCatalogLanding = Boolean(selectedCatalogId) && !otherFiltersActive;
+  // Ikkalasi ham soddalashtirilgan (yon panel/sarlavhasiz) "toza" ko'rinish.
+  const isClean = isLanding || isCatalogLanding;
+  const selectedCatalogName = catalogs.find((c) => c.id === selectedCatalogId)?.name_uz || '';
 
   // Landing'dagi 4 ta asosiy kategoriya (turi) kartochkasi
   const TYPE_CARDS: { type: ListingType; catalogId: string; label: string; hint: string; Icon: any }[] = [
@@ -544,23 +663,21 @@ export const HomePage: React.FC<HomePageProps> = ({
     handmade: 'red',
   };
 
-  // Bosh sahifa katalog gridida ko'rsatilmaydigan kataloglar (10 ta qoldiriladi)
-  const HIDDEN_LANDING_CATALOGS = new Set(['animals', 'hobby', 'personal']);
-
+  // Katalog / kategoriya tanlash — URL orqali (navigate), shunda Header kontekstni
+  // currentRoute'dan o'qib, "Barcha kategoriyalar" holatiga o'tadi.
   const openCatalog = (catalogId: string) => {
-    setKeyword('');
-    setSelectedCategoryId(undefined);
-    setSelectedType(undefined);
-    setSelectedCatalogId(catalogId);
-    setCurrentPage(1);
+    onNavigate(`/?catalog=${catalogId}`);
+  };
+  const openCategoryTile = (catalogId: string, categoryId: string) => {
+    onNavigate(`/?catalog=${catalogId}&category=${categoryId}`);
   };
 
   // Hero bloki olib tashlandi — qidiruv headerda mavjud.
 
   return (
-    <div className={`max-w-[1440px] mx-auto flex-1 w-full flex flex-col ${isLanding ? '' : 'lg:grid lg:grid-cols-[300px_1fr]'} min-h-[calc(100vh-64px)] overflow-x-hidden`}>
+    <div className={`max-w-[1440px] mx-auto flex-1 w-full flex flex-col ${isClean ? '' : 'lg:grid lg:grid-cols-[300px_1fr]'} min-h-[calc(100vh-64px)] overflow-x-hidden`}>
       {/* Mobile Filters Toggle Button */}
-      {!isLanding && (
+      {!isClean && (
         <>
       <div className="lg:hidden px-3 sm:px-4 py-2.5 sm:py-3 bg-white border-b border-[#EBECF0] flex items-center justify-between w-full max-w-full">
         <button
@@ -1030,7 +1147,7 @@ export const HomePage: React.FC<HomePageProps> = ({
       <div className="px-3 py-3.5 sm:p-6 lg:p-8 bg-white flex-1 flex flex-col justify-between lg:overflow-y-auto w-full max-w-full min-w-0">
         <div>
           {/* Search Form — faqat kategoriya/filtrlangan sahifada (home'da qidiruv header'da) */}
-          {!isLanding && (
+          {!isClean && (
           <form
             onSubmit={handleSearchSubmit}
             className="flex flex-col sm:flex-row bg-[#F9FAFB] border border-[#EBECF0] rounded-2xl p-2 sm:p-1.5 mb-5 gap-2 sm:gap-1.5 shadow-2xs focus-within:border-[#1673E6]/60 transition-all w-full max-w-full"
@@ -1177,25 +1294,59 @@ export const HomePage: React.FC<HomePageProps> = ({
                 <h2 className="text-base sm:text-lg font-extrabold text-[#172B4D] tracking-tight mb-3">
                   Kategoriyalar bo‘yicha
                 </h2>
-                <div className="grid grid-cols-5 gap-1.5 sm:gap-3">
-                  {catalogs
-                    .filter((cat) => !HIDDEN_LANDING_CATALOGS.has(cat.id))
-                    .map((cat, i) => (
-                      <CatalogTile
-                        key={cat.id}
-                        cat={cat}
-                        tone={CAT_TONE[cat.id]}
-                        index={i}
-                        onOpen={() => openCatalog(cat.id)}
-                      />
-                    ))}
-                </div>
+                <TileGrid
+                  items={[...catalogs].sort((a, b) => (a.id === 'handmade' ? -1 : b.id === 'handmade' ? 1 : 0))}
+                  getKey={(cat) => cat.id}
+                  renderItem={(cat, i) => (
+                    <CatalogTile
+                      label={cat.name_uz}
+                      icon={cat.icon}
+                      imgSrc={`/catalogs/${cat.id}.png`}
+                      tone={CAT_TONE[cat.id]}
+                      index={i}
+                      onOpen={() => openCatalog(cat.id)}
+                    />
+                  )}
+                />
               </section>
             </>
           )}
 
-          {/* Main Catalog Tabs — faqat kategoriya sahifasida (landing'da 4 kartochka bor) */}
-          {!isLanding && (
+          {/* ─── KATALOG ICHIDAGI TOP-KATEGORIYALAR GRIDI (katalog landing) ─── */}
+          {isCatalogLanding && (
+            <section className="mb-6">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h2 className="text-base sm:text-lg font-extrabold text-[#172B4D] tracking-tight">
+                  {selectedCatalogName} — kategoriyalar
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => onNavigate('/')}
+                  className="shrink-0 text-xs font-semibold text-[#1673E6] hover:underline cursor-pointer"
+                >
+                  Bosh sahifa
+                </button>
+              </div>
+              <TileGrid
+                items={categories.filter((c) => !c.parent_id)}
+                getKey={(c) => c.id}
+                renderItem={(c, i) => (
+                  <CatalogTile
+                    label={c.name_uz}
+                    icon={c.icon}
+                    imgSrc={`/categories/${selectedCatalogId}/${c.id}.png`}
+                    tone={CAT_TONE[selectedCatalogId ?? '']}
+                    index={i}
+                    count={c.active_count}
+                    onOpen={() => openCategoryTile(selectedCatalogId!, c.id)}
+                  />
+                )}
+              />
+            </section>
+          )}
+
+          {/* Main Catalog Tabs — faqat kategoriya sahifasida (landing'da grid bor) */}
+          {!isClean && (
           <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-5 no-scrollbar border-b border-[#EBECF0] w-full max-w-full">
             {MAIN_TABS.map((tab) => {
               const isSelected = isMainTabActive(tab);
@@ -1217,134 +1368,9 @@ export const HomePage: React.FC<HomePageProps> = ({
           </div>
           )}
 
-          {/* Active Filter Chips Bar */}
-          {activeFiltersCount > 0 && (
-            <div className="flex flex-wrap items-center gap-2 p-3 bg-blue-50/50 border border-blue-100 rounded-2xl mb-5 text-xs">
-              <span className="text-gray-500 font-medium">Faol filtrlar:</span>
-
-              {(selectedCatalogId || selectedType) && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-100 text-blue-800 font-semibold text-[11px]">
-                  <span>
-                    {MAIN_TABS.find((t) => isMainTabActive(t))?.label ||
-                      (selectedCatalogId === 'jobs' ? 'Ish e’lonlari' : 'Xizmatlar')}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedCatalogId(undefined);
-                      setSelectedType(undefined);
-                    }}
-                    className="hover:text-blue-950 cursor-pointer"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </span>
-              )}
-
-              {selectedCategory && (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-100 text-blue-800 font-semibold text-[11px]">
-                  <span>
-                    Kategoriya:{' '}
-                    {selectedCategory.parent_id
-                      ? `${categories.find((p) => p.id === selectedCategory.parent_id)?.name_uz || ''} → ${selectedCategory.name_uz}`
-                      : selectedCategory.name_uz}
-                  </span>
-                  <button type="button" onClick={() => setSelectedCategoryId(undefined)} className="hover:text-blue-950 cursor-pointer">
-                    <X className="w-3 h-3" />
-                  </button>
-                </span>
-              )}
-
-              {selectedRegion && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-100 text-blue-800 font-semibold text-[11px]">
-                  <span>Viloyat: {selectedRegion.name_uz}</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedRegionId(undefined);
-                      setSelectedDistrictId(undefined);
-                    }}
-                    className="hover:text-blue-950"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </span>
-              )}
-
-              {selectedDistrict && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-100 text-blue-800 font-semibold text-[11px]">
-                  <span>Tuman: {selectedDistrict.name_uz}</span>
-                  <button type="button" onClick={() => setSelectedDistrictId(undefined)} className="hover:text-blue-950">
-                    <X className="w-3 h-3" />
-                  </button>
-                </span>
-              )}
-
-              {(priceMin !== undefined || priceMax !== undefined) && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-100 text-blue-800 font-semibold text-[11px]">
-                  <span>
-                    Narx: {priceMin ? `${priceMin.toLocaleString()} dan` : ''}{' '}
-                    {priceMax ? `${priceMax.toLocaleString()} gacha` : ''} UZS
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPriceMin(undefined);
-                      setPriceMax(undefined);
-                    }}
-                    className="hover:text-blue-950"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </span>
-              )}
-
-              {selectedWorkSchedule.map((ws) => {
-                const label = { ONSITE: 'Joyida', REMOTE: 'Masofaviy', HYBRID: 'Gibrid' }[ws] || ws;
-                return (
-                  <span key={ws} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-100 text-blue-800 font-semibold text-[11px]">
-                    <span>Format: {label}</span>
-                    <button type="button" onClick={() => toggleWorkSchedule(ws)} className="hover:text-blue-950">
-                      <X className="w-3 h-3" />
-                    </button>
-                  </span>
-                );
-              })}
-
-              {selectedExperience.map((exp) => {
-                const label = { none: 'Tajribasiz', '1-3': '1-3 yil', '3-5': '3-5 yil', '5+': '5+ yil' }[exp] || exp;
-                return (
-                  <span key={exp} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-100 text-blue-800 font-semibold text-[11px]">
-                    <span>Tajriba: {label}</span>
-                    <button type="button" onClick={() => toggleExperience(exp)} className="hover:text-blue-950">
-                      <X className="w-3 h-3" />
-                    </button>
-                  </span>
-                );
-              })}
-
-              {keyword.trim() && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-100 text-blue-800 font-semibold text-[11px]">
-                  <span>Qidiruv: "{keyword}"</span>
-                  <button type="button" onClick={() => setKeyword('')} className="hover:text-blue-950">
-                    <X className="w-3 h-3" />
-                  </button>
-                </span>
-              )}
-
-              <button
-                type="button"
-                onClick={handleResetFilters}
-                className="ml-auto text-[11px] font-bold text-rose-600 hover:text-rose-800 underline cursor-pointer"
-              >
-                Hammasini tozalash
-              </button>
-            </div>
-          )}
-
-          {/* Results Header */}
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
-            <div>
+          {/* Results Header — smartfonda boshqaruv sarlavha o'ngidagi bo'sh joyda */}
+          <div className="mb-6 flex items-start justify-between gap-3 sm:items-end">
+            <div className="min-w-0">
               <h1 className="text-xl sm:text-2xl font-extrabold text-[#172B4D] tracking-tight">
                 {getSectionTitle()}
               </h1>
@@ -1355,40 +1381,55 @@ export const HomePage: React.FC<HomePageProps> = ({
               </p>
             </div>
 
-            {/* Sorting Dropdown & Obunalar filter */}
-            <div className="flex flex-wrap items-center gap-2.5">
+            {/* Sorting Dropdown & Obunalar filter — smartfonda 1 qator, faqat ikonka */}
+            <div className="flex shrink-0 flex-nowrap items-center gap-2 sm:gap-2.5">
               {user && (
                 <button
                   type="button"
                   onClick={() => setOnlyFollowed(!onlyFollowed)}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                  className={`inline-flex h-9 w-9 shrink-0 items-center justify-center gap-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer sm:h-auto sm:w-auto sm:justify-start sm:px-3 sm:py-1.5 ${
                     onlyFollowed
                       ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
                       : 'bg-white hover:bg-gray-50 text-[#172B4D] border-[#EBECF0]'
                   }`}
                   title="Faqat o‘zingiz obuna bo‘lgan mutaxassislar va tashkilotlar e’lonlarini ko‘rish"
                 >
-                  <Users className="w-3.5 h-3.5" />
-                  <span>Obunalarim</span>
-                  {onlyFollowed && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
+                  <Users className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+                  <span className="hidden sm:inline">Obunalarim</span>
+                  {onlyFollowed && <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />}
                 </button>
               )}
 
-              <div className="flex items-center gap-1.5">
-                <span className="font-mono text-[11px] uppercase tracking-wider text-[#5E6C84] font-semibold">
-                  Saralash:
-                </span>
+              {/* Saralash — smartfonda ikonka + tanlangan qiymat (yonma-yon) */}
+              <div className="inline-flex h-9 shrink-0 items-center gap-1 rounded-xl border border-[#EBECF0] bg-white pl-2.5 pr-1.5 sm:hidden">
+                <ArrowUpDown className="h-4 w-4 shrink-0 text-[#5E6C84]" />
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
-                  className="border border-[#EBECF0] bg-white px-3 py-1.5 rounded-xl text-xs font-medium text-[#172B4D] focus:outline-hidden focus:border-[#1673E6] cursor-pointer"
+                  className="max-w-[128px] cursor-pointer appearance-none truncate bg-transparent text-xs font-medium text-[#172B4D] focus:outline-hidden"
+                  aria-label="Saralash"
                 >
                   <option value="newest">Eng yangilari</option>
-                  <option value="price_asc">Narx / Maosh: pastdan yuqoriga</option>
-                  <option value="price_desc">Narx / Maosh: yuqoridan pastga</option>
+                  <option value="price_asc">Narx: pastdan yuqoriga</option>
+                  <option value="price_desc">Narx: yuqoridan pastga</option>
                   <option value="rating_desc">Reytingi yuqorilar</option>
                 </select>
               </div>
+
+              {/* Saralash — planshet/desktop’da matnli select */}
+              <span className="hidden font-mono text-[11px] uppercase tracking-wider text-[#5E6C84] font-semibold sm:inline">
+                Saralash:
+              </span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="hidden cursor-pointer rounded-xl border border-[#EBECF0] bg-white px-3 py-1.5 text-xs font-medium text-[#172B4D] focus:outline-hidden focus:border-[#1673E6] sm:inline-block"
+              >
+                <option value="newest">Eng yangilari</option>
+                <option value="price_asc">Narx / Maosh: pastdan yuqoriga</option>
+                <option value="price_desc">Narx / Maosh: yuqoridan pastga</option>
+                <option value="rating_desc">Reytingi yuqorilar</option>
+              </select>
             </div>
           </div>
 

@@ -164,7 +164,7 @@ export const RegionCategoryPage: React.FC<Props> = ({ regionSlug, categorySlug, 
           {/* Ichki havolalar (SEO) */}
           <div className="mt-8 flex flex-wrap items-center gap-2 text-xs">
             <button onClick={() => onNavigate('/categories')} className="px-3 py-2 rounded-xl bg-white border border-gray-200 hover:border-blue-400 font-semibold text-gray-700 cursor-pointer">
-              Barcha kategoriyalar
+              Barcha kataloglar
             </button>
             {data.category && (
               <button onClick={() => onNavigate(`/hudud/${regionSlug}`)} className="px-3 py-2 rounded-xl bg-white border border-gray-200 hover:border-blue-400 font-semibold text-gray-700 cursor-pointer">

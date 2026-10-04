@@ -56,6 +56,8 @@ export const NearbyMapModal: React.FC<NearbyMapModalProps> = ({
   const [isLoadingListings, setIsLoadingListings] = useState(false);
   const [selectedListing, setSelectedListing] = useState<MapListing | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  // Xarita ko'rinadigan hududi (bounds) o'zgarganda qayta hisoblash uchun hisoblagich
+  const [boundsTick, setBoundsTick] = useState(0);
 
   // Sync initialLocation
   useEffect(() => {
@@ -86,6 +88,26 @@ export const NearbyMapModal: React.FC<NearbyMapModalProps> = ({
       return true;
     });
   }, [listings, filterType, searchQuery]);
+
+  // Ro'yxat — faqat xaritada ayni paytda ko'rinib turgan (bounds ichidagi)
+  // e'lonlarni ko'rsatadi. Xarita siljitsa/zoomlansa, ro'yxat ham o'zgaradi.
+  const visibleListings = useMemo(() => {
+    const map = mapRef.current;
+    if (!map || typeof map.getBounds !== 'function') return filteredListings;
+    let b: any;
+    try {
+      b = map.getBounds();
+    } catch {
+      return filteredListings;
+    }
+    return filteredListings.filter((item) => {
+      const lat = parseFloat(String(item.latitude));
+      const lon = parseFloat(String(item.longitude));
+      if (isNaN(lat) || isNaN(lon)) return false;
+      return b.contains([lat, lon]);
+    });
+    // boundsTick — xarita harakatidan keyin qayta hisoblashni majburlaydi
+  }, [filteredListings, boundsTick]);
 
   // Statistics
   const servicesCount = useMemo(() => listings.filter((l) => !isJob(l.type)).length, [listings]);
@@ -332,6 +354,9 @@ export const NearbyMapModal: React.FC<NearbyMapModalProps> = ({
 
         mapRef.current = map;
 
+        // Ro'yxat xaritadagi ko'rinib turgan hududga moslashishi uchun
+        map.on('moveend', () => setBoundsTick((t) => t + 1));
+
         if (location) {
           updateUserMarker(location.lat, location.lon);
         }
@@ -545,7 +570,7 @@ export const NearbyMapModal: React.FC<NearbyMapModalProps> = ({
           <div className="md:w-80 border-t md:border-t-0 md:border-l border-gray-200 bg-white flex flex-col h-[220px] md:h-full overflow-hidden">
             <div className="p-3 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
               <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">
-                E'lonlar ro'yxati ({filteredListings.length})
+                E'lonlar ro'yxati ({visibleListings.length})
               </span>
               {location && (
                 <span className="text-[11px] text-blue-600 font-medium truncate max-w-[140px]">
@@ -555,13 +580,13 @@ export const NearbyMapModal: React.FC<NearbyMapModalProps> = ({
             </div>
 
             <div className="flex-1 overflow-y-auto p-2.5 space-y-2">
-              {filteredListings.length === 0 && !isLoadingListings ? (
+              {visibleListings.length === 0 && !isLoadingListings ? (
                 <div className="text-center py-10 text-gray-400 text-xs">
                   <MapPin className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                  E'lonlar topilmadi
+                  Bu ko'rinishda e'lonlar yo'q — xaritani boshqa hududga siljiting
                 </div>
               ) : (
-                filteredListings.map((item) => {
+                visibleListings.map((item) => {
                   const isJobItem = isJob(item.type);
                   const isSelected = selectedListing?.id === item.id;
                   return (
