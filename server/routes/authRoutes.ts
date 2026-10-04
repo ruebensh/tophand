@@ -136,11 +136,21 @@ async function loginHandler(req: any, res: any) {
     }
 
     if (user.is_banned) {
-      return res.status(403).json({
-        error: 'Hisobingiz bloklangan',
-        ban_type: user.ban_type,
-        ban_reason: user.ban_reason,
-      });
+      // Auto-lift expired temporary bans
+      if (user.ban_type === 'TEMPORARY' && user.ban_end_date && new Date(user.ban_end_date) <= new Date()) {
+        await runQuery(
+          `UPDATE users SET is_banned = 0, ban_type = 'NONE', ban_reason = NULL, ban_end_date = NULL, updated_at = ? WHERE id = ?`,
+          [new Date().toISOString(), user.id]
+        );
+        // Continue login — ban has expired
+      } else {
+        return res.status(403).json({
+          error: 'Hisobingiz bloklangan',
+          ban_type: user.ban_type,
+          ban_reason: user.ban_reason,
+          ban_end_date: user.ban_end_date,
+        });
+      }
     }
 
     const token = generateToken(user);
@@ -395,11 +405,21 @@ router.post('/google', async (req, res) => {
     }
 
     if (user.is_banned) {
-      return res.status(403).json({
-        error: 'Hisobingiz bloklangan',
-        ban_type: user.ban_type,
-        ban_reason: user.ban_reason,
-      });
+      // Auto-lift expired temporary bans
+      if (user.ban_type === 'TEMPORARY' && user.ban_end_date && new Date(user.ban_end_date) <= new Date()) {
+        await runQuery(
+          `UPDATE users SET is_banned = 0, ban_type = 'NONE', ban_reason = NULL, ban_end_date = NULL, updated_at = ? WHERE id = ?`,
+          [new Date().toISOString(), user.id]
+        );
+        user = await queryOne<any>('SELECT * FROM users WHERE id = ?', [user.id]);
+      } else {
+        return res.status(403).json({
+          error: 'Hisobingiz bloklangan',
+          ban_type: user.ban_type,
+          ban_reason: user.ban_reason,
+          ban_end_date: user.ban_end_date,
+        });
+      }
     }
 
     const token = generateToken(user);

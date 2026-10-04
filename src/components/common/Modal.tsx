@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 /**
@@ -73,9 +74,9 @@ export const Modal: React.FC<ModalProps> = ({
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/45 animate-[thFade_.18s_ease-out]"
+      className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center sm:p-4 bg-black/45 animate-[thFade_.18s_ease-out]"
       onClick={dismissable ? onClose : undefined}
       role="dialog"
       aria-modal="true"
@@ -117,7 +118,8 @@ export const Modal: React.FC<ModalProps> = ({
         @keyframes thPop { from { opacity: 0; transform: scale(.96) } to { opacity: 1; transform: scale(1) } }
         @keyframes thSheetUp { from { transform: translateY(16px); opacity: .6 } to { transform: translateY(0); opacity: 1 } }
       `}</style>
-    </div>
+    </div>,
+    document.body
   );
 };
 

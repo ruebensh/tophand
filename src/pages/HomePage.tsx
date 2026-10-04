@@ -266,6 +266,21 @@ export const HomePage: React.FC<HomePageProps> = ({
       .catch(() => setAttrSchema([]));
   }, [selectedCategoryId]);
 
+  // Filtr kontekstini (katalog/kategoriya/tur) URL'ga sinxronlaymiz — replaceState
+  // orqali, sahifani qayta mount qilmasdan. Shunda Header'dagi global qidiruv
+  // joriy doirani o'qib, faqat shu katalog/kategoriya ichidan qidiradi.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (selectedCatalogId) params.set('catalog', selectedCatalogId);
+    else params.delete('catalog');
+    if (selectedCategoryId) params.set('category', selectedCategoryId);
+    else params.delete('category');
+    if (selectedType) params.set('type', selectedType);
+    else params.delete('type');
+    const qs = params.toString();
+    window.history.replaceState({}, '', qs ? `/?${qs}` : '/');
+  }, [selectedCatalogId, selectedCategoryId, selectedType]);
+
   // Fetch listings with all filter parameters
   const fetchListings = async (page: number = 1, append: boolean = false) => {
     if (append) {

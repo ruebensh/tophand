@@ -10,14 +10,20 @@ router.get('/', async (req, res) => {
     const { catalog_id, parent_id, only_parents, scope } = req.query;
 
     let sql = `
-      SELECT c.*, 
-        (
-          SELECT COUNT(*) 
-          FROM listings l 
-          WHERE (l.category_id = c.id OR l.category_id IN (SELECT id FROM categories WHERE parent_id = c.id))
-            AND l.status = 'ACTIVE'
-        ) as active_count
-      FROM categories c 
+      WITH RECURSIVE reach(root, id) AS (
+        SELECT id, id FROM categories
+        UNION ALL
+        SELECT r.root, c2.id FROM categories c2 JOIN reach r ON c2.parent_id = r.id
+      ),
+      counts AS (
+        SELECT r.root AS category_id, COUNT(l.id) AS active_count
+        FROM reach r
+        LEFT JOIN listings l ON l.category_id = r.id AND l.status = 'ACTIVE'
+        GROUP BY r.root
+      )
+      SELECT c.*, COALESCE(cnt.active_count, 0) AS active_count
+      FROM categories c
+      LEFT JOIN counts cnt ON cnt.category_id = c.id
       WHERE c.is_active = 1
     `;
     const params: any[] = [];
@@ -59,14 +65,20 @@ router.get('/tree', async (req, res) => {
     const { catalog_id, scope } = req.query;
 
     let sql = `
-      SELECT c.*, 
-        (
-          SELECT COUNT(*) 
-          FROM listings l 
-          WHERE (l.category_id = c.id OR l.category_id IN (SELECT id FROM categories WHERE parent_id = c.id))
-            AND l.status = 'ACTIVE'
-        ) as active_count
-      FROM categories c 
+      WITH RECURSIVE reach(root, id) AS (
+        SELECT id, id FROM categories
+        UNION ALL
+        SELECT r.root, c2.id FROM categories c2 JOIN reach r ON c2.parent_id = r.id
+      ),
+      counts AS (
+        SELECT r.root AS category_id, COUNT(l.id) AS active_count
+        FROM reach r
+        LEFT JOIN listings l ON l.category_id = r.id AND l.status = 'ACTIVE'
+        GROUP BY r.root
+      )
+      SELECT c.*, COALESCE(cnt.active_count, 0) AS active_count
+      FROM categories c
+      LEFT JOIN counts cnt ON cnt.category_id = c.id
       WHERE c.is_active = 1
     `;
     const params: any[] = [];
@@ -116,9 +128,20 @@ router.get('/:id', async (req, res) => {
     }
 
     const subs = await queryAll(
-      `SELECT c.*, 
-        (SELECT COUNT(*) FROM listings WHERE category_id = c.id AND status = 'ACTIVE') as active_count
+      `WITH RECURSIVE reach(root, id) AS (
+         SELECT id, id FROM categories
+         UNION ALL
+         SELECT r.root, c2.id FROM categories c2 JOIN reach r ON c2.parent_id = r.id
+       ),
+       counts AS (
+         SELECT r.root AS category_id, COUNT(l.id) AS active_count
+         FROM reach r
+         LEFT JOIN listings l ON l.category_id = r.id AND l.status = 'ACTIVE'
+         GROUP BY r.root
+       )
+       SELECT c.*, COALESCE(cnt.active_count, 0) AS active_count
        FROM categories c
+       LEFT JOIN counts cnt ON cnt.category_id = c.id
        WHERE c.parent_id = ? AND c.is_active = 1
        ORDER BY c.sort_order ASC, c.name_uz ASC`,
       [category.id]
@@ -238,16 +261,29 @@ router.delete('/:id', requireAuth, requireRole(['ADMIN']), async (req: AuthReque
   try {
     const catId = req.params.id;
 
-    // Check listings count
+    // Check listings count across the whole category subtree (recursive, any depth)
     const hasListings = await queryOne(
-      'SELECT COUNT(*) as cnt FROM listings WHERE category_id = ? OR category_id IN (SELECT id FROM categories WHERE parent_id = ?)',
+      `WITH RECURSIVE reach(root, id) AS (
+         SELECT ?::text, ?::text
+         UNION ALL
+         SELECT r.root, c.id FROM categories c JOIN reach r ON c.parent_id = r.id
+       )
+       SELECT COUNT(*) as cnt FROM listings WHERE category_id IN (SELECT id FROM reach)`,
       [catId, catId]
     );
     const listingCount = parseInt(hasListings?.cnt || '0', 10);
 
     if (listingCount > 0) {
-      // Soft-delete to preserve listing integrity
-      await runQuery('UPDATE categories SET is_active = 0, updated_at = ? WHERE id = ? OR parent_id = ?', [new Date().toISOString(), catId, catId]);
+      // Soft-delete to preserve listing integrity (deactivate the entire subtree)
+      await runQuery(
+        `WITH RECURSIVE reach(root, id) AS (
+           SELECT ?::text, ?::text
+           UNION ALL
+           SELECT r.root, c.id FROM categories c JOIN reach r ON c.parent_id = r.id
+         )
+         UPDATE categories SET is_active = 0, updated_at = ? WHERE id IN (SELECT id FROM reach)`,
+        [catId, catId, new Date().toISOString()]
+      );
       return res.json({ success: true, message: `Kategoriya va uning subkategoriyalari nofaol holatga o‘tkazildi (${listingCount} ta e’lon mavjud)` });
     }
 

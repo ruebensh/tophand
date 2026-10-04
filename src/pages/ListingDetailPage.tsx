@@ -283,6 +283,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
 
   const isOwner = user?.id === listing.owner_user_id;
   const isJob = listing.type === 'JOB_OPENING' || listing.type === 'JOB_SEEKER';
+  const isCompleted = listing.status === 'COMPLETED';
   const images = listing.images && listing.images.length > 0 ? listing.images : [];
   const isVideoUrl = (u: string) => /\.(mp4|webm|mov|m4v)(\?|$)/i.test(u);
   const currentMedia = images[selectedImageIdx] || '';
@@ -370,7 +371,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
   ];
 
   return (
-    <div className="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-24 sm:pb-6">
+    <div className="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-0 sm:pb-6">
       {/* Breadcrumb / Back */}
       <div className="flex items-center gap-2 mb-4 text-xs text-gray-500">
         <button
@@ -601,17 +602,24 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
           {/* 2. Title & Price */}
           <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-xs">
             <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
-              <PriceDisplay
-                priceType={listing.price_type}
-                priceMin={listing.price_min}
-                priceMax={listing.price_max}
-                currency={listing.currency}
-                salaryType={listing.salary_type}
-                salaryMin={listing.salary_min}
-                salaryMax={listing.salary_max}
-                isJob={isJob}
-                className="text-2xl sm:text-3xl text-[#172B4D] font-extrabold"
-              />
+              {isCompleted ? (
+                <div className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700">
+                  <CheckCircle2 className="w-6 h-6" />
+                  <span className="text-2xl sm:text-3xl font-extrabold leading-none">Yakunlangan</span>
+                </div>
+              ) : (
+                <PriceDisplay
+                  priceType={listing.price_type}
+                  priceMin={listing.price_min}
+                  priceMax={listing.price_max}
+                  currency={listing.currency}
+                  salaryType={listing.salary_type}
+                  salaryMin={listing.salary_min}
+                  salaryMax={listing.salary_max}
+                  isJob={isJob}
+                  className="text-2xl sm:text-3xl text-[#172B4D] font-extrabold"
+                />
+              )}
 
               {/* Action icons */}
               <div className="flex items-center gap-2">
@@ -623,7 +631,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                       ? 'bg-rose-50 text-rose-600 border-rose-300'
                       : 'border-gray-200 text-gray-500 hover:border-rose-300 hover:text-rose-500'
                   }`}
-                  title={isSaved ? 'Saqlangan' : 'Saqlash'}
+                  title={isSaved ? 'Yoqtirilgan' : 'Yoqtirish'}
                 >
                   <Heart className={`w-4 h-4 ${isSaved ? 'fill-rose-500' : ''}`} />
                 </button>
@@ -675,7 +683,8 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
             </div>
           )}
 
-          {/* 3. Tafsilotlar (Подробности) — Avito style */}
+          {/* 3. Tafsilotlar (Подробности) — Avito style (yakunlangan e'londa ko'rsatilmaydi) */}
+          {!isCompleted && (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-xs overflow-hidden">
             <div className="px-4 sm:px-5 py-3.5 border-b border-gray-100 bg-gray-50/60">
               <h2 className="font-bold text-sm text-gray-900">Tafsilotlar</h2>
@@ -694,6 +703,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
               ))}
             </div>
           </div>
+          )}
 
           {/* 3b. Xususiyatlar (Atributlar) — sektor uchun maxsus spec jadvali */}
           {(() => {
@@ -794,7 +804,8 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
             </div>
           </div>
 
-          {/* 6. Bog'lanish vaqti */}
+          {/* 6. Bog'lanish vaqti (yakunlangan e'londa ko'rsatilmaydi) */}
+          {!isCompleted && (
           <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-xs">
             <div className="flex items-center gap-2.5 text-sm text-gray-800">
               <div className="p-2 rounded-xl bg-amber-50 text-amber-600 shrink-0">
@@ -808,6 +819,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
               </div>
             </div>
           </div>
+          )}
 
           {/* 7. Reviews */}
           <div id="reviews" className="scroll-mt-20">
@@ -829,7 +841,20 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
         {/* ── Right Column: Sticky Contact & Owner ── */}
         <div className="space-y-4 lg:self-start lg:sticky lg:top-20">
 
-          {/* Contact Panel */}
+          {/* Contact Panel (yakunlangan e'londa bog'lanish yopiq) */}
+          {isCompleted ? (
+            <div className="bg-white rounded-2xl border border-emerald-200 p-4 sm:p-5 shadow-xs flex items-start gap-3">
+              <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600 shrink-0">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="font-bold text-sm text-emerald-800">E'lon yakunlangan</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Bu e'lon bajarildi (yakunlandi) deb belgilangan — bog'lanish imkoni yopiq.
+                </p>
+              </div>
+            </div>
+          ) : (
           <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-xs">
             <h3 className="font-bold text-sm text-gray-900 mb-3">Aloqaga chiqish</h3>
 
@@ -880,6 +905,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
               </button>
             </div>
           </div>
+          )}
 
           {/* Owner Profile Card */}
           <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-xs">
@@ -1022,45 +1048,9 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
         </div>
       </div>
 
-      {/* Mobil: pastdagi qotib turuvcha amallar paneli */}
-      <div className="sm:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-md border-t border-gray-200 px-3 pt-2 pb-[calc(8px+env(safe-area-inset-bottom))] shadow-[0_-2px_14px_rgba(0,0,0,0.07)]">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleSaveToggle}
-            aria-label="Saqlash"
-            className={`shrink-0 h-11 w-11 flex items-center justify-center rounded-xl border transition-colors ${
-              isSaved ? 'bg-rose-50 border-rose-200 text-rose-500' : 'bg-white border-gray-200 text-gray-500 active:bg-gray-50'
-            }`}
-          >
-            <Heart className={`w-5 h-5 ${isSaved ? 'fill-rose-500' : ''}`} />
-          </button>
-          <button
-            type="button"
-            onClick={handleShare}
-            aria-label="Ulashish"
-            className="shrink-0 h-11 w-11 flex items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 active:bg-gray-50"
-          >
-            <Share2 className="w-5 h-5" />
-          </button>
-          <button
-            type="button"
-            onClick={handleRevealPhone}
-            className="flex-1 h-11 rounded-xl border border-blue-200 bg-blue-50 text-blue-700 font-bold text-sm flex items-center justify-center gap-1.5 active:bg-blue-100"
-          >
-            <Phone className="w-4 h-4" />
-            <span>{revealedPhone ? 'Qo‘ng‘iroq' : 'Telefon'}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => (user ? setIsChatOpen(true) : openLoginModal(() => setIsChatOpen(true)))}
-            className="flex-1 h-11 rounded-xl bg-blue-600 text-white font-bold text-sm flex items-center justify-center gap-1.5 active:bg-blue-700 shadow-sm"
-          >
-            <MessageSquare className="w-4 h-4" />
-            <span>Yozish</span>
-          </button>
-        </div>
-      </div>
+      {/* Mobil: alohida docked amallar paneli olib tashlandi — like/ulashish
+          sarlavha ostidagi ichki amallarda, bog'lanish (chat/telegram/telefon)
+          esa "Aloqaga chiqish" kartasida allaqachon mavjud. */}
 
       {/* Modals */}
       <CallModal

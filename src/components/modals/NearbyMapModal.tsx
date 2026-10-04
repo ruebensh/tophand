@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { X, MapPin, Loader2, Navigation, RefreshCw, Briefcase, Wrench, Layers } from 'lucide-react';
 import { apiRequest } from '../../lib/api.ts';
 
@@ -374,7 +375,7 @@ export const NearbyMapModal: React.FC<NearbyMapModalProps> = ({
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4"
       style={{ background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(5px)' }}
@@ -618,6 +619,7 @@ export const NearbyMapModal: React.FC<NearbyMapModalProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

@@ -6,7 +6,7 @@ import {
   PlusCircle,
   Bell,
   MessageSquare,
-  Bookmark,
+  Heart,
   Wallet,
   Shield,
   Settings,
@@ -166,7 +166,7 @@ export const Header: React.FC<HeaderProps> = ({ onSearch, onNavigate, currentRou
   const renderMegaBody = (mobile = false) => (
     <>
       {/* Chap: 13 katalog ro'yxati */}
-      <div className={`${mobile ? 'w-[78px] shrink-0' : 'w-60 shrink-0'} border-r border-gray-100 bg-[#F9FAFB] overflow-y-auto py-2`}>
+      <div className={`${mobile ? 'w-[78px] shrink-0' : 'w-60 shrink-0'} border-r border-gray-100 bg-[#F9FAFB] overflow-y-auto py-2 ${mobile ? 'pb-[calc(var(--mobile-nav-h)+12px+env(safe-area-inset-bottom))]' : ''}`}>
         {catalogs.map((cat) => (
           <button
             key={cat.id}
@@ -184,7 +184,7 @@ export const Header: React.FC<HeaderProps> = ({ onSearch, onNavigate, currentRou
       </div>
 
       {/* O'ng: tanlangan katalog daraxti */}
-      <div className="flex-1 overflow-y-auto p-5">
+      <div className={`flex-1 overflow-y-auto p-5 ${mobile ? 'pb-[calc(var(--mobile-nav-h)+16px+env(safe-area-inset-bottom))]' : ''}`}>
         <button
           type="button"
           onClick={() => go(`/?catalog=${megaCatalogId}`)}
@@ -309,11 +309,11 @@ export const Header: React.FC<HeaderProps> = ({ onSearch, onNavigate, currentRou
             <button
               type="button"
               onClick={() => onNavigate('/saved')}
-              aria-label="Saqlangan e'lonlar"
+              aria-label="Yoqtirilgan e'lonlar"
               className="hidden sm:flex p-2 text-[#5E6C84] hover:text-[#1673E6] hover:bg-gray-50 rounded-lg transition-colors cursor-pointer"
-              title="Saqlanganlar"
+              title="Yoqtirilganlar"
             >
-              <Bookmark className="w-5 h-5" />
+              <Heart className="w-5 h-5" />
             </button>
 
             {user && (
@@ -422,7 +422,7 @@ export const Header: React.FC<HeaderProps> = ({ onSearch, onNavigate, currentRou
                         <UserIcon className="w-4 h-4 text-gray-400" /> Mening profilim
                       </button>
                       <button onClick={() => { setIsUserMenuOpen(false); onNavigate('/saved'); }} className="w-full px-3.5 py-2 text-xs text-left font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-                        <Bookmark className="w-4 h-4 text-gray-400" /> Saqlangan e’lonlar
+                        <Heart className="w-4 h-4 text-gray-400" /> Yoqtirilgan e’lonlar
                       </button>
                       <button onClick={() => { setIsUserMenuOpen(false); onNavigate('/chat'); }} className="w-full px-3.5 py-2 text-xs text-left font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2">
                         <MessageSquare className="w-4 h-4 text-gray-400" /> Suhbatlar

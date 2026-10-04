@@ -42,7 +42,7 @@ export async function processListingExpirations() {
        AND expires_at <= ? 
        AND expires_at > ?
        AND id NOT IN (
-         SELECT link FROM notifications 
+         SELECT REPLACE(link, '/listing/', '') FROM notifications 
          WHERE type = 'LISTING_EXPIRING' AND created_at >= ?
        )`,
     [warnFromNow, now, warnedAfter]

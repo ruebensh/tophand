@@ -583,7 +583,7 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
   const showForm = !!selectedCatalog && !!selectedType;
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-6 sm:py-10 pb-28">
+    <div className="max-w-3xl mx-auto px-3 sm:px-6 py-4 sm:py-10 pb-6">
       {isLoadingEdit ? (
         <div className="space-y-4 animate-pulse">
           <div className="w-48 h-8 bg-gray-200 rounded-lg" />

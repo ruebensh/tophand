@@ -2,8 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { User, Listing, Region, District } from '../types/index.ts';
 import { apiRequest, uploadImageFile, getPublicMonetization, type PublicMonetization } from '../lib/api.ts';
 import { useAuth } from '../context/AuthContext.tsx';
-import { ListingTypeBadge } from '../components/listings/ListingTypeBadge.tsx';
-import { PriceDisplay } from '../components/listings/PriceDisplay.tsx';
+import { ListingCard } from '../components/listings/ListingCard.tsx';
 import { AccountLinkingCard } from '../components/modals/AccountLinkingCard.tsx';
 import { PushNotificationsCard } from '../components/profile/PushNotificationsCard.tsx';
 import {
@@ -16,7 +15,6 @@ import {
   Archive,
   Clock,
   List,
-  ChevronRight,
   Edit3,
   LogOut,
   CheckCircle2,
@@ -44,7 +42,7 @@ const VerifyStatusCard: React.FC<{
 }> = ({ status, rejectionReason, onRequest }) => {
   if (status === 'VERIFIED') {
     return (
-      <div className="mb-6 flex items-center gap-3 p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200">
+      <div className="mb-4 flex items-center gap-3 p-3 sm:p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200">
         <VerifiedBadge size="md" />
         <div className="min-w-0">
           <p className="font-bold text-sm text-emerald-900">Tasdiqlangan profil</p>
@@ -56,7 +54,7 @@ const VerifyStatusCard: React.FC<{
 
   if (status === 'PENDING') {
     return (
-      <div className="mb-6 flex items-center gap-3 p-4 rounded-2xl bg-amber-50/70 border border-amber-200">
+      <div className="mb-4 flex items-center gap-3 p-3 sm:p-4 rounded-2xl bg-amber-50/70 border border-amber-200">
         <div className="w-9 h-9 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
           <Clock className="w-5 h-5" />
         </div>
@@ -70,7 +68,7 @@ const VerifyStatusCard: React.FC<{
 
   if (status === 'REJECTED') {
     return (
-      <div className="mb-6 flex items-start gap-3 p-4 rounded-2xl bg-rose-50/70 border border-rose-200">
+      <div className="mb-4 flex items-start gap-3 p-3 sm:p-4 rounded-2xl bg-rose-50/70 border border-rose-200">
         <div className="w-9 h-9 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
           <AlertTriangle className="w-5 h-5" />
         </div>
@@ -93,7 +91,7 @@ const VerifyStatusCard: React.FC<{
 
   // UNVERIFIED — CTA
   return (
-    <div className="mb-6 flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-2xl bg-blue-50/70 border border-blue-200">
+    <div className="mb-4 flex flex-col sm:flex-row sm:items-center gap-3 p-3 sm:p-4 rounded-2xl bg-blue-50/70 border border-blue-200">
       <div className="w-9 h-9 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
         <ShieldQuestion className="w-5 h-5" />
       </div>
@@ -319,9 +317,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8">
       {/* Profile Header Card */}
-      <div className="bg-white rounded-3xl border border-gray-100 p-6 sm:p-8 shadow-xs mb-8">
+      <div className="bg-white rounded-3xl border border-gray-100 p-4 sm:p-6 shadow-xs mb-5">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
           <div className="flex items-start gap-4 sm:gap-6">
             <img
@@ -425,14 +423,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
         {/* Bio */}
         {profileUser.bio && !isEditing && (
-          <div className="mt-6 pt-6 border-t border-gray-100 text-xs sm:text-sm text-gray-700 leading-relaxed max-w-2xl whitespace-pre-wrap">
+          <div className="mt-4 pt-4 border-t border-gray-100 text-xs sm:text-sm text-gray-700 leading-relaxed max-w-2xl whitespace-pre-wrap">
             {profileUser.bio}
           </div>
         )}
 
         {/* Edit profile form if owner */}
         {isEditing && (
-          <form onSubmit={handleSaveProfile} className="mt-6 pt-6 border-t border-gray-100 space-y-4">
+          <form onSubmit={handleSaveProfile} className="mt-4 pt-4 border-t border-gray-100 space-y-4">
             {/* Profile photo — upload / change */}
             <div className="flex items-center gap-4">
               <div className="relative shrink-0">
@@ -553,7 +551,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         )}
 
         {/* Stats bar */}
-        <div className="mt-6 pt-6 border-t border-gray-100 grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+        <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 text-center">
           <div className="p-2 rounded-xl bg-gray-50/50">
             <span className="block font-extrabold text-base text-gray-900">
               {profileUser.active_listing_count || listings.length}
@@ -608,7 +606,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           Rasmiy (admin) hisob uchun tasdiq so'rash kerak emas — u boshqalardan
           farqli, avtomatik premium/rasmiy tasdiq nishoni bilan ta'minlangan. */}
       {isOwner && isOfficialAccount(profileUser) ? (
-        <div className="mb-6 flex items-center gap-3 p-4 rounded-2xl bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200">
+        <div className="mb-4 flex items-center gap-3 p-3 sm:p-4 rounded-2xl bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200">
           <VerifiedBadge size="md" variant="official" />
           <div className="min-w-0">
             <p className="font-bold text-sm text-amber-900">TopHand rasmiy (premium) hisobi</p>
@@ -618,7 +616,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           </div>
         </div>
       ) : isOwner && isStaffAccount(profileUser) ? (
-        <div className="mb-6 flex items-center gap-3 p-4 rounded-2xl bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-200">
+        <div className="mb-4 flex items-center gap-3 p-3 sm:p-4 rounded-2xl bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-200">
           <VerifiedBadge size="md" variant="staff" />
           <div className="min-w-0">
             <p className="font-bold text-sm text-indigo-900">TopHand moderatori (staff) hisobi</p>
@@ -642,7 +640,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       {isOwner && <PushNotificationsCard />}
 
       {/* Tabs */}
-      <div className="flex items-center gap-3 border-b border-gray-200 mb-6">
+      <div className="flex items-center gap-3 border-b border-gray-200 mb-4">
         <button
           onClick={() => setActiveTab('active')}
           className={`flex items-center gap-2 py-3 px-4 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
@@ -687,144 +685,49 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             )}
           </div>
         ) : (
-          <div className="space-y-3">
-            {listings.map((l) => {
-              const isJob = l.type === 'JOB_OPENING' || l.type === 'JOB_SEEKER';
-              const daysLeft = l.expires_at
-                ? Math.max(0, Math.ceil((new Date(l.expires_at).getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
-                : null;
-              return (
-                <div
-                  key={l.id}
-                  onClick={() => onOpenListing(l.id)}
-                  className="group bg-white rounded-2xl sm:rounded-3xl border border-gray-100 hover:border-blue-200 hover:shadow-md transition-all duration-200 p-3 sm:p-4.5 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 cursor-pointer"
-                >
-                  {/* Left: Thumbnail & Details */}
-                  <div className="flex items-start sm:items-center gap-3.5 sm:gap-4.5 min-w-0 flex-1">
-                    {/* Photo / Thumbnail */}
-                    <div className="relative w-20 h-20 sm:w-28 sm:h-24 rounded-xl sm:rounded-2xl overflow-hidden shrink-0 bg-gray-50 border border-gray-100 shadow-2xs">
-                      {l.images && l.images.length > 0 ? (
-                        <img
-                          src={l.images[0]}
-                          alt={l.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-blue-50/70 via-indigo-50/50 to-slate-100 text-gray-400 p-1">
-                          <span className="text-2xl sm:text-3xl mb-0.5">{l.category_icon || '📋'}</span>
-                          <span className="text-[10px] text-gray-500 font-medium text-center truncate max-w-full px-1">
-                            {l.category_name || 'E’lon'}
-                          </span>
-                        </div>
-                      )}
-                      {/* Mobile type badge */}
-                      <div className="absolute top-1 left-1 sm:hidden">
-                        <ListingTypeBadge type={l.type} size="sm" />
-                      </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
+            {listings.map((l) => (
+              <ListingCard
+                key={l.id}
+                listing={l}
+                hideSave={isOwner}
+                onClick={() => onOpenListing(l.id)}
+                statusBadge={
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold text-[10px] border border-emerald-200">
+                    Faol
+                  </span>
+                }
+                footer={
+                  isOwner ? (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onNavigate(`/create?edit=${l.id}`);
+                        }}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-gray-200 hover:border-blue-300 hover:bg-blue-50 text-gray-600 hover:text-blue-700 text-[11px] font-bold transition-all cursor-pointer"
+                      >
+                        <Edit3 className="w-3 h-3" />
+                        <span>Tahrirlash</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCompleteListing(l.id);
+                        }}
+                        title="Ish bajarildi — e’lonni yopish"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-emerald-200 hover:border-emerald-300 hover:bg-emerald-50 text-emerald-700 text-[11px] font-bold transition-all cursor-pointer"
+                      >
+                        <CheckCircle2 className="w-3 h-3" />
+                        <span>Yakunlash</span>
+                      </button>
                     </div>
-
-                    {/* Text Content */}
-                    <div className="min-w-0 flex-1">
-                      {/* Category, Type & Location tag row */}
-                      <div className="hidden sm:flex items-center gap-2 mb-1.5 flex-wrap">
-                        <ListingTypeBadge type={l.type} size="sm" />
-                        {l.category_name && (
-                          <span className="text-[11px] font-semibold text-gray-700 bg-gray-100/80 px-2 py-0.5 rounded-md">
-                            {l.category_name}
-                          </span>
-                        )}
-                        {(l.district_name || l.region_name) && (
-                          <span className="text-[11px] text-gray-500 flex items-center gap-1 font-medium">
-                            <MapPin className="w-3 h-3 text-gray-400 shrink-0" />
-                            <span>{l.district_name ? `${l.district_name}, ` : ''}{l.region_name}</span>
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Title */}
-                      <h3 className="font-bold text-sm sm:text-base text-gray-950 group-hover:text-blue-600 transition-colors line-clamp-1 sm:line-clamp-2 leading-snug mb-1">
-                        {l.title}
-                      </h3>
-
-                      {/* Description snippet */}
-                      {l.description && (
-                        <p className="text-xs text-gray-500 line-clamp-1 mb-2 leading-relaxed">
-                          {l.description}
-                        </p>
-                      )}
-
-                      {/* Meta bottom row */}
-                      <div className="flex items-center gap-3 text-[11px] text-gray-400 flex-wrap">
-                        <span className="flex items-center gap-1">
-                          <Calendar className="w-3 h-3 text-gray-400 shrink-0" />
-                          <span>{formatDateAgo(l.renewed_at || l.created_at)}</span>
-                        </span>
-                        <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold text-[10px] border border-emerald-200">
-                          Faol
-                        </span>
-                        {isOwner && daysLeft !== null && (
-                          <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] border flex items-center gap-1 ${
-                            daysLeft <= 3
-                              ? 'bg-amber-50 text-amber-700 border-amber-200'
-                              : 'bg-gray-50 text-gray-600 border-gray-200'
-                          }`}>
-                            <Clock className="w-3 h-3" /> {daysLeft} kun qoldi
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Right: Price & Action */}
-                  <div className="flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto shrink-0 border-t sm:border-t-0 pt-2.5 sm:pt-0 border-gray-100 gap-2 sm:gap-3">
-                    <PriceDisplay
-                      priceType={l.price_type}
-                      priceMin={l.price_min}
-                      priceMax={l.price_max}
-                      currency={l.currency}
-                      salaryType={l.salary_type}
-                      salaryMin={l.salary_min}
-                      salaryMax={l.salary_max}
-                      isJob={isJob}
-                      className="text-base sm:text-lg font-black text-gray-950"
-                    />
-
-                    <div className="inline-flex items-center gap-2">
-                      {isOwner && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onNavigate(`/create?edit=${l.id}`);
-                          }}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full border border-gray-200 hover:border-blue-300 hover:bg-blue-50 text-gray-600 hover:text-blue-700 text-xs font-bold transition-all"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                          <span>Tahrirlash</span>
-                        </button>
-                      )}
-                      {isOwner && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCompleteListing(l.id);
-                          }}
-                          title="Ish bajarildi — e’lonni yopish"
-                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full border border-emerald-200 hover:border-emerald-300 hover:bg-emerald-50 text-emerald-700 text-xs font-bold transition-all"
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>Yakunlash</span>
-                        </button>
-                      )}
-                      <div className="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-full bg-blue-50 group-hover:bg-blue-600 text-blue-600 group-hover:text-white text-xs font-bold transition-all shadow-2xs">
-                        <span>Batafsil ko‘rish</span>
-                        <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+                  ) : undefined
+                }
+              />
+            ))}
           </div>
         )
       )}
@@ -836,107 +739,43 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             <h4 className="font-bold text-sm text-gray-900">Arxivlangan e’lonlar mavjud emas</h4>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
             {archivedListings.map((l) => {
-              const isJob = l.type === 'JOB_OPENING' || l.type === 'JOB_SEEKER';
+              const isCompleted = l.status === 'COMPLETED';
               return (
-                <div
+                <ListingCard
                   key={l.id}
+                  listing={l}
+                  dimmed
+                  hideSave
                   onClick={() => onOpenListing(l.id)}
-                  className="group bg-white rounded-2xl sm:rounded-3xl border border-gray-100 hover:border-amber-200 hover:shadow-md transition-all duration-200 p-3 sm:p-4.5 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 cursor-pointer"
-                >
-                  {/* Left: Thumbnail & Details */}
-                  <div className="flex items-start sm:items-center gap-3.5 sm:gap-4.5 min-w-0 flex-1">
-                    <div className="relative w-20 h-20 sm:w-28 sm:h-24 rounded-xl sm:rounded-2xl overflow-hidden shrink-0 bg-gray-50 border border-gray-100 shadow-2xs opacity-85">
-                      {l.images && l.images.length > 0 ? (
-                        <img
-                          src={l.images[0]}
-                          alt={l.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-50 to-slate-100 text-gray-400 p-1">
-                          <span className="text-2xl sm:text-3xl mb-0.5">{l.category_icon || '📋'}</span>
-                          <span className="text-[10px] text-gray-500 font-medium text-center truncate max-w-full px-1">
-                            {l.category_name || 'E’lon'}
-                          </span>
-                        </div>
-                      )}
-                      <div className="absolute top-1 left-1 sm:hidden">
-                        <ListingTypeBadge type={l.type} size="sm" />
-                      </div>
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <div className="hidden sm:flex items-center gap-2 mb-1.5 flex-wrap">
-                        <ListingTypeBadge type={l.type} size="sm" />
-                        {l.category_name && (
-                          <span className="text-[11px] font-semibold text-gray-600 bg-gray-100/80 px-2 py-0.5 rounded-md">
-                            {l.category_name}
-                          </span>
-                        )}
-                        {(l.district_name || l.region_name) && (
-                          <span className="text-[11px] text-gray-500 flex items-center gap-1 font-medium">
-                            <MapPin className="w-3 h-3 text-gray-400 shrink-0" />
-                            <span>{l.district_name ? `${l.district_name}, ` : ''}{l.region_name}</span>
-                          </span>
-                        )}
-                      </div>
-
-                      <h3 className="font-bold text-sm sm:text-base text-gray-900 group-hover:text-blue-600 transition-colors line-clamp-1 sm:line-clamp-2 leading-snug mb-1">
-                        {l.title}
-                      </h3>
-
-                      {l.description && (
-                        <p className="text-xs text-gray-500 line-clamp-1 mb-2 leading-relaxed">
-                          {l.description}
-                        </p>
-                      )}
-
-                      <div className="flex items-center gap-3 text-[11px] text-gray-400 flex-wrap">
-                        <span className="flex items-center gap-1">
-                          <Calendar className="w-3 h-3 text-gray-400 shrink-0" />
-                          <span>{formatDateAgo(l.renewed_at || l.created_at)}</span>
-                        </span>
-                        <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] border ${
-                          l.status === 'COMPLETED'
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            : 'bg-amber-50 text-amber-700 border-amber-200'
-                        }`}>
-                          {l.status === 'COMPLETED' ? 'Yopilgan (Bajarilgan)' : 'Arxivda (Muddati tugagan)'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Right: Price & Renew Button */}
-                  <div className="flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto shrink-0 border-t sm:border-t-0 pt-2.5 sm:pt-0 border-gray-100 gap-2 sm:gap-3">
-                    <PriceDisplay
-                      priceType={l.price_type}
-                      priceMin={l.price_min}
-                      priceMax={l.price_max}
-                      currency={l.currency}
-                      salaryType={l.salary_type}
-                      salaryMin={l.salary_min}
-                      salaryMax={l.salary_max}
-                      isJob={isJob}
-                      className="text-base sm:text-lg font-black text-gray-950"
-                    />
-
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRenewListing(l.id);
-                      }}
-                      className="px-4 py-2 rounded-full bg-amber-500 hover:bg-amber-600 text-gray-950 font-bold text-xs flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                      <span>Qayta uzaytirish ({activeDays} kunga)</span>
-                    </button>
-                  </div>
-                </div>
+                  statusBadge={
+                    isCompleted ? undefined : (
+                      <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-bold text-[10px] border border-amber-200">
+                        Arxivda · muddati tugagan
+                      </span>
+                    )
+                  }
+                  footer={
+                    isCompleted ? (
+                      <p className="text-[10px] text-gray-400 leading-snug">
+                        Yakunlangan e’lonni arxivdan qaytarib bo’lmaydi.
+                      </p>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRenewListing(l.id);
+                        }}
+                        className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500 hover:bg-amber-600 text-gray-950 font-bold text-[11px] transition-colors shadow-xs cursor-pointer"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        <span>Arxivdan chiqarish ({activeDays} kunga)</span>
+                      </button>
+                    )
+                  }
+                />
               );
             })}
           </div>

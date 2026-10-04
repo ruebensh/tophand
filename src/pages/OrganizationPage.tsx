@@ -51,9 +51,9 @@ export const OrganizationPage: React.FC<OrganizationPageProps> = ({
   const isOwnerOrAdmin = org.user_membership_role === 'OWNER' || org.user_membership_role === 'ADMIN';
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8">
       {/* Org Banner */}
-      <div className="bg-white rounded-3xl border border-gray-100 p-6 sm:p-8 shadow-xs mb-8">
+      <div className="bg-white rounded-3xl border border-gray-100 p-4 sm:p-6 shadow-xs mb-5">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
           <div className="flex items-start gap-4 sm:gap-6">
             {org.logo_url ? (

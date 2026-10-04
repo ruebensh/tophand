@@ -18,7 +18,14 @@ import { useAuth } from '../../context/AuthContext.tsx';
 
 // Sektor bo'yicha qisqa atribut spasi (attributes JSONB'dan).
 function attributeSpecs(listing: Listing): string[] {
-  const a = listing.attributes || {};
+  let a: any = listing.attributes || {};
+  if (typeof a === 'string') {
+    try {
+      a = JSON.parse(a);
+    } catch {
+      a = {};
+    }
+  }
   const out: string[] = [];
   const g = (k: string) => (a[k] === undefined || a[k] === null || a[k] === '' ? undefined : a[k]);
   if (g('xonalar')) out.push(`${g('xonalar')} xona`);
@@ -37,6 +44,14 @@ interface ListingCardProps {
   onClick: () => void;
   onSaveToggle?: (saved: boolean) => void;
   variant?: 'row' | 'grid';
+  /** Arxivlangan e'lonlar uchun xiraroq (o'chib/tuyng'i) ko'rinish. */
+  dimmed?: boolean;
+  /** Egasining o'zi ko'rayotganda yurakcha (save) tugmasini yashirish. */
+  hideSave?: boolean;
+  /** Kartaning tepasida ko'rsatiladigan holat belgisi (Faol/Arxivda/Yakunlangan). */
+  statusBadge?: React.ReactNode;
+  /** Kartaning pastidagi qo'shimcha amallar paneli (Tahrirlash/Yakunlash/Uzaytirish). */
+  footer?: React.ReactNode;
 }
 
 export const ListingCard: React.FC<ListingCardProps> = ({
@@ -44,6 +59,10 @@ export const ListingCard: React.FC<ListingCardProps> = ({
   onClick,
   onSaveToggle,
   variant = 'grid',
+  dimmed = false,
+  hideSave = false,
+  statusBadge,
+  footer,
 }) => {
   const { user, openLoginModal } = useAuth();
   const [isSaved, setIsSaved] = useState(listing.is_saved || false);
@@ -170,7 +189,9 @@ export const ListingCard: React.FC<ListingCardProps> = ({
   return (
     <div
       onClick={onClick}
-      className="group relative th-card flex flex-col bg-surface rounded-2xl border border-black/5 shadow-soft hover:shadow-card active:scale-[.99] transition-all duration-200 cursor-pointer overflow-hidden"
+      className={`group relative th-card flex flex-col bg-surface rounded-2xl border border-black/5 shadow-soft hover:shadow-card active:scale-[.99] transition-all duration-200 cursor-pointer overflow-hidden${
+        dimmed ? ' opacity-60 saturate-[.4]' : ''
+      }`}
     >
       {/* ── PHOTO ── */}
       <div className="relative w-full overflow-hidden bg-gray-100" style={{ paddingBottom: '75%' }}>
@@ -214,7 +235,8 @@ export const ListingCard: React.FC<ListingCardProps> = ({
           </div>
         )}
 
-        {/* Heart save button — top right, like Avito (mobil uchun katta tap) */}
+        {/* Heart like button — top right, like Avito (mobil uchun katta tap) */}
+        {!hideSave && (
         <button
           type="button"
           onClick={handleSave}
@@ -223,7 +245,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
               ? 'bg-white text-rose-500 shadow-sm'
               : 'bg-white/80 text-gray-500 hover:bg-white hover:text-rose-500 shadow-sm'
           }`}
-          aria-label="Saqlash"
+          aria-label="Yoqtirish"
         >
           <Heart
             className={`w-[18px] h-[18px] transition-transform ${
@@ -231,6 +253,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
             }`}
           />
         </button>
+        )}
 
         {/* Promo belgisi — grid kartada (top-left) */}
         {isPromoted && (
@@ -255,20 +278,30 @@ export const ListingCard: React.FC<ListingCardProps> = ({
       {/* ── CONTENT (below photo, like Avito) ── */}
       <div className="p-3 flex flex-col gap-1 flex-1">
 
-        {/* Price — bright, heavy, brand color */}
-        <div className="text-lg font-extrabold leading-tight text-ink">
-          <PriceDisplay
-            priceType={listing.price_type}
-            priceMin={listing.price_min}
-            priceMax={listing.price_max}
-            currency={listing.currency}
-            salaryType={listing.salary_type}
-            salaryMin={listing.salary_min}
-            salaryMax={listing.salary_max}
-            isJob={isJob}
-            className="text-brand-dark font-extrabold text-lg"
-          />
-        </div>
+        {/* Holat belgisi (ixtiyoriy) — profil/arxiv ko'rinishi uchun */}
+        {statusBadge && <div className="mb-0.5 self-start">{statusBadge}</div>}
+
+        {/* Price — bright, heavy, brand color (yakunlangan e'londa narx o'rniga "Yakunlangan") */}
+        {listing.status === 'COMPLETED' ? (
+          <div className="inline-flex items-center gap-1 text-base font-extrabold leading-tight text-emerald-600">
+            <BadgeCheck className="w-4 h-4" />
+            <span>Yakunlangan</span>
+          </div>
+        ) : (
+          <div className="text-lg font-extrabold leading-tight text-ink">
+            <PriceDisplay
+              priceType={listing.price_type}
+              priceMin={listing.price_min}
+              priceMax={listing.price_max}
+              currency={listing.currency}
+              salaryType={listing.salary_type}
+              salaryMin={listing.salary_min}
+              salaryMax={listing.salary_max}
+              isJob={isJob}
+              className="text-brand-dark font-extrabold text-lg"
+            />
+          </div>
+        )}
 
         {/* Title */}
         <h3 className="text-[13px] font-medium text-gray-700 line-clamp-2 leading-snug group-hover:text-blue-600 transition-colors">
@@ -346,6 +379,9 @@ export const ListingCard: React.FC<ListingCardProps> = ({
             )}
           </span>
         </div>
+
+        {/* Qo'shimcha amallar (ixtiyoriy) — egasi uchun Tahrirlash/Yakunlash/Uzaytirish */}
+        {footer && <div className="mt-1.5 pt-2 border-t border-gray-100">{footer}</div>}
       </div>
     </div>
   );

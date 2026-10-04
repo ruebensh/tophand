@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { apiRequest, uploadImageFile } from '../../lib/api.ts';
 import {
@@ -157,8 +158,8 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-gray-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+  return createPortal(
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4 bg-gray-900/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div className="relative w-full max-w-lg h-[90vh] max-h-[680px] bg-white rounded-3xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden">
         {/* Header */}
         <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-white z-10 shrink-0">
@@ -362,6 +363,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({
           targetTitle={reportTarget.title}
         />
       )}
-    </div>
+    </div>,
+    document.body
   );
 };

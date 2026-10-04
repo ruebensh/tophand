@@ -230,22 +230,32 @@ const AppContent: React.FC = () => {
         onNavigate={navigate}
         currentRoute={currentRoute}
         onSearch={(q) => {
-          navigate(`/?search=${encodeURIComponent(q)}`);
+          // Global qidiruv joriy sahifa kontekstini saqlab qolsin: katalog/kategoriya/tur
+          // tanlangan bo'lsa, faqat shu doirada qidiradi; toza bosh sahifada — hamma e'lonlar.
+          const cur = new URLSearchParams(window.location.search);
+          const next = new URLSearchParams();
+          (['catalog', 'category', 'type'] as const).forEach((k) => {
+            const v = cur.get(k);
+            if (v) next.set(k, v);
+          });
+          if (q && q.trim()) next.set('search', q.trim());
+          const qs = next.toString();
+          navigate(qs ? `/?${qs}` : '/');
         }}
       />
 
-      {/* Main Content Area — e'lon sahifasida pastki amallar paneli o'zi joy ochadi, MobileNav yashiriladi */}
-      <main className={`relative z-10 flex-1 ${currentRoute.startsWith('/listing/') ? '' : 'pb-[calc(64px+env(safe-area-inset-bottom))] sm:pb-0'}`}>{renderRoute()}</main>
+      {/* Main Content Area — mobil pastki bar (MobileNav) hamma sahifada turadi,
+          shuning uchun kontent ostida bar balandligi kadar joy ochamiz (bar kartalar
+          ustidan mingib qolmasligi uchun). */}
+      <main className="relative z-10 flex-1 pb-[calc(var(--mobile-nav-h)+8px+env(safe-area-inset-bottom))] sm:pb-0">{renderRoute()}</main>
 
       {/* Global Footer (conditionally hidden on mobile devices) */}
       <div className="hidden md:block">
         <Footer onNavigate={navigate} />
       </div>
 
-      {/* Mobile Bottom Navigation (e'lon sahifasida pastki action bar bilan to'qnashmasligi uchun yashiriladi) */}
-      {!currentRoute.startsWith('/listing/') && (
-        <MobileNav currentRoute={currentRoute} onNavigate={navigate} />
-      )}
+      {/* Mobile Bottom Navigation — hamma sahifada ko'rsatiladi */}
+      <MobileNav currentRoute={currentRoute} onNavigate={navigate} />
 
       {/* Global Modals */}
       <GoogleLoginModal />

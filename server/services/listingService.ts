@@ -122,15 +122,20 @@ export async function searchListings(filter: ListingFilter) {
   const params: any[] = [];
 
   if (filter.catalog_id) {
-    // Primary: match the denormalized catalog_id. Fallback for legacy rows
-    // (catalog_id NULL) via the catalog's own listing_types — no hardcoding.
+    // Match the denormalized catalog_id, with two robust fallbacks so listings
+    // never silently disappear from a catalog:
+    //  (a) legacy rows (catalog_id NULL) → fall back to the catalog's listing_types;
+    //  (b) the listing's own category belongs to this catalog (authoritative). This
+    //      rescues rows whose listings.catalog_id is NULL or inconsistent with the
+    //      category's catalog — otherwise a matching listing gets dropped.
     sql += ` AND (
       l.catalog_id = ?
       OR (l.catalog_id IS NULL AND l.type IN (
         SELECT unnest(string_to_array((SELECT listing_types FROM catalogs WHERE id = ?), ','))
       ))
+      OR l.category_id IN (SELECT id FROM categories WHERE catalog_id = ?)
     )`;
-    params.push(filter.catalog_id, filter.catalog_id);
+    params.push(filter.catalog_id, filter.catalog_id, filter.catalog_id);
   }
 
   if (filter.type) {
@@ -139,8 +144,17 @@ export async function searchListings(filter: ListingFilter) {
   }
 
   if (filter.category_id) {
-    sql += ` AND (l.category_id = ? OR l.category_id IN (SELECT id FROM categories WHERE parent_id = ?))`;
-    params.push(filter.category_id, filter.category_id);
+    // Include the category AND all of its descendants at any depth (recursive),
+    // so listings filed under a subcategory always surface on the parent page.
+    sql += ` AND l.category_id IN (
+      WITH RECURSIVE cat_sub(id) AS (
+        SELECT ?::text
+        UNION ALL
+        SELECT c.id FROM categories c JOIN cat_sub s ON c.parent_id = s.id
+      )
+      SELECT id FROM cat_sub
+    )`;
+    params.push(filter.category_id);
   }
 
   if (filter.region_id) {
@@ -151,6 +165,11 @@ export async function searchListings(filter: ListingFilter) {
   if (filter.district_id) {
     sql += ` AND l.district_id = ?`;
     params.push(filter.district_id);
+  }
+
+  if (filter.price_type) {
+    sql += ` AND l.price_type = ?`;
+    params.push(filter.price_type.toUpperCase());
   }
 
   if (filter.work_formats && filter.work_formats.length > 0) {
@@ -241,20 +260,8 @@ export async function searchListings(filter: ListingFilter) {
     followedUserIds = new Set(follows.map((f) => f.followed_user_id));
   }
 
-  // Fetch images for listings
-  const listingIds = allMatching.map((l) => l.id);
-  const imagesByListingId: Record<string, string[]> = {};
-  if (listingIds.length > 0) {
-    const placeholders = listingIds.map(() => '?').join(',');
-    const images = await queryAll<{ listing_id: string; url: string; sort_order: number }>(
-      `SELECT listing_id, url, sort_order FROM listing_images WHERE listing_id IN (${placeholders}) ORDER BY sort_order ASC`,
-      listingIds
-    );
-    for (const img of images) {
-      if (!imagesByListingId[img.listing_id]) imagesByListingId[img.listing_id] = [];
-      imagesByListingId[img.listing_id].push(img.url);
-    }
-  }
+  // NOTE: listing images are fetched lazily AFTER pagination (see below), so a search
+  // never loads media for every matching row — only for the returned page slice.
 
   // Fetch saved state for current user
   let savedListingIds = new Set<string>();
@@ -266,20 +273,27 @@ export async function searchListings(filter: ListingFilter) {
     savedListingIds = new Set(saved.map((s) => s.listing_id));
   }
 
-  // Fetch employer ratings from actual submitted reviews
-  const employerRatings = await queryAll<{
-    target_user_id: string;
-    avg_rating: number;
-    review_count: number;
-  }>(
-    'SELECT target_user_id, ROUND(AVG(rating), 1) as avg_rating, COUNT(id) as review_count FROM reviews GROUP BY target_user_id'
-  );
+  // Fetch employer ratings from actual submitted reviews — scoped to the owners that
+  // appear in the result set (used by scoring and the rating_desc sort) instead of
+  // aggregating the entire reviews table on every search.
+  const ownerIds = Array.from(new Set(allMatching.map((l) => l.owner_user_id).filter(Boolean)));
   const employerRatingMap = new Map<string, { avg_rating: number; review_count: number }>();
-  for (const er of employerRatings) {
-    employerRatingMap.set(er.target_user_id, {
-      avg_rating: Number(er.avg_rating),
-      review_count: Number(er.review_count),
-    });
+  if (ownerIds.length > 0) {
+    const ownerPh = ownerIds.map(() => '?').join(',');
+    const employerRatings = await queryAll<{
+      target_user_id: string;
+      avg_rating: number;
+      review_count: number;
+    }>(
+      `SELECT target_user_id, ROUND(AVG(rating), 1) as avg_rating, COUNT(id) as review_count FROM reviews WHERE target_user_id IN (${ownerPh}) GROUP BY target_user_id`,
+      ownerIds
+    );
+    for (const er of employerRatings) {
+      employerRatingMap.set(er.target_user_id, {
+        avg_rating: Number(er.avg_rating),
+        review_count: Number(er.review_count),
+      });
+    }
   }
 
   // Calculate scores according to Section 22 & 23:
@@ -351,7 +365,7 @@ export async function searchListings(filter: ListingFilter) {
 
     return {
       ...item,
-      images: imagesByListingId[item.id] || [],
+      images: [] as string[],
       is_saved: savedListingIds.has(item.id),
       is_followed: isFollowed,
       is_profile_complete: isComplete,
@@ -434,6 +448,24 @@ export async function searchListings(filter: ListingFilter) {
   const total = finalItems.length;
   const startIndex = (page - 1) * limit;
   const paginatedItems = finalItems.slice(startIndex, startIndex + limit);
+
+  // Fetch images only for the returned page slice (not the entire result set).
+  const pageIds = paginatedItems.map((i) => i.id);
+  if (pageIds.length > 0) {
+    const placeholders = pageIds.map(() => '?').join(',');
+    const images = await queryAll<{ listing_id: string; url: string }>(
+      `SELECT listing_id, url FROM listing_images WHERE listing_id IN (${placeholders}) ORDER BY sort_order ASC`,
+      pageIds
+    );
+    const imagesByListingId: Record<string, string[]> = {};
+    for (const img of images) {
+      if (!imagesByListingId[img.listing_id]) imagesByListingId[img.listing_id] = [];
+      imagesByListingId[img.listing_id].push(img.url);
+    }
+    for (const item of paginatedItems) {
+      item.images = imagesByListingId[item.id] || [];
+    }
+  }
 
   return {
     items: paginatedItems,
@@ -560,17 +592,27 @@ export async function createListing(userId: string, data: any) {
   const videos: string[] = Array.isArray(data.videos) ? data.videos.slice(0, 2) : [];
   const media: string[] = [...images, ...videos];
 
-  // Determine catalog_id (authoritative from the client now, not derived from type)
+  // Determine catalog_id. Prefer the client value; otherwise derive it from the
+  // selected category's catalog (authoritative) so a listing never lands in a catalog
+  // different from its own category. Fall back to type as a last resort, and leave NULL
+  // when undeterminable (browse is category-aware, so a NULL catalog_id is still found).
   let catalogId = data.catalog_id;
+  if (!catalogId && data.category_id) {
+    const catRow = await queryOne<{ catalog_id: string | null }>(
+      'SELECT catalog_id FROM categories WHERE id = ?',
+      [data.category_id]
+    );
+    catalogId = catRow?.catalog_id || null;
+  }
   if (!catalogId) {
     if (['SERVICE_OFFER', 'SERVICE_REQUEST'].includes(data.type)) {
       catalogId = 'services';
     } else if (['JOB_OPENING', 'JOB_SEEKER'].includes(data.type)) {
       catalogId = 'jobs';
-    } else {
-      catalogId = 'services';
     }
   }
+  // Normalize so we never pass `undefined` as a query parameter downstream.
+  catalogId = catalogId || null;
 
   // Validate the listing type against the catalog's allowed listing_types.
   const catalogRow = await queryOne<{ listing_types: string | null }>(
@@ -680,7 +722,12 @@ export async function renewListing(listingId: string, userId: string) {
     throw new Error("Siz faqat o'zingizning e'loningizni uzaytirishingiz mumkin");
   }
 
-  if (!['ACTIVE', 'ARCHIVED', 'HIDDEN', 'COMPLETED'].includes(listing.status)) {
+  // Yakunlangan (COMPLETED) e'lonlarni arxivdan qaytarib bo'lmaydi — faqat
+  // platforma tomonidan muddati tugab arxivlangan (ARCHIVED) yoki yashirilgan (HIDDEN) e'lonlar qayta faollashtiriladi.
+  if (listing.status === 'COMPLETED') {
+    throw new Error("Yakunlangan e'lonni arxivdan qaytarib bo'lmaydi");
+  }
+  if (!['ACTIVE', 'ARCHIVED', 'HIDDEN'].includes(listing.status)) {
     throw new Error("Bu holatdagi e'lonni uzaytirib bo'lmaydi");
   }
 

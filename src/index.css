@@ -276,6 +276,12 @@ html, body {
 }
 
 /* ── Mobil-first UX yordamchilari ─────────────────────────────── */
+/* Mobil pastki navigatsiya (MobileNav) balandligi — barcha sahifalar
+   shu qiymat orqali kontent ostida joy ochadi, qat'iy bar kontentni bosmasligi uchun. */
+:root {
+  --mobile-nav-h: 58px;
+}
+
 /* iOS/Android notch va home-indikator uchun xavfsi maydonlar */
 .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
 .pt-safe { padding-top: env(safe-area-inset-top, 0px); }

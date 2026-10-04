@@ -25,6 +25,10 @@ export async function deleteProfanityWord(id: string) {
   return { success: true };
 }
 
+function escapeRegExp(input: string): string {
+  return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 export async function scanTextForProfanity(text: string): Promise<{ isFlagged: boolean; matchedWords: string[] }> {
   if (!text || typeof text !== 'string') return { isFlagged: false, matchedWords: [] };
   const words = await getProfanityWords();
@@ -34,7 +38,7 @@ export async function scanTextForProfanity(text: string): Promise<{ isFlagged: b
   for (const item of words) {
     const term = item.word.toLowerCase();
     // Regex for word boundary or enclosed match
-    const regex = new RegExp(`(^|[^a-zA-Z0-9_'\`’‘])${term}([^a-zA-Z0-9_'\`’‘]|$)`, 'i');
+    const regex = new RegExp(`(^|[^a-zA-Z0-9_'\`’‘])${escapeRegExp(term)}([^a-zA-Z0-9_'\`’‘]|$)`, 'i');
     if (regex.test(lowerText) || lowerText.includes(` ${term} `) || lowerText.startsWith(`${term} `) || lowerText.endsWith(` ${term}`)) {
       if (!matchedWords.includes(term)) {
         matchedWords.push(term);

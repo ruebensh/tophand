@@ -10,7 +10,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
     { label: 'Bosh sahifa', route: '/' },
     { label: 'Kategoriyalar', route: '/categories' },
     { label: 'E’lon berish', route: '/create' },
-    { label: 'Saqlanganlar', route: '/saved' },
+    { label: 'Yoqtirilganlar', route: '/saved' },
   ];
 
   // SEO: hudud landing sahifalariga ichki havolalar (krawl uchun <a href>)
