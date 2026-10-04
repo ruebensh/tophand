@@ -884,9 +884,12 @@ router.get('/monetization', async (_req, res) => {
 const MONETIZATION_NUMBER_KEYS = new Set([
   'listing_active_days_free', 'listing_active_days_paid', 'expiry_warning_days',
   'listing_price_services', 'listing_price_jobs', 'renew_price_services', 'renew_price_jobs',
-  'promo_price_services', 'promo_price_jobs', 'promo_duration_hours',
+  'promo_price_services', 'promo_price_jobs', 'promo_duration_hours', 'ads_inline_every',
 ]);
-const MONETIZATION_BOOL_KEYS = new Set(['renew_enabled_paid', 'auto_approve_enabled']);
+const MONETIZATION_BOOL_KEYS = new Set([
+  'renew_enabled_paid', 'auto_approve_enabled',
+  'ads_enabled', 'ads_top_enabled', 'ads_popular_enabled', 'ads_inline_enabled', 'ads_sidebar_enabled',
+]);
 
 router.put('/monetization', async (req: AuthRequest, res) => {
   try {
@@ -1003,6 +1006,161 @@ router.post('/import/:entity', excelUpload.single('file'), async (req: AuthReque
       [auditId, req.user!.id, entity, JSON.stringify(report), new Date().toISOString()]
     );
     res.json(report);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Kategoriya FILTRLARI (category_attributes) boshqaruvi ───────────────
+// Admin panelda har bir kategoriya/subkategoriya uchun filtrlarni qo'shish,
+// tahrirlash, o'chirish va tartiblash. `runQuery` `?` placeholder ishlatadi
+// (Postgres'ga $N ga aylantiriladi). JSONB ustunlar `?::jsonb` bilan beriladi.
+
+const ATTR_TYPES = ['select', 'multiselect', 'number', 'text', 'range', 'bool', 'year', 'color'];
+
+function parseAttrRow(a: any) {
+  const toJsonArray = (v: any): any[] => (Array.isArray(v) ? v : v ? JSON.parse(v) : []);
+  const toObj = (v: any): Record<string, any> =>
+    v && typeof v === 'object' && !Array.isArray(v) ? v : v ? JSON.parse(v) : {};
+  return {
+    id: a.id,
+    category_id: a.category_id,
+    key: a.key,
+    label: a.label_uz,
+    type: a.type,
+    options: toJsonArray(a.options),
+    unit: a.unit ?? '',
+    required: Number(a.required) === 1,
+    filterable: Number(a.filterable) === 1,
+    sort_order: Number(a.sort_order) || 0,
+    is_popular: Number(a.is_popular) === 1,
+    popular_order: Number(a.popular_order) || 0,
+    popular_values: toJsonArray(a.popular_values),
+    section: a.section || 'Asosiy',
+    meta: toObj(a.meta),
+  };
+}
+
+// Bir atributning DB qiymatlarini (15 ustun) yig'adi; create/update uchun umumiy.
+function attrColumns(body: any) {
+  const key = String(body.key || '').trim().toLowerCase().replace(/[^a-z0-9_]/g, '_');
+  const label = String(body.label || '').trim();
+  const type = ATTR_TYPES.includes(body.type) ? body.type : 'text';
+  const options = JSON.stringify(Array.isArray(body.options) ? body.options : []);
+  const unit = body.unit ? String(body.unit).trim() : null;
+  const required = body.required ? 1 : 0;
+  const filterable = body.filterable === false ? 0 : 1;
+  const sort_order = Number(body.sort_order) || 0;
+  const is_popular = body.is_popular ? 1 : 0;
+  const popular_order = Number(body.popular_order) || 0;
+  const popular_values = JSON.stringify(Array.isArray(body.popular_values) ? body.popular_values : []);
+  const section = String(body.section || 'Asosiy').trim() || 'Asosiy';
+  const meta = JSON.stringify(body.meta && typeof body.meta === 'object' ? body.meta : {});
+  return { key, label, type, options, unit, required, filterable, sort_order, is_popular, popular_order, popular_values, section, meta };
+}
+
+// GET /api/admin/categories/:id/attributes — kategoriya filtrlari ro'yxati
+router.get('/categories/:id/attributes', async (req: AuthRequest, res) => {
+  try {
+    const attrs = await queryAll(
+      `SELECT * FROM category_attributes WHERE category_id = ? ORDER BY sort_order ASC, key ASC`,
+      [req.params.id]
+    );
+    res.json(attrs.map(parseAttrRow));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/admin/categories/:id/attributes — yangi filtr qo'shish
+router.post('/categories/:id/attributes', async (req: AuthRequest, res) => {
+  try {
+    const categoryId = req.params.id;
+    const cat = await queryOne<{ id: string }>('SELECT id FROM categories WHERE id = ?', [categoryId]);
+    if (!cat) return res.status(404).json({ error: 'Kategoriya topilmadi' });
+
+    const c = attrColumns(req.body);
+    if (!c.key) return res.status(400).json({ error: 'Filtr kaliti (key) kiritilishi shart (a-z, 0-9, _)' });
+    if (!c.label) return res.status(400).json({ error: 'Filtr nomi (label) kiritilishi shart' });
+
+    const id = `attr_${categoryId}_${c.key}`;
+    await runQuery(
+      `INSERT INTO category_attributes
+         (id, category_id, key, label_uz, type, options, unit, required, filterable, sort_order,
+          is_popular, popular_order, popular_values, section, meta)
+       VALUES (?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?::jsonb)
+       ON CONFLICT (category_id, key) DO UPDATE SET
+         label_uz = EXCLUDED.label_uz, type = EXCLUDED.type, options = EXCLUDED.options,
+         unit = EXCLUDED.unit, required = EXCLUDED.required, filterable = EXCLUDED.filterable,
+         sort_order = EXCLUDED.sort_order, is_popular = EXCLUDED.is_popular,
+         popular_order = EXCLUDED.popular_order, popular_values = EXCLUDED.popular_values,
+         section = EXCLUDED.section, meta = EXCLUDED.meta`,
+      [id, categoryId, c.key, c.label, c.type, c.options, c.unit, c.required, c.filterable, c.sort_order,
+       c.is_popular, c.popular_order, c.popular_values, c.section, c.meta]
+    );
+
+    const created = await queryOne('SELECT * FROM category_attributes WHERE category_id = ? AND key = ?', [categoryId, c.key]);
+    res.status(201).json(parseAttrRow(created));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/admin/attributes/:attrId — filtrni tahrirlash
+router.put('/attributes/:attrId', async (req: AuthRequest, res) => {
+  try {
+    const existing = await queryOne<{ id: string; category_id: string; key: string }>(
+      'SELECT id, category_id, key FROM category_attributes WHERE id = ?',
+      [req.params.attrId]
+    );
+    if (!existing) return res.status(404).json({ error: 'Filtr topilmadi' });
+
+    const c = attrColumns(req.body);
+    if (!c.key) return res.status(400).json({ error: 'Filtr kaliti (key) kiritilishi shart' });
+    if (!c.label) return res.status(400).json({ error: 'Filtr nomi (label) kiritilishi shart' });
+
+    const newId = `attr_${existing.category_id}_${c.key}`;
+    await runQuery(
+      `UPDATE category_attributes SET
+         id = ?, key = ?, label_uz = ?, type = ?, options = ?::jsonb, unit = ?,
+         required = ?, filterable = ?, sort_order = ?, is_popular = ?, popular_order = ?,
+         popular_values = ?::jsonb, section = ?, meta = ?::jsonb
+       WHERE id = ?`,
+      [newId, c.key, c.label, c.type, c.options, c.unit, c.required, c.filterable, c.sort_order,
+       c.is_popular, c.popular_order, c.popular_values, c.section, c.meta, existing.id]
+    );
+
+    const updated = await queryOne('SELECT * FROM category_attributes WHERE id = ?', [newId]);
+    res.json(parseAttrRow(updated));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/admin/attributes/:attrId — filtrni o'chirish
+router.delete('/attributes/:attrId', async (req: AuthRequest, res) => {
+  try {
+    const r = await runQuery('DELETE FROM category_attributes WHERE id = ?', [req.params.attrId]);
+    if (!r.changes) return res.status(404).json({ error: 'Filtr topilmadi' });
+    res.json({ success: true, message: 'Filtr o‘chirildi' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/admin/categories/:id/attributes/reorder — tartibni saqlash
+// body: { order: string[] }  (attribute id'lari kerakli tartibda)
+router.post('/categories/:id/attributes/reorder', async (req: AuthRequest, res) => {
+  try {
+    const order = Array.isArray(req.body?.order) ? req.body.order : [];
+    for (let i = 0; i < order.length; i++) {
+      await runQuery('UPDATE category_attributes SET sort_order = ? WHERE id = ? AND category_id = ?', [
+        i,
+        String(order[i]),
+        req.params.id,
+      ]);
+    }
+    res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

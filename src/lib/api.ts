@@ -116,6 +116,14 @@ export interface PublicMonetization {
   };
   renew_enabled_paid: boolean;
   promo_duration_hours: number;
+  ads: {
+    enabled: boolean;
+    top: boolean;
+    popular: boolean;
+    inline: boolean;
+    sidebar: boolean;
+    inline_every: number;
+  };
 }
 
 export function getPublicMonetization(): Promise<PublicMonetization> {
@@ -160,6 +168,18 @@ export function getCategoryTree(catalogId?: string, scope?: string): Promise<Cat
 
 export function getCategoryAttributes(categoryId: string): Promise<CategoryAttribute[]> {
   return apiRequest<CategoryAttribute[]>(`/api/categories/${encodeURIComponent(categoryId)}/attributes`);
+}
+
+export interface CategoryPopularResult {
+  key: string | null;
+  label: string;
+  items: { value: string; count: number }[];
+}
+
+// Kategoriyaga mos "top mashxur" qatori (curate qiymatlar + jonli sonlar).
+// Bo'sh `items` => kategoriya uchun mashxur atribut sozlanmagan (reklama sloti).
+export function getCategoryPopular(categoryId: string): Promise<CategoryPopularResult> {
+  return apiRequest<CategoryPopularResult>(`/api/categories/${encodeURIComponent(categoryId)}/popular`);
 }
 
 // ─── Admin Excel import / export (Faza 12) ──────────────────────────────

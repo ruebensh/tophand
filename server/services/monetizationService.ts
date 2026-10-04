@@ -18,6 +18,13 @@ export interface MonetizationConfig {
   promo_price_jobs: number;
   promo_duration_hours: number;
   auto_approve_enabled: boolean;
+  // Reklama slotlarini boshqarish (admin monetizatsiya panelidan).
+  ads_enabled: boolean;
+  ads_top_enabled: boolean;
+  ads_popular_enabled: boolean;
+  ads_inline_enabled: boolean;
+  ads_sidebar_enabled: boolean;
+  ads_inline_every: number;
 }
 
 const DEFAULTS: MonetizationConfig = {
@@ -35,6 +42,12 @@ const DEFAULTS: MonetizationConfig = {
   promo_price_jobs: 0,
   promo_duration_hours: 24,
   auto_approve_enabled: false,
+  ads_enabled: false,
+  ads_top_enabled: false,
+  ads_popular_enabled: false,
+  ads_inline_enabled: false,
+  ads_sidebar_enabled: false,
+  ads_inline_every: 7,
 };
 
 function num(v: string | undefined, fallback: number): number {
@@ -55,7 +68,8 @@ export async function getMonetizationConfig(): Promise<MonetizationConfig> {
       'monetization_mode','free_test_end_date','listing_active_days_free','listing_active_days_paid',
       'expiry_warning_days','listing_price_services','listing_price_jobs','renew_enabled_paid',
       'renew_price_services','renew_price_jobs','promo_price_services','promo_price_jobs',
-      'promo_duration_hours','auto_approve_enabled'
+      'promo_duration_hours','auto_approve_enabled',
+      'ads_enabled','ads_top_enabled','ads_popular_enabled','ads_inline_enabled','ads_sidebar_enabled','ads_inline_every'
     )`
   );
   const map: Record<string, string> = {};
@@ -76,6 +90,12 @@ export async function getMonetizationConfig(): Promise<MonetizationConfig> {
     promo_price_jobs: num(map.promo_price_jobs, DEFAULTS.promo_price_jobs),
     promo_duration_hours: num(map.promo_duration_hours, DEFAULTS.promo_duration_hours),
     auto_approve_enabled: bool(map.auto_approve_enabled, DEFAULTS.auto_approve_enabled),
+    ads_enabled: bool(map.ads_enabled, DEFAULTS.ads_enabled),
+    ads_top_enabled: bool(map.ads_top_enabled, DEFAULTS.ads_top_enabled),
+    ads_popular_enabled: bool(map.ads_popular_enabled, DEFAULTS.ads_popular_enabled),
+    ads_inline_enabled: bool(map.ads_inline_enabled, DEFAULTS.ads_inline_enabled),
+    ads_sidebar_enabled: bool(map.ads_sidebar_enabled, DEFAULTS.ads_sidebar_enabled),
+    ads_inline_every: num(map.ads_inline_every, DEFAULTS.ads_inline_every),
   };
 }
 
@@ -137,6 +157,14 @@ export async function getPublicMonetization() {
     },
     renew_enabled_paid: cfg.renew_enabled_paid,
     promo_duration_hours: cfg.promo_duration_hours,
+    ads: {
+      enabled: cfg.ads_enabled,
+      top: cfg.ads_top_enabled,
+      popular: cfg.ads_popular_enabled,
+      inline: cfg.ads_inline_enabled,
+      sidebar: cfg.ads_sidebar_enabled,
+      inline_every: cfg.ads_inline_every,
+    },
   };
 }
 

@@ -334,6 +334,23 @@ export async function runMigrations() {
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_cat_attr_category ON category_attributes(category_id, sort_order)`);
 
+  // 4b) Kategoriya brauzeri uchun kengaytirilgan atribut maydonlari:
+  //   - is_popular / popular_order / popular_values: "top mashxur" qatorini haydaydi
+  //     (curate tartiblangan qiymatlar + jonli sonlar gibrid).
+  //   - section: filtrlarni guruhlash ("Asosiy", "Texnik", "Holat", ...).
+  //   - meta: atribut bo'yicha moslashuvchan UI konfiguratsiyasi (range chegaralari,
+  //     presets, control majburi, placeholder).
+  await addColumnIfNotExists('category_attributes', 'is_popular', 'INTEGER DEFAULT 0');
+  await addColumnIfNotExists('category_attributes', 'popular_order', 'INTEGER DEFAULT 0');
+  await addColumnIfNotExists('category_attributes', 'popular_values', `JSONB DEFAULT '[]'::jsonb`);
+  await addColumnIfNotExists('category_attributes', 'section', `TEXT DEFAULT 'Asosiy'`);
+  await addColumnIfNotExists('category_attributes', 'meta', `JSONB DEFAULT '{}'::jsonb`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_cat_attr_popular ON category_attributes(category_id, is_popular, popular_order)`);
+
+  // 4c) Range (od/do) filtrlari uchun qiymatli-tez tekshiruv indeksini qo'llab-quvvatlash.
+  //     attributes->>'key' ifoda ko'rinishidagi indekslar keyinchalik qo'shiladi; hozircha
+  //     kategoriya daraxti bilan cheklangan kichik to'plam sequential scan'da muammosiz.
+
   // 5) Per-catalog monetization defaults (0 = free under FREE_TEST). Never overwrite admin edits.
   for (const catalogId of [
     'transport', 'realty', 'personal', 'home-dacha', 'parts',

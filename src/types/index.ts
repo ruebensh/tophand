@@ -132,6 +132,12 @@ export interface CategoryAttribute {
   required: boolean;
   filterable: boolean;
   sort_order: number;
+  // Kategoriya brauzeri — filtr guruhlash + "top mashxur" qatori + moslashuvchan UI:
+  section?: string;
+  is_popular?: boolean;
+  popular_order?: number;
+  popular_values?: string[];
+  meta?: Record<string, any>;
 }
 
 export interface Listing {

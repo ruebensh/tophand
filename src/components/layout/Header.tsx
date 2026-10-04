@@ -89,6 +89,31 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
   }, [currentRoute]);
   const activeCatalogName = catalogs.find((c) => c.id === activeCatalogId)?.name_uz || '';
 
+  // Joriy kategoriya konteksti (URL ?category=) — bo'lsa, mega-menyu shu
+  // kategoriyaning subkategoriyalarini ko'rsatadi va tugma "Subkategoriyalar" bo'ladi.
+  const activeCategoryId = React.useMemo(() => {
+    const qi = currentRoute.indexOf('?');
+    if (qi < 0) return '';
+    return new URLSearchParams(currentRoute.slice(qi + 1)).get('category') || '';
+  }, [currentRoute]);
+
+  // megaTree'dan joriy kategoriyani (ota yoki shu kategoriyaning o'zi) topib,
+  // ko'rsatiladigan subkategoriyalar ro'yxatini aniqlaymiz.
+  const subContext = React.useMemo(() => {
+    if (!activeCategoryId || megaTree.length === 0) return null;
+    const direct = megaTree.find((p) => p.id === activeCategoryId);
+    if (direct && direct.subs && direct.subs.length > 0) {
+      return { parentId: direct.id, parentName: direct.name_uz, subs: direct.subs };
+    }
+    for (const p of megaTree) {
+      const isChild = (p.subs || []).some((s) => s.id === activeCategoryId);
+      if (isChild && p.subs && p.subs.length > 0) {
+        return { parentId: p.id, parentName: p.name_uz, subs: p.subs };
+      }
+    }
+    return null;
+  }, [activeCategoryId, megaTree]);
+
   // 13 katalog ro'yxatini bir marta yuklash
   useEffect(() => {
     getCatalogs()
@@ -229,6 +254,42 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
         })}
       </div>
     );
+
+    // Kategoriya konteksti — joriy kategoriya ichida: faqat uning subkategoriyalari.
+    if (subContext) {
+      return (
+        <div className={`flex-1 overflow-y-auto p-5 ${mobile ? 'pb-[calc(var(--mobile-nav-h)+16px+env(safe-area-inset-bottom))]' : ''}`}>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={() => go(`/?catalog=${linkCatalog}&category=${subContext.parentId}`)}
+              className="truncate text-sm font-extrabold text-[#1673E6] hover:underline cursor-pointer"
+            >
+              {subContext.parentName} — barchasi →
+            </button>
+            <button
+              type="button"
+              onClick={() => go(`/?catalog=${linkCatalog}`)}
+              className="shrink-0 text-[11px] font-semibold text-[#5E6C84] hover:text-[#1673E6] cursor-pointer"
+            >
+              ← Barcha kategoriyalar
+            </button>
+          </div>
+          <div className={`${mobile ? 'columns-1' : 'columns-2 xl:columns-3'} gap-x-6`}>
+            {subContext.subs.map((sub) => (
+              <button
+                key={sub.id}
+                type="button"
+                onClick={() => go(`/?catalog=${linkCatalog}&category=${sub.id}`)}
+                className="break-inside-avoid mb-2 block w-full text-left text-[12px] font-medium text-[#172B4D] hover:text-[#1673E6] cursor-pointer truncate"
+              >
+                {sub.name_uz}
+              </button>
+            ))}
+          </div>
+        </div>
+      );
+    }
 
     // Katalog konteksti — faqat shu katalog daraxti, to'liq kenglikda (rail yo'q).
     if (activeCatalogId) {
@@ -479,7 +540,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
               className={`flex items-center gap-1.5 h-10 px-2.5 sm:px-4 rounded-xl font-semibold text-sm transition-colors cursor-pointer th-accent-bg text-white ${isMegaOpen ? 'opacity-90' : ''}`}
             >
               <LayoutGrid className="w-5 h-5 sm:w-4 sm:h-4 shrink-0" />
-              <span className="hidden sm:inline">{activeCatalogId ? 'Kategoriyalar' : 'Kataloglar'}</span>
+              <span className="hidden sm:inline">{subContext ? 'Subkategoriyalar' : activeCatalogId ? 'Kategoriyalar' : 'Kataloglar'}</span>
               <ChevronDown className={`hidden sm:block w-3.5 h-3.5 transition-transform ${isMegaOpen ? 'rotate-180' : ''}`} />
             </button>
 
@@ -539,7 +600,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
         <div ref={megaMobileRef} className="lg:hidden fixed inset-0 z-50 bg-white flex flex-col">
           <div className="flex items-center justify-between px-4 h-14 shrink-0 border-b border-gray-100">
             <span className="flex items-center gap-2 font-extrabold text-sm text-[#172B4D]">
-              <LayoutGrid className="w-4 h-4 th-accent-text" /> {activeCatalogId ? 'Barcha kategoriyalar' : 'Barcha kataloglar'}
+              <LayoutGrid className="w-4 h-4 th-accent-text" /> {subContext ? 'Barcha subkategoriyalar' : activeCatalogId ? 'Barcha kategoriyalar' : 'Barcha kataloglar'}
             </span>
             <button
               type="button"

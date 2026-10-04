@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Listing, Category, ListingType, Region, District, CategoryAttribute, Catalog } from '../types/index.ts';
 import { apiRequest, getCategoryAttributes } from '../lib/api.ts';
 import { ListingCard } from '../components/listings/ListingCard.tsx';
+import { CategoryBrowser } from '../components/filters/CategoryBrowser.tsx';
 import { CategoryFilter } from '../components/listings/CategoryFilter.tsx';
 import { CategoryIcon, CategoryChip } from '../components/common/CategoryIcon.tsx';
 import { NearbyMapModal } from '../components/modals/NearbyMapModal.tsx';
@@ -677,6 +678,105 @@ export const HomePage: React.FC<HomePageProps> = ({
 
   // Hero bloki olib tashlandi — qidiruv headerda mavjud.
 
+  // === KATEGORIYA SAHIFASI (Avito uslubi) ===
+  // Kategoriya tanlanganda eski (yon panel + qidiruv formasi + tablar) layout
+  // o'rniga to'liq yangi CategoryBrowser render qilinadi. Barcha holat
+  // (listings/attrSchema/attrFilters/qidiruv debounce) yuqorida allaqachon
+  // boshqariladi — bu yerda faqat presentational props uzatiladi.
+  if (selectedCategoryId) {
+    // Subkategoriya tanlansa ham ro'yxat yo'qolmasin: ota kategoriyani aniqlab,
+    // uning barcha sub'larini (aqribalar) ko'rsatamiz — shunda boshqasiga o'tish mumkin.
+    const categoryParent = selectedCategory
+      ? (categories.find((c) => c.id === selectedCategory.parent_id) || selectedCategory)
+      : undefined;
+    const categorySubs = categoryParent
+      ? categories.filter((c) => c.parent_id === categoryParent.id)
+      : [];
+    const categoryActiveFiltersCount = [
+      Object.keys(attrFilters).length > 0,
+      Boolean(selectedRegionId),
+      Boolean(selectedDistrictId),
+      Boolean(keyword.trim()),
+      priceMin !== undefined,
+      priceMax !== undefined,
+      onlyFollowed,
+    ].filter(Boolean).length;
+
+    // Kategoriya ichida "tozalash" — kategoriya tanlanib qoladi, faqat filtrlar ketadi.
+    const handleCategoryReset = () => {
+      setAttrFilters({});
+      setSelectedRegionId(undefined);
+      setSelectedDistrictId(undefined);
+      setKeyword('');
+      setPriceMin(undefined);
+      setPriceMax(undefined);
+      setPriceMinInput('');
+      setPriceMaxInput('');
+      setSortBy('newest');
+      setOnlyFollowed(false);
+    };
+
+    const handleTogglePopular = (key: string, value: string) => {
+      setAttrFilters((prev) => {
+        const next = { ...prev };
+        if (!value) delete next[key];
+        else next[key] = value;
+        return next;
+      });
+    };
+
+    return (
+      <>
+        <CategoryBrowser
+          category={selectedCategory}
+          parentCategory={categoryParent}
+          catalogName={selectedCatalogName}
+          subs={categorySubs}
+          onSelectCategory={(id) => setSelectedCategoryId(id)}
+          onNavigate={onNavigate}
+          onOpenListing={onOpenListing}
+          listings={listings}
+          isLoading={isLoading}
+          isLoadingMore={isLoadingMore}
+          isRefreshing={isRefreshing}
+          totalCount={totalCount}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onLoadMore={handleLoadMore}
+          attrSchema={attrSchema}
+          attrFilters={attrFilters}
+          setAttrFilters={setAttrFilters}
+          onTogglePopular={handleTogglePopular}
+          regions={regions}
+          districts={districts}
+          selectedRegionId={selectedRegionId}
+          setSelectedRegionId={setSelectedRegionId}
+          selectedDistrictId={selectedDistrictId}
+          setSelectedDistrictId={setSelectedDistrictId}
+          priceMin={priceMin}
+          priceMax={priceMax}
+          setPriceMin={setPriceMin}
+          setPriceMax={setPriceMax}
+          sortBy={sortBy}
+          setSortBy={setSortBy}
+          user={!!user}
+          onlyFollowed={onlyFollowed}
+          setOnlyFollowed={setOnlyFollowed}
+          activeFiltersCount={categoryActiveFiltersCount}
+          onReset={handleCategoryReset}
+          isMobileFiltersOpen={isMobileFiltersOpen}
+          setIsMobileFiltersOpen={setIsMobileFiltersOpen}
+        />
+        <NearbyMapModal
+          isOpen={isMapOpen}
+          onClose={() => setIsMapOpen(false)}
+          onOpenListing={onOpenListing}
+          initialLocation={detectedLocation}
+        />
+      </>
+    );
+  }
+
   return (
     <div className={`max-w-[1440px] mx-auto flex-1 w-full flex flex-col ${isClean ? '' : 'lg:grid lg:grid-cols-[300px_1fr]'} min-h-[calc(100vh-64px)] overflow-x-hidden`}>
       {/* Mobile Filters Toggle Button */}
@@ -713,7 +813,7 @@ export const HomePage: React.FC<HomePageProps> = ({
       <aside
         className={`${
           isMobileFiltersOpen
-            ? 'block fixed left-0 right-0 bottom-0 top-[8%] z-50 overflow-y-auto bg-white rounded-t-3xl th-sheet'
+            ? 'block fixed left-2 right-2 top-[15%] bottom-[calc(var(--mobile-nav-h)+8px+env(safe-area-inset-bottom))] z-50 overflow-y-auto bg-white rounded-3xl th-sheet shadow-2xl ring-1 ring-black/5'
             : 'hidden'
         } lg:block lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:overflow-y-auto lg:rounded-none border-r border-[#EBECF0] px-5 pt-0 pb-24 lg:pl-8 lg:pr-6 lg:pb-6 bg-white lg:bg-[#F9FAFB] shrink-0`}
       >

@@ -168,20 +168,116 @@ router.get('/:id/attributes', async (req, res) => {
     }
 
     const attrs = await queryAll(
-      `SELECT id, category_id, key, label_uz as label, type, options, unit, required, filterable, sort_order
+      `SELECT id, category_id, key, label_uz as label, type, options, unit, required, filterable, sort_order,
+              is_popular, popular_order, popular_values, section, meta
        FROM category_attributes
        WHERE category_id = ?
        ORDER BY sort_order ASC`,
       [category.id]
     );
-    // options stored as JSONB -> ensure array
+    const toJsonArray = (v: any): any[] =>
+      Array.isArray(v) ? v : (v ? JSON.parse(v) : []);
+    const toObj = (v: any): Record<string, any> =>
+      (v && typeof v === 'object' && !Array.isArray(v)) ? v : (v ? JSON.parse(v) : {});
+    // options/popular_values/meta JSONB -> ensure array/object; integer flags -> boolean
     const parsed = attrs.map((a: any) => ({
       ...a,
-      options: Array.isArray(a.options) ? a.options : (a.options ? JSON.parse(a.options) : []),
+      options: toJsonArray(a.options),
+      popular_values: toJsonArray(a.popular_values),
+      meta: toObj(a.meta),
+      section: a.section || 'Asosiy',
       required: Number(a.required) === 1,
       filterable: Number(a.filterable) === 1,
+      is_popular: Number(a.is_popular) === 1,
+      popular_order: Number(a.popular_order) || 0,
     }));
     res.json(parsed);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/categories/:id/popular - Kategoriyaga mos "top mashxur" qatori:
+// gibrid = curate tartiblangan qiymatlar + kategoriya daraxtidagi jonli e'lon sonlari.
+// Mashxur atribut sozlanmagan bo'lsa -> items: [] (klientda reklama sloti chiqadi).
+router.get('/:id/popular', async (req, res) => {
+  try {
+    const category = await queryOne(
+      'SELECT id FROM categories WHERE id = ? OR slug = ?',
+      [req.params.id, req.params.id]
+    );
+    if (!category) {
+      return res.status(404).json({ error: 'Kategoriya topilmadi' });
+    }
+
+    // Bu kategoriya uchun belgilangan mashxur atribut (is_popular=1).
+    const popularAttr = await queryOne<any>(
+      `SELECT key, label_uz, popular_values
+       FROM category_attributes
+       WHERE category_id = ? AND is_popular = 1
+       ORDER BY popular_order ASC, sort_order ASC
+       LIMIT 1`,
+      [category.id]
+    );
+    if (!popularAttr) {
+      return res.json({ key: null, label: '', items: [] });
+    }
+
+    const curated: string[] = Array.isArray(popularAttr.popular_values)
+      ? popularAttr.popular_values
+      : (popularAttr.popular_values ? JSON.parse(popularAttr.popular_values) : []);
+
+    // Kalitni faqat [a-zA-Z0-9_] belgilariga cheklab, SQL injection'ni oldini olamiz
+    // (operator argumenti parametr bo'la olmaydi, shuning uchun literal sifatida inline).
+    const safeKey = String(popularAttr.key).replace(/[^a-zA-Z0-9_]/g, '');
+
+    // Kategoriya daraxti (ota + barcha avlodlar) bo'yicha jonli sonlar.
+    // DIQQAT: `?` jsonb-existence operatorini ishlatmaymiz — placeholder tarjimoni
+    // chalg'itadi. `attributes->>'key' IS NOT NULL` yetarli (kalitsiz qatorlar NULL).
+    const counts = await queryAll<{ value: string; cnt: number }>(
+      `WITH RECURSIVE reach(id) AS (
+         SELECT ?::text
+         UNION ALL
+         SELECT c.id FROM categories c JOIN reach r ON c.parent_id = r.id
+       )
+       SELECT l.attributes->>'${safeKey}' AS value, COUNT(*)::int AS cnt
+       FROM listings l
+       JOIN reach r ON l.category_id = r.id
+       WHERE l.status = 'ACTIVE' AND l.attributes->>'${safeKey}' IS NOT NULL
+       GROUP BY 1`,
+      [category.id]
+    );
+    const countMap = new Map<string, number>();
+    for (const row of counts) {
+      if (row.value != null) countMap.set(String(row.value), Number(row.cnt) || 0);
+    }
+
+    let items: { value: string; count: number }[];
+    if (curated.length > 0) {
+      // Gibrid: avval curate tartibi (jonli son bilan), so'ng qolgan JONLI
+      // qiymatlar son bo'yicha qo'shiladi — ya'ni ro'yxat avtomatik to'ldiriladi,
+      // curate bilan cheklanmaydi ("soni o'zgarmasins" = fiksatsiya qilinmasin).
+      const seen = new Set<string>();
+      items = [];
+      for (const value of curated) {
+        if (seen.has(value)) continue;
+        seen.add(value);
+        items.push({ value, count: countMap.get(value) || 0 });
+      }
+      Array.from(countMap.entries())
+        .filter(([v]) => !seen.has(v))
+        .sort((a, b) => b[1] - a[1])
+        .forEach(([value, count]) => items.push({ value, count }));
+    } else {
+      // Curate ro'yxat bo'lmasa — butunlay jonli aniqlangan qiymatlar.
+      items = Array.from(countMap.entries())
+        .sort((a, b) => b[1] - a[1])
+        .map(([value, count]) => ({ value, count }));
+    }
+    // Ko'proq ko'rsatiladi (2 qator uchun) — checksiz emas, lekin katta limit.
+    items = items.slice(0, 80);
+
+    res.json({ key: popularAttr.key, label: popularAttr.label_uz, items });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

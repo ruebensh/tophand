@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext.tsx';
 import { NotificationProvider } from './context/NotificationContext.tsx';
 import { LogoProvider } from './context/LogoContext.tsx';
+import { AdsProvider } from './context/AdsContext.tsx';
 import { GeoProvider } from './context/GeoContext.tsx';
 import { ThemeProvider } from './context/ThemeContext.tsx';
 import { Header } from './components/layout/Header.tsx';
@@ -20,6 +21,7 @@ import { OrganizationPage } from './pages/OrganizationPage.tsx';
 import { ModeratorDashboardPage } from './pages/ModeratorDashboardPage.tsx';
 import { AdminDashboardPage } from './pages/AdminDashboardPage.tsx';
 import { RegionCategoryPage } from './pages/RegionCategoryPage.tsx';
+import { LegalPage, type LegalKind } from './pages/LegalPage.tsx';
 
 // Global Modals
 import { GoogleLoginModal } from './components/modals/GoogleLoginModal.tsx';
@@ -85,6 +87,18 @@ const AppContent: React.FC = () => {
   };
 
   const renderRoute = () => {
+    // 0. Huquqiy / axborot sahifalari: /privacy /terms /about /contact
+    const legalMap: Record<string, LegalKind> = {
+      '/privacy': 'privacy',
+      '/terms': 'terms',
+      '/about': 'about',
+      '/contact': 'contact',
+    };
+    const legalPath = '/' + currentRoute.split('?')[0].split('/')[1];
+    if (legalMap[legalPath]) {
+      return <LegalPage kind={legalMap[legalPath]} onNavigate={navigate} />;
+    }
+
     // 1. Listing Detail: /listing/:id
     if (currentRoute.startsWith('/listing/')) {
       const listingId = currentRoute.replace('/listing/', '');
@@ -289,11 +303,13 @@ export function App() {
     <AuthProvider>
       <NotificationProvider>
         <LogoProvider>
-          <GeoProvider>
-            <ThemeProvider>
-              <AppContent />
-            </ThemeProvider>
-          </GeoProvider>
+          <AdsProvider>
+            <GeoProvider>
+              <ThemeProvider>
+                <AppContent />
+              </ThemeProvider>
+            </GeoProvider>
+          </AdsProvider>
         </LogoProvider>
       </NotificationProvider>
     </AuthProvider>

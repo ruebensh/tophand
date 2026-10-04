@@ -42,6 +42,7 @@ import { StaffMessaging } from '../components/admin/StaffMessaging.tsx';
 import { UserPassportModal } from '../components/admin/UserPassportModal.tsx';
 import { CategoryEditModal } from '../components/admin/CategoryEditModal.tsx';
 import { OrganizationEditModal } from '../components/admin/OrganizationEditModal.tsx';
+import { FiltersAdminSection } from '../components/admin/FiltersAdminSection.tsx';
 import { Category, Catalog } from '../types/index.ts';
 import { CategoryChip } from '../components/common/CategoryIcon.tsx';
 
@@ -58,7 +59,7 @@ interface AdminDashboardPageProps {
 
 export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNavigate }) => {
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'platform' | 'theme' | 'users' | 'organizations' | 'categories' | 'monetization' | 'data' | 'team' | 'messaging' | 'audit'
+    'overview' | 'platform' | 'theme' | 'users' | 'organizations' | 'categories' | 'filters' | 'monetization' | 'data' | 'team' | 'messaging' | 'audit'
   >('overview');
 
   // Stats
@@ -326,6 +327,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
           { id: 'users', label: 'Foydalanuvchilar va pasportlar', icon: Users },
           { id: 'organizations', label: 'Tashkilotlar', icon: Building2 },
           { id: 'categories', label: 'Kategoriyalar', icon: Layers },
+          { id: 'filters', label: 'Filtrlar', icon: Filter },
           { id: 'monetization', label: 'Monetizatsiya', icon: DollarSign },
           { id: 'data', label: 'Excel ma’lumotlar', icon: Table2 },
           { id: 'team', label: 'Jamoa / Moderatorlar', icon: Users2 },
@@ -1255,6 +1257,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
 
       {/* 6b. Excel Data I/O Tab (Faza 12) */}
       {activeTab === 'data' && <DataIOSection />}
+
+      {/* 6a-bis. Kategoriya filtrlari (category_attributes) boshqaruvi */}
+      {activeTab === 'filters' && <FiltersAdminSection />}
 
       {/* 6c. Moderation team / distribution (Faza 17) */}
       {activeTab === 'team' && <ModeratorTeam />}

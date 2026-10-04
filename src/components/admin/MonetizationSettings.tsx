@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiRequest } from '../../lib/api.ts';
-import { DollarSign, Save, Loader2, CheckCircle2, Rocket, RefreshCw } from 'lucide-react';
+import { DollarSign, Save, Loader2, CheckCircle2, Rocket, RefreshCw, Megaphone } from 'lucide-react';
 
 /** Shape returned by GET /api/admin/monetization (MonetizationConfig). */
 interface AdminMonetizationConfig {
@@ -18,6 +18,12 @@ interface AdminMonetizationConfig {
   promo_price_jobs: number;
   promo_duration_hours: number;
   auto_approve_enabled: boolean;
+  ads_enabled: boolean;
+  ads_top_enabled: boolean;
+  ads_popular_enabled: boolean;
+  ads_inline_enabled: boolean;
+  ads_sidebar_enabled: boolean;
+  ads_inline_every: number;
 }
 
 const inputCls =
@@ -28,6 +34,33 @@ const fmtDateForInput = (iso: string) => {
   if (isNaN(d.getTime())) return '';
   return d.toISOString().slice(0, 10);
 };
+
+/** Reklama joylashuvi uchun kichik toggle (master o'chiq bo'lsa — nolij). */
+const AdToggle: React.FC<{
+  label: string;
+  hint: string;
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (v: boolean) => void;
+}> = ({ label, hint, checked, disabled, onChange }) => (
+  <label
+    className={`flex items-start justify-between gap-3 p-3 rounded-2xl border transition-colors ${
+      disabled ? 'bg-gray-50/50 border-gray-100 opacity-50 cursor-not-allowed' : 'cursor-pointer'
+    } ${checked && !disabled ? 'bg-blue-50/60 border-blue-200' : 'bg-white border-gray-200 hover:bg-gray-50'}`}
+  >
+    <span className="min-w-0">
+      <span className="block text-xs font-bold text-gray-800">{label}</span>
+      <span className="block text-[11px] text-gray-400 mt-0.5">{hint}</span>
+    </span>
+    <input
+      type="checkbox"
+      checked={checked}
+      disabled={disabled}
+      onChange={(e) => onChange(e.target.checked)}
+      className="w-4 h-4 mt-0.5 accent-blue-600 shrink-0"
+    />
+  </label>
+);
 
 export const MonetizationSettings: React.FC = () => {
   const [cfg, setCfg] = useState<AdminMonetizationConfig | null>(null);
@@ -74,6 +107,12 @@ export const MonetizationSettings: React.FC = () => {
         promo_price_jobs: cfg.promo_price_jobs,
         promo_duration_hours: cfg.promo_duration_hours,
         auto_approve_enabled: cfg.auto_approve_enabled,
+        ads_enabled: cfg.ads_enabled,
+        ads_top_enabled: cfg.ads_top_enabled,
+        ads_popular_enabled: cfg.ads_popular_enabled,
+        ads_inline_enabled: cfg.ads_inline_enabled,
+        ads_sidebar_enabled: cfg.ads_sidebar_enabled,
+        ads_inline_every: cfg.ads_inline_every,
       };
       const res = await apiRequest<{ message?: string }>('/api/admin/monetization', {
         method: 'PUT',
@@ -272,6 +311,80 @@ export const MonetizationSettings: React.FC = () => {
               className="w-4 h-4 accent-blue-600"
             />
           </label>
+        </section>
+
+        {/* Reklama joylashuvlarini ochish/yopish */}
+        <section className="space-y-3">
+          <div className="flex items-center gap-1.5">
+            <Megaphone className="w-3.5 h-3.5 text-blue-600" />
+            <h4 className="text-xs font-bold text-gray-800">Reklama joylari</h4>
+          </div>
+
+          <label
+            className={`flex items-center justify-between p-3 rounded-2xl border transition-colors ${
+              cfg.ads_enabled ? 'bg-blue-600 border-blue-600' : 'bg-gray-50/70 border-gray-200'
+            }`}
+          >
+            <span className={`text-xs font-bold ${cfg.ads_enabled ? 'text-white' : 'text-gray-800'}`}>
+              Reklimalarni umuman yoqish
+            </span>
+            <input
+              type="checkbox"
+              checked={cfg.ads_enabled}
+              onChange={(e) => patch({ ads_enabled: e.target.checked })}
+              className="w-4 h-4 accent-blue-600"
+            />
+          </label>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <AdToggle
+              label="Tepa banner"
+              hint="Header ostidagi, yopiladigan keng banner"
+              checked={cfg.ads_top_enabled}
+              disabled={!cfg.ads_enabled}
+              onChange={(v) => patch({ ads_top_enabled: v })}
+            />
+            <AdToggle
+              label="Mashxur qatori o'rni"
+              hint="Kategoriya toolbari ostidagi qator (mashxur bo'lmasa)"
+              checked={cfg.ads_popular_enabled}
+              disabled={!cfg.ads_enabled}
+              onChange={(v) => patch({ ads_popular_enabled: v })}
+            />
+            <AdToggle
+              label="E'lonlar orasida"
+              hint="Grid ichida, xuddi e'lon kartidek"
+              checked={cfg.ads_inline_enabled}
+              disabled={!cfg.ads_enabled}
+              onChange={(v) => patch({ ads_inline_enabled: v })}
+            />
+            <AdToggle
+              label="Sidebar blok"
+              hint="Filtr paneli ostidagi tik to'rtburchak"
+              checked={cfg.ads_sidebar_enabled}
+              disabled={!cfg.ads_enabled}
+              onChange={(v) => patch({ ads_sidebar_enabled: v })}
+            />
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-semibold text-gray-500 mb-1">
+              Har nechta e'londan keyin bitta reklama (grid uchun)
+            </label>
+            <input
+              type="number"
+              min={1}
+              value={cfg.ads_inline_every}
+              disabled={!cfg.ads_enabled || !cfg.ads_inline_enabled}
+              onChange={(e) => patch({ ads_inline_every: Math.max(1, Number(e.target.value) || 1) })}
+              className={`${inputCls} sm:max-w-[200px] disabled:opacity-50`}
+            />
+          </div>
+
+          <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+            E'tibor: tashqi reklama tarmog'i (masalan Google AdSense) hali ulanmagan. Slotlarni yoqsangiz,
+            foydalanuvchilarga ichki “Reklama” placeholder ko'rinadi — real reklama uchun tarmoq ID'sini ulang.
+          </p>
         </section>
 
         {/* Promo duration */}

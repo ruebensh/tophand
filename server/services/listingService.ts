@@ -205,25 +205,60 @@ export async function searchListings(filter: ListingFilter) {
     params.push(filter.salary_max);
   }
 
-  // Structured attributes filter (JSONB). Strings/bools via containment (@>
-  // uses the GIN index), numbers via extracted-text equality.
+  // Structured attributes filter (JSONB).
+  //   - Range: `key_from` / `key_to` → (attributes->>'key')::numeric >= / <= ?
+  //   - Any-of (multiselect/chips): vergul bilan ajratilgan qiymat → IN (...) text match
+  //   - Single string/bool/color → JSONB containment (@> — GIN index)
+  //   - Single number → extracted-text equality
   if (filter.attributes) {
     const containment: Record<string, string | number | boolean> = {};
-    const numericCols: string[] = [];
     for (const [k, v] of Object.entries(filter.attributes)) {
       if (v === undefined || v === null || v === '') continue;
+      const clean = k.replace(/[^a-zA-Z0-9_]/g, '');
+      if (!clean) continue;
+
+      // Range: `..._from` / `..._to` (qiymat son bo'lishi shart).
+      if (/_from$/.test(clean)) {
+        const base = clean.slice(0, -5);
+        const num = typeof v === 'number' ? v : parseFloat(String(v));
+        if (base && !isNaN(num)) {
+          sql += ` AND (NULLIF(l.attributes->>'${base}', ''))::numeric >= ?`;
+          params.push(num);
+        }
+        continue;
+      }
+      if (/_to$/.test(clean)) {
+        const base = clean.slice(0, -3);
+        const num = typeof v === 'number' ? v : parseFloat(String(v));
+        if (base && !isNaN(num)) {
+          sql += ` AND (NULLIF(l.attributes->>'${base}', ''))::numeric <= ?`;
+          params.push(num);
+        }
+        continue;
+      }
+
+      // Any-of: bir nechta qiymat vergul bilan (multiselect/chips).
+      if (typeof v === 'string' && v.includes(',')) {
+        const vals = v.split(',').map((s) => s.trim()).filter(Boolean);
+        if (vals.length > 0) {
+          const ph = vals.map(() => '?').join(', ');
+          sql += ` AND (l.attributes->>'${clean}') IN (${ph})`;
+          params.push(...vals);
+        }
+        continue;
+      }
+
       if (typeof v === 'number') {
-        numericCols.push(`(l.attributes->>'${k.replace(/[^a-zA-Z0-9_]/g, '')}') = ?`);
+        sql += ` AND (l.attributes->>'${clean}') = ?`;
         params.push(String(v));
       } else {
-        containment[k] = v;
+        containment[clean] = v;
       }
     }
     if (Object.keys(containment).length > 0) {
       sql += ` AND l.attributes @> ?::jsonb`;
       params.push(JSON.stringify(containment));
     }
-    for (const cond of numericCols) sql += ` AND ${cond}`;
   }
 
   if (filter.keyword && filter.keyword.trim().length > 0) {
