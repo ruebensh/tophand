@@ -346,6 +346,22 @@ html, body {
   .th-shine { transition: none; }
 }
 
+/* Smartfon/planshet (hover yo'q, kursor yo'q) — katalog kartalaridagi nur
+   (shine) bosish/hover'siz, o'zi har 7 soniyada o'tib turadi. Har bir karta
+   `--d` orqali chala-putur boshlanadi, shunda hammasi bir vaqtda yalt etmaydi. */
+@media (hover: none) and (prefers-reduced-motion: no-preference) {
+  @keyframes th-shine-auto {
+    0%   { transform: translateX(-130%); }
+    9%   { transform: translateX(130%); }
+    100% { transform: translateX(130%); }
+  }
+  .th-shine {
+    transition: none;
+    animation: th-shine-auto 7s cubic-bezier(.22, 1, .36, 1) infinite;
+    animation-delay: var(--d, 0ms);
+  }
+}
+
 /* ── Yuqori chastotali ekranlar (90/120Hz) — maksimal silliqlik ──────
    Brauzer ekran yangilanish chastotasigacha chizadi; vazifamiz —
    animatsiyalarni kompozitor (GPU)ga o'tkazish va scroll/tap jankini
