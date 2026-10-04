@@ -44,15 +44,26 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentRoute, onNavigate }
 
   // Compute active bubble position
   useEffect(() => {
-    if (!navRef.current) return;
-    const buttons = navRef.current.querySelectorAll<HTMLButtonElement>('[data-nav-btn]');
-    const idx = activeIndex >= 0 ? activeIndex : 0;
-    const btn = buttons[idx];
-    if (!btn) return;
-    const navRect = navRef.current.getBoundingClientRect();
-    const btnRect = btn.getBoundingClientRect();
-    setBubbleLeft(btnRect.left - navRect.left + btnRect.width / 2);
-    setReady(true);
+    const compute = () => {
+      if (!navRef.current) return;
+      // If desktop width — reset bubble so it doesn't show on mobile after switching back
+      if (window.innerWidth >= 768) {
+        setReady(false);
+        return;
+      }
+      const buttons = navRef.current.querySelectorAll<HTMLButtonElement>('[data-nav-btn]');
+      const idx = activeIndex >= 0 ? activeIndex : 0;
+      const btn = buttons[idx];
+      if (!btn) return;
+      const navRect = navRef.current.getBoundingClientRect();
+      const btnRect = btn.getBoundingClientRect();
+      setBubbleLeft(btnRect.left - navRect.left + btnRect.width / 2);
+      setReady(true);
+    };
+
+    compute();
+    window.addEventListener('resize', compute);
+    return () => window.removeEventListener('resize', compute);
   }, [activeIndex, currentRoute]);
 
   const ActiveIcon = activeIndex >= 0 ? items[activeIndex].icon : null;
@@ -149,7 +160,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentRoute, onNavigate }
         }
       `}</style>
 
-      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-40">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40">
         <div
           style={{
             padding: '0 16px',
