@@ -94,6 +94,102 @@ const chipCls = (on: boolean, tone = 'blue') =>
       : 'bg-white border border-gray-200 text-gray-700 hover:border-blue-300 hover:text-blue-700'
   }${tone === 'emerald' && on ? '!bg-emerald-600' : ''}`;
 
+// select/color uchun maydon: ro'yxatdan tanlash + qo'lda (custom) qiymat kiritish.
+// Ro'yxatda mavjud bo'lmagan qiymat ham kiritilishi mumkin — foydalanuvchi
+// admin panelda qo'shilmagan variant uchun qulaylikka ega bo'ladi.
+const SelectAttrField: React.FC<{
+  attr: CategoryAttribute;
+  value: string;
+  onChange: (v: string | undefined) => void;
+}> = ({ attr, value, onChange }) => {
+  const opts = attr.options && attr.options.length ? attr.options : attr.type === 'color' ? COLOR_OPTIONS : [];
+  const inList = !!value && opts.includes(value);
+  const [draft, setDraft] = useState(value && !inList ? value : '');
+  useEffect(() => {
+    setDraft(value && !opts.includes(value) ? value : '');
+  }, [value]);
+  return (
+    <div className="space-y-1.5">
+      <select
+        value={inList ? value : ''}
+        onChange={(e) => onChange(e.target.value || undefined)}
+        className={INPUT_CLS}
+      >
+        <option value="">{attr.label} (tanlang)</option>
+        {opts.map((o) => (
+          <option key={o} value={o}>{o}</option>
+        ))}
+        {value && !inList && <option value={value}>{value} (qo'lda kiritilgan)</option>}
+      </select>
+      <input
+        type="text"
+        value={draft}
+        onChange={(e) => { setDraft(e.target.value); onChange(e.target.value || undefined); }}
+        placeholder="yoki ro'yxatdan bo'lmasa, qo'lda kiriting…"
+        className={`${INPUT_CLS} !py-2 text-[11px]`}
+      />
+    </div>
+  );
+};
+
+// multiselect uchun maydon: chiplar + o'z qiymatini qo'shish (custom).
+const MultiselectAttrField: React.FC<{
+  attr: CategoryAttribute;
+  value: string;
+  onChange: (v: string | undefined) => void;
+}> = ({ attr, value, onChange }) => {
+  const known = attr.options || [];
+  const arr = value ? value.split(', ').filter(Boolean) : [];
+  const [draft, setDraft] = useState('');
+  const toggle = (o: string) => {
+    const next = arr.includes(o) ? arr.filter((x) => x !== o) : [...arr, o];
+    onChange(next.length ? next.join(', ') : undefined);
+  };
+  const addCustom = () => {
+    const t = draft.trim();
+    if (!t || arr.includes(t)) { setDraft(''); return; }
+    onChange([...arr, t].join(', '));
+    setDraft('');
+  };
+  const customSelected = arr.filter((x) => !known.includes(x));
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-2">
+        {known.map((o) => {
+          const on = arr.includes(o);
+          return (
+            <button key={o} type="button" onClick={() => toggle(o)} className={chipCls(on)}>
+              {on && <Check className="w-3.5 h-3.5" />}
+              {o}
+            </button>
+          );
+        })}
+        {customSelected.map((x) => (
+          <span key={x} className={chipCls(true)}>
+            {x}
+            <button type="button" onClick={() => toggle(x)} className="ml-0.5 hover:opacity-70">
+              <X className="w-3 h-3" />
+            </button>
+          </span>
+        ))}
+      </div>
+      <div className="flex gap-1.5">
+        <input
+          type="text"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustom(); } }}
+          placeholder="yoki o'zingiz qo'shing…"
+          className={`${INPUT_CLS} !py-2 text-[11px]`}
+        />
+        <button type="button" onClick={addCustom} className="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold shrink-0 cursor-pointer">
+          Qo'shish
+        </button>
+      </div>
+    </div>
+  );
+};
+
 export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate, onCreated, editListingId }) => {
   const { user } = useAuth();
   const isEditing = !!editListingId;
@@ -117,7 +213,6 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
   const [latitude, setLatitude] = useState<number | undefined>(user?.latitude);
   const [longitude, setLongitude] = useState<number | undefined>(user?.longitude);
 
-  const [selectedSubcategories, setSelectedSubcategories] = useState<string[]>([]);
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
   const [customDescription, setCustomDescription] = useState('');
   const [isCustomDescOpen, setIsCustomDescOpen] = useState(false);
@@ -237,7 +332,7 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
         setContactCustomText(l.contact_custom_text || '');
         setOrganizationId(l.organization_id || '');
         const skillsArr: string[] = Array.isArray(l.skills) ? l.skills : (() => { try { return JSON.parse(l.skills || '[]'); } catch { return []; } })();
-        setSelectedSubcategories(skillsArr);
+        setSelectedFeatures(skillsArr);
         setCustomDescription(l.description || '');
         const attrs = typeof l.attributes === 'string' ? JSON.parse(l.attributes || '{}') : (l.attributes || {});
         setAttributes(attrs);
@@ -263,20 +358,25 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
       .filter((t) => !!TYPE_META[t as ListingType]) as ListingType[];
   }, [selectedCatalog]);
 
-  const activeCategory = useMemo(() => categories.find((c) => c.id === categoryId), [categories, categoryId]);
+  const selectedCategoryObj = useMemo(() => categories.find((c) => c.id === categoryId), [categories, categoryId]);
+  // Tanlangan kategoriya barg (subcategory) bo'lsa, uning otasi top-select qiymati bo'ladi.
+  const parentCategoryId = selectedCategoryObj?.parent_id || categoryId;
+  const parentCategoryObj = useMemo(() => categories.find((c) => c.id === parentCategoryId), [categories, parentCategoryId]);
+  const isLeafSelected = !!selectedCategoryObj?.parent_id;
 
   const parentCategories = useMemo(() => categories.filter((c) => !c.parent_id), [categories]);
 
-  const availableSubcategories = useMemo(() => {
-    if (!activeCategory) return [];
-    return categories.filter((c) => c.parent_id === activeCategory.id).map((c) => c.name_uz);
-  }, [activeCategory, categories]);
+  // Ota kategoriyaning subkategoriyalari — filtrlar shu bo'lakka qarab yuklanadi.
+  const subcategoriesOfParent = useMemo(
+    () => categories.filter((c) => c.parent_id === parentCategoryId),
+    [categories, parentCategoryId]
+  );
 
   const autoGeneratedDescription = useMemo(() => {
     const parts: string[] = [];
     if (title.trim()) parts.push(title.trim());
-    if (activeCategory) parts.push(`Kategoriya: ${activeCategory.name_uz}`);
-    if (selectedSubcategories.length > 0) parts.push(`Yo'nalishlar: ${selectedSubcategories.join(', ')}`);
+    if (parentCategoryObj) parts.push(`Kategoriya: ${parentCategoryObj.name_uz}`);
+    if (isLeafSelected && selectedCategoryObj) parts.push(`Yo'nalish: ${selectedCategoryObj.name_uz}`);
     const attrText = attrSchema
       .map((a) => (attributes[a.key] !== undefined && attributes[a.key] !== '' ? `${a.label}: ${attributes[a.key]}` : null))
       .filter(Boolean) as string[];
@@ -284,14 +384,13 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
     if (showEmployment && selectedFeatures.length > 0) parts.push(`Afzalliklar: ${selectedFeatures.join(', ')}`);
     if (customDescription.trim()) parts.push(`Qo'shimcha izoh: ${customDescription.trim()}`);
     return parts.join('. ') + (parts.length ? '.' : '');
-  }, [title, activeCategory, selectedSubcategories, attrSchema, attributes, selectedFeatures, customDescription, showEmployment]);
+  }, [title, parentCategoryObj, selectedCategoryObj, isLeafSelected, attrSchema, attributes, selectedFeatures, customDescription, showEmployment]);
 
   // ── Handlers ──
   const chooseCatalog = (cat: Catalog) => {
     setSelectedCatalog(cat);
     setCategoryId('');
     setAttributes({});
-    setSelectedSubcategories([]);
     setAiSuggestion(null);
     const types = (cat.listing_types || '').split(',').map((t) => t.trim()).filter((t) => !!TYPE_META[t as ListingType]);
     setSelectedType(types.length === 1 ? (types[0] as ListingType) : null);
@@ -301,7 +400,6 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
     setSelectedType(t);
     setCategoryId('');
     setAttributes({});
-    setSelectedSubcategories([]);
   };
 
   const setAttr = (key: string, val: string | number | boolean | undefined) => {
@@ -312,9 +410,6 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
       return next;
     });
   };
-
-  const handleToggleSubcategory = (item: string) =>
-    setSelectedSubcategories((prev) => (prev.includes(item) ? prev.filter((i) => i !== item) : [...prev, item]));
 
   const handleToggleFeature = (feat: string) =>
     setSelectedFeatures((prev) => (prev.includes(feat) ? prev.filter((f) => f !== feat) : [...prev, feat]));
@@ -338,10 +433,11 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
 
   const applyAiSuggestion = () => {
     if (!aiSuggestion) return;
-    if (aiSuggestion.category_id) setCategoryId(aiSuggestion.category_id);
-    if (aiSuggestion.subcategory_id) {
-      const sub = categories.find((c) => c.id === aiSuggestion.subcategory_id);
-      if (sub) setSelectedSubcategories((prev) => Array.from(new Set([...prev, sub.name_uz])));
+    // Subkategoriya aniqlansa — e'lon shu bargga joylanadi va uning filtrlari yuklanadi.
+    const targetId = aiSuggestion.subcategory_id || aiSuggestion.category_id;
+    if (targetId && categories.some((c) => c.id === targetId)) {
+      setCategoryId(targetId);
+      setAttributes({});
     }
   };
 
@@ -443,6 +539,10 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
       setError('Viloyat va tumanni belgilang');
       return;
     }
+    if (subcategoriesOfParent.length > 0 && !isLeafSelected) {
+      setError('Iltimos, tanlangan kategoriya ichidan yo\'nalish (subkategoriya) tanlang');
+      return;
+    }
     const missing = attrSchema.filter((a) => a.required && (attributes[a.key] === undefined || attributes[a.key] === ''));
     if (missing.length) {
       setError(`Majburiy parametrlarni to'ldiring: ${missing.map((m) => m.label).join(', ')}`);
@@ -451,7 +551,7 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
 
     setIsSubmitting(true);
     setError('');
-    const combinedSkills = Array.from(new Set([...selectedSubcategories, ...(showEmployment ? selectedFeatures : [])]));
+    const combinedSkills = Array.from(new Set(showEmployment ? selectedFeatures : []));
 
     try {
       const payload = {
@@ -500,15 +600,7 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
     switch (attr.type) {
       case 'select':
       case 'color': {
-        const opts = attr.options && attr.options.length ? attr.options : attr.type === 'color' ? COLOR_OPTIONS : [];
-        return (
-          <select value={typeof val === 'string' ? val : ''} onChange={(e) => setAttr(attr.key, e.target.value)} className={INPUT_CLS}>
-            <option value="">{attr.label} (tanlang)</option>
-            {opts.map((o) => (
-              <option key={o} value={o}>{o}</option>
-            ))}
-          </select>
-        );
+        return <SelectAttrField attr={attr} value={typeof val === 'string' ? val : ''} onChange={(v) => setAttr(attr.key, v)} />;
       }
       case 'bool':
         return (
@@ -522,25 +614,7 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
           </div>
         );
       case 'multiselect': {
-        const arr = typeof val === 'string' && val ? val.split(', ') : [];
-        return (
-          <div className="flex flex-wrap gap-2">
-            {(attr.options || []).map((o) => {
-              const on = arr.includes(o);
-              return (
-                <button
-                  key={o}
-                  type="button"
-                  onClick={() => setAttr(attr.key, (on ? arr.filter((x) => x !== o) : [...arr, o]).join(', '))}
-                  className={chipCls(on)}
-                >
-                  {on && <Check className="w-3.5 h-3.5" />}
-                  {o}
-                </button>
-              );
-            })}
-          </div>
-        );
+        return <MultiselectAttrField attr={attr} value={typeof val === 'string' ? val : ''} onChange={(v) => setAttr(attr.key, v)} />;
       }
       case 'number':
       case 'year':
@@ -760,8 +834,8 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
               </div>
               <select
                 required
-                value={categoryId}
-                onChange={(e) => { setCategoryId(e.target.value); setSelectedSubcategories([]); setAttributes({}); }}
+                value={parentCategoryId}
+                onChange={(e) => { setCategoryId(e.target.value); setAttributes({}); }}
                 className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-3.5 py-2.5 text-xs font-medium focus:bg-white focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Kategoriyani tanlang...</option>
@@ -771,21 +845,23 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
               </select>
             </div>
 
-            {/* SUBCATEGORIES (API daraxti) */}
-            {availableSubcategories.length > 0 && (
+            {/* SUBCATEGORIES (single-select: e'lon shu bargga joylanadi va filtrlari yuklanadi) */}
+            {subcategoriesOfParent.length > 0 && (
               <div className="p-4 rounded-2xl bg-gray-50/70 border border-gray-100">
                 <div className="flex items-center justify-between mb-2.5">
                   <label className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
-                    <Tag className="w-3.5 h-3.5 text-blue-600" /> Yo'nalish / tum-kategoriya
+                    <Tag className="w-3.5 h-3.5 text-blue-600" /> Yo'nalish / subkategoriya <span className="text-rose-500">*</span>
                   </label>
-                  <span className="text-[11px] text-gray-400">{selectedSubcategories.length} ta tanlandi</span>
+                  {isLeafSelected && selectedCategoryObj && (
+                    <span className="text-[11px] font-semibold text-blue-600">{selectedCategoryObj.name_uz}</span>
+                  )}
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {availableSubcategories.map((item) => {
-                    const isSelected = selectedSubcategories.includes(item);
+                  {subcategoriesOfParent.map((sub) => {
+                    const isSelected = categoryId === sub.id;
                     return (
-                      <button key={item} type="button" onClick={() => handleToggleSubcategory(item)} className={chipCls(isSelected)}>
-                        {isSelected && <Check className="w-3.5 h-3.5" />} <span>{item}</span>
+                      <button key={sub.id} type="button" onClick={() => { setCategoryId(sub.id); setAttributes({}); }} className={chipCls(isSelected)}>
+                        {isSelected && <Check className="w-3.5 h-3.5" />} <span>{sub.name_uz}</span>
                       </button>
                     );
                   })}
@@ -793,12 +869,12 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
               </div>
             )}
 
-            {/* DYNAMIC ATTRIBUTES */}
-            {attrSchema.length > 0 && (
+            {/* DYNAMIC ATTRIBUTES (filtrlar: tanlangan subkategoriya yoki subkategoriyasiz ota kategoriya) */}
+            {attrSchema.length > 0 && (subcategoriesOfParent.length === 0 || isLeafSelected) && (
               <div className="p-4 rounded-2xl bg-slate-50/70 border border-slate-100 space-y-3">
                 <label className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
                   <SlidersHorizontal className="w-3.5 h-3.5 text-blue-600" />
-                  {activeCategory?.name_uz || 'Kategoriya'} parametrlari
+                  {selectedCategoryObj?.name_uz || 'Kategoriya'} parametrlari
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {attrSchema.map((attr) => (
