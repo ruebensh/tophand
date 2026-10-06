@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom';
 import { X, MapPin, Loader2, Navigation, RefreshCw, Briefcase, Wrench, Layers, List } from 'lucide-react';
 import { apiRequest } from '../../lib/api.ts';
+import { useI18n } from '../../i18n/IntlContext.tsx';
 
 interface MapListing {
   id: string;
@@ -43,6 +44,7 @@ export const NearbyMapModal: React.FC<NearbyMapModalProps> = ({
   onOpenListing,
   initialLocation,
 }) => {
+  const { t, intlLocale } = useI18n();
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const leafletRef = useRef<any>(null);
@@ -118,16 +120,16 @@ export const NearbyMapModal: React.FC<NearbyMapModalProps> = ({
 
   // Format price
   const formatPrice = (l: MapListing) => {
-    if (l.price_type === 'FREE') return "Tekin / Bepul";
-    if (l.price_type === 'NEGOTIABLE') return "Kelishilgan";
+    if (l.price_type === 'FREE') return t('price.free');
+    if (l.price_type === 'NEGOTIABLE') return t('price.negotiable');
     if (l.price_min) {
-      const min = Number(l.price_min).toLocaleString('uz-UZ');
+      const min = Number(l.price_min).toLocaleString(intlLocale);
       if (l.price_max && Number(l.price_max) > Number(l.price_min)) {
-        return `${min} - ${Number(l.price_max).toLocaleString('uz-UZ')} ${l.currency || "so'm"}`;
+        return `${min} - ${Number(l.price_max).toLocaleString(intlLocale)} ${l.currency || t('map.currencyFallback')}`;
       }
-      return `${min} ${l.currency || "so'm"}`;
+      return `${min} ${l.currency || t('map.currencyFallback')}`;
     }
-    return "Kelishilgan";
+    return t('price.negotiable');
   };
 
   // Place markers on the map
@@ -171,8 +173,8 @@ export const NearbyMapModal: React.FC<NearbyMapModalProps> = ({
         // Red dot for Jobs, Blue dot for Services
         const dotColor = isJobItem ? '#EF4444' : '#2563EB';
         const typeLabel = isJobItem
-          ? (item.type === 'JOB_OPENING' ? '💼 Ish oʻrni' : '👤 Mutaxassis / Rezyume')
-          : (item.type === 'SERVICE_OFFER' ? '🛠️ Xizmat taklifi' : '📋 Buyurtma');
+          ? (item.type === 'JOB_OPENING' ? t('map.typeJobOpening') : t('map.typeJobSeeker'))
+          : (item.type === 'SERVICE_OFFER' ? t('map.typeServiceOffer') : t('map.typeServiceRequest'));
 
         const circleMarker = L.circleMarker([lat, lon], {
           radius: 8,
@@ -203,7 +205,7 @@ export const NearbyMapModal: React.FC<NearbyMapModalProps> = ({
               ${item.title.replace(/"/g, '&quot;')}
             </h4>
             <div style="font-size: 11px; color: #4B5563; margin-bottom: 4px;">
-              <span>📁 ${item.category_name || "Kategoriya"}</span>
+              <span>📁 ${item.category_name || t('map.categoryFallback')}</span>
             </div>
             <div style="font-size: 11px; color: #6B7280; margin-bottom: 8px;">
               <span>📍 ${item.district_name}, ${item.region_name}</span>
@@ -215,7 +217,7 @@ export const NearbyMapModal: React.FC<NearbyMapModalProps> = ({
               id="map-btn-${item.id}"
               style="width: 100%; padding: 6px 10px; border-radius: 8px; background: #2563EB; color: #ffffff; font-size: 11px; font-weight: 700; border: none; cursor: pointer; text-align: center;"
             >
-              E'lonni ko'rish →
+              ${t('map.viewListing')}
             </button>
           </div>
         `;
@@ -240,7 +242,7 @@ export const NearbyMapModal: React.FC<NearbyMapModalProps> = ({
         markersRef.current.push(circleMarker);
       });
     });
-  }, [filteredListings, onClose, onOpenListing]);
+  }, [filteredListings, onClose, onOpenListing, t]);
 
   // Load all platform listings
   const loadAllListings = useCallback(async () => {
@@ -279,14 +281,14 @@ export const NearbyMapModal: React.FC<NearbyMapModalProps> = ({
 
     userMarkerRef.current = L.marker([lat, lon], { icon: userIcon, zIndexOffset: 1000 })
       .addTo(map)
-      .bindPopup('<b style="font-size:12px">📍 Sizning joylashuvingiz</b>');
-  }, []);
+      .bindPopup(`<b style="font-size:12px">${t('map.yourLocation')}</b>`);
+  }, [t]);
 
   // Detect GPS
   const detectLocation = useCallback(() => {
     setIsDetecting(true);
     if (!navigator.geolocation) {
-      alert("Brauzeringiz GPS-ni qo'llab-quvvatlamaydi");
+      alert(t('map.gpsUnsupported'));
       setIsDetecting(false);
       return;
     }
@@ -311,12 +313,12 @@ export const NearbyMapModal: React.FC<NearbyMapModalProps> = ({
         }
       },
       () => {
-        alert("Joylashuvni aniqlashga ruxsat berilmadi yoki signal topilmadi");
+        alert(t('map.gpsDenied'));
         setIsDetecting(false);
       },
       { timeout: 10000, enableHighAccuracy: true }
     );
-  }, [updateUserMarker]);
+  }, [updateUserMarker, t]);
 
   // Initialize Map
   useEffect(() => {
@@ -411,7 +413,7 @@ export const NearbyMapModal: React.FC<NearbyMapModalProps> = ({
       {visibleListings.length === 0 && !isLoadingListings ? (
         <div className="text-center py-10 text-gray-400 text-xs">
           <MapPin className="w-8 h-8 mx-auto mb-2 opacity-30" />
-          Bu ko'rinishda e'lonlar yo'q — xaritani boshqa hududga siljiting
+          {t('map.emptyView')}
         </div>
       ) : (
         visibleListings.map((item) => {
@@ -431,7 +433,7 @@ export const NearbyMapModal: React.FC<NearbyMapModalProps> = ({
             >
               <div className="flex items-center justify-between gap-1 mb-1">
                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${isJobItem ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
-                  {isJobItem ? '🔴 Ish' : '🔵 Xizmat'}
+                  {isJobItem ? t('map.badgeJob') : t('map.badgeService')}
                 </span>
                 <span className="text-[10px] font-bold text-gray-700">{formatPrice(item)}</span>
               </div>
@@ -439,7 +441,7 @@ export const NearbyMapModal: React.FC<NearbyMapModalProps> = ({
               <div className="flex items-center justify-between text-[10px] text-gray-500 mt-1">
                 <span className="truncate max-w-[120px]">📍 {item.district_name || item.region_name}</span>
                 <button type="button" onClick={(e) => { e.stopPropagation(); onClose(); onOpenListing(item.id); }} className="text-blue-600 font-bold hover:underline">
-                  Ko'rish →
+                  {t('map.viewShort')}
                 </button>
               </div>
             </div>
@@ -466,19 +468,19 @@ export const NearbyMapModal: React.FC<NearbyMapModalProps> = ({
             </div>
             <div>
               <h2 className="font-bold text-gray-900 text-sm sm:text-base flex items-center gap-2">
-                O'zbekiston bo'yicha e'lonlar xaritasi
+                {t('map.title')}
                 <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
-                  {listings.length} ta
+                  {t('common.count', { n: listings.length })}
                 </span>
               </h2>
               <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
                 <span className="inline-flex items-center gap-1">
                   <span className="w-2.5 h-2.5 rounded-full bg-blue-600 inline-block"></span>
-                  Ko'k — Xizmatlar ({servicesCount})
+                  {t('map.hdrBlue')} ({servicesCount})
                 </span>
                 <span className="inline-flex items-center gap-1">
                   <span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block"></span>
-                  Qizil — Ishlar ({jobsCount})
+                  {t('map.hdrRed')} ({jobsCount})
                 </span>
               </div>
             </div>
@@ -488,18 +490,18 @@ export const NearbyMapModal: React.FC<NearbyMapModalProps> = ({
             <button
               onClick={detectLocation}
               disabled={isDetecting}
-              title="Joylashuvimni aniqlash"
+              title={t('map.detectMeTitle')}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-all disabled:opacity-50 cursor-pointer"
             >
               {isDetecting ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Aniqlanmoqda...</span>
+                  <span>{t('home.detecting')}</span>
                 </>
               ) : (
                 <>
                   <Navigation className="w-3.5 h-3.5 text-blue-600" />
-                  <span className="hidden sm:inline">Mening joylashuvim</span>
+                  <span className="hidden sm:inline">{t('map.myLocation')}</span>
                 </>
               )}
             </button>
@@ -507,7 +509,7 @@ export const NearbyMapModal: React.FC<NearbyMapModalProps> = ({
             <button
               onClick={loadAllListings}
               disabled={isLoadingListings}
-              title="Xaritani yangilash"
+              title={t('map.refreshTitle')}
               className="p-2 rounded-xl border border-gray-200 text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-all disabled:opacity-50 cursor-pointer"
             >
               <RefreshCw className={`w-4 h-4 ${isLoadingListings ? 'animate-spin' : ''}`} />
@@ -536,7 +538,7 @@ export const NearbyMapModal: React.FC<NearbyMapModalProps> = ({
               }`}
             >
               <Layers className="w-3.5 h-3.5" />
-              Barchasi ({listings.length})
+              {t('common.all')} ({listings.length})
             </button>
 
             <button
@@ -549,7 +551,7 @@ export const NearbyMapModal: React.FC<NearbyMapModalProps> = ({
               }`}
             >
               <Wrench className="w-3.5 h-3.5" />
-              🔵 Xizmatlar ({servicesCount})
+              🔵 {t('home.tabServices')} ({servicesCount})
             </button>
 
             <button
@@ -562,7 +564,7 @@ export const NearbyMapModal: React.FC<NearbyMapModalProps> = ({
               }`}
             >
               <Briefcase className="w-3.5 h-3.5" />
-              🔴 Bo'sh ishlar ({jobsCount})
+              🔴 {t('home.tabJobs')} ({jobsCount})
             </button>
           </div>
 
@@ -570,7 +572,7 @@ export const NearbyMapModal: React.FC<NearbyMapModalProps> = ({
           <div className="w-full sm:w-60">
             <input
               type="text"
-              placeholder="Qidirish (shahar, mutaxassislik)..."
+              placeholder={t('map.searchPh')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-white border border-gray-200 rounded-lg px-2.5 py-1 text-xs text-gray-800 focus:outline-hidden focus:border-blue-500"
@@ -591,8 +593,8 @@ export const NearbyMapModal: React.FC<NearbyMapModalProps> = ({
                   <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
                     <MapPin className="w-4 h-4" />
                   </div>
-                  <span className="font-bold text-gray-900 text-sm truncate">E'lonlar xaritasi</span>
-                  <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 shrink-0">{listings.length} ta</span>
+                  <span className="font-bold text-gray-900 text-sm truncate">{t('map.mapTitleMobile')}</span>
+                  <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 shrink-0">{t('common.count', { n: listings.length })}</span>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                   <button onClick={loadAllListings} disabled={isLoadingListings} className="w-9 h-9 rounded-xl border border-gray-200 bg-white text-gray-600 flex items-center justify-center active:bg-gray-100">
@@ -604,11 +606,11 @@ export const NearbyMapModal: React.FC<NearbyMapModalProps> = ({
                 </div>
               </div>
               <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-2">
-                <button onClick={() => setFilterType('ALL')} className={`shrink-0 px-3 py-1 rounded-lg text-xs font-semibold transition-all ${filterType === 'ALL' ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 border border-gray-200'}`}>Barchasi ({listings.length})</button>
-                <button onClick={() => setFilterType('SERVICES')} className={`shrink-0 px-3 py-1 rounded-lg text-xs font-semibold transition-all ${filterType === 'SERVICES' ? 'bg-blue-600 text-white' : 'bg-white text-blue-700 border border-blue-200'}`}>🔵 Xizmatlar ({servicesCount})</button>
-                <button onClick={() => setFilterType('JOBS')} className={`shrink-0 px-3 py-1 rounded-lg text-xs font-semibold transition-all ${filterType === 'JOBS' ? 'bg-red-600 text-white' : 'bg-white text-red-700 border border-red-200'}`}>🔴 Ishlar ({jobsCount})</button>
+                <button onClick={() => setFilterType('ALL')} className={`shrink-0 px-3 py-1 rounded-lg text-xs font-semibold transition-all ${filterType === 'ALL' ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 border border-gray-200'}`}>{t('common.all')} ({listings.length})</button>
+                <button onClick={() => setFilterType('SERVICES')} className={`shrink-0 px-3 py-1 rounded-lg text-xs font-semibold transition-all ${filterType === 'SERVICES' ? 'bg-blue-600 text-white' : 'bg-white text-blue-700 border border-blue-200'}`}>🔵 {t('home.tabServices')} ({servicesCount})</button>
+                <button onClick={() => setFilterType('JOBS')} className={`shrink-0 px-3 py-1 rounded-lg text-xs font-semibold transition-all ${filterType === 'JOBS' ? 'bg-red-600 text-white' : 'bg-white text-red-700 border border-red-200'}`}>🔴 {t('home.tabJobs')} ({jobsCount})</button>
               </div>
-              <input type="text" placeholder="Qidirish (shahar, mutaxassislik)..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full mb-1 bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-800 focus:outline-hidden focus:border-blue-500" />
+              <input type="text" placeholder={t('map.searchPh')} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full mb-1 bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-800 focus:outline-hidden focus:border-blue-500" />
             </div>
 
             {/* ── Mobil: o'ng suzuvchi boshqaruv (qatlam + masshtab + GPS) ── */}
@@ -628,16 +630,16 @@ export const NearbyMapModal: React.FC<NearbyMapModalProps> = ({
             {/* Mobil: qatlam (legend) popoveri */}
             {legendOpen && (
               <div className="md:hidden absolute right-16 top-[46%] -translate-y-1/2 z-[500] bg-white/95 backdrop-blur-xs rounded-xl p-2.5 shadow-lg border border-gray-200 text-xs space-y-1.5">
-                <div className="font-bold text-gray-800 text-[11px] mb-1">Xarita belgisi:</div>
-                <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-blue-600 inline-block border border-white shadow-xs"></span><span className="text-gray-700 font-medium">Xizmatlar</span></div>
-                <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-red-500 inline-block border border-white shadow-xs"></span><span className="text-gray-700 font-medium">Bo'sh ishlar</span></div>
+                <div className="font-bold text-gray-800 text-[11px] mb-1">{t('map.legendTitle')}</div>
+                <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-blue-600 inline-block border border-white shadow-xs"></span><span className="text-gray-700 font-medium">{t('home.tabServices')}</span></div>
+                <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-red-500 inline-block border border-white shadow-xs"></span><span className="text-gray-700 font-medium">{t('home.tabJobs')}</span></div>
               </div>
             )}
 
             {/* ── Mobil: pastki-chap "Ro'yxat" tugmasi ── */}
             <button onClick={() => setMobileListOpen(true)} className="md:hidden absolute bottom-5 left-3 z-[500] inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-white shadow-lg border border-gray-200 text-sm font-bold text-gray-800 active:bg-gray-50">
               <List className="w-4 h-4 text-blue-600" />
-              <span>Ro'yxat</span>
+              <span>{t('map.listBtn')}</span>
               <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">{visibleListings.length}</span>
             </button>
 
@@ -646,7 +648,7 @@ export const NearbyMapModal: React.FC<NearbyMapModalProps> = ({
               <div className="md:hidden absolute inset-0 z-[600] flex flex-col justify-end" onClick={() => setMobileListOpen(false)}>
                 <div className="h-[72%] bg-white rounded-t-3xl flex flex-col overflow-hidden shadow-2xl" onClick={(e) => e.stopPropagation()}>
                   <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50/60">
-                    <span className="text-sm font-bold text-gray-800">E'lonlar ro'yxati ({visibleListings.length})</span>
+                    <span className="text-sm font-bold text-gray-800">{t('map.listingsHeader')} ({visibleListings.length})</span>
                     <button onClick={() => setMobileListOpen(false)} className="p-2 rounded-xl text-gray-500 active:bg-gray-200"><X className="w-4 h-4" /></button>
                   </div>
                   {renderListCards()}
@@ -656,19 +658,19 @@ export const NearbyMapModal: React.FC<NearbyMapModalProps> = ({
 
             {/* Map overlay legend */}
             <div className="absolute bottom-4 left-4 z-[400] bg-white/95 backdrop-blur-xs rounded-xl p-2.5 shadow-md border border-gray-200 text-xs space-y-1.5 hidden md:block pointer-events-auto">
-              <div className="font-bold text-gray-800 text-[11px] mb-1">Xarita belgisi:</div>
+              <div className="font-bold text-gray-800 text-[11px] mb-1">{t('map.legendTitle')}</div>
               <div className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full bg-blue-600 inline-block border border-white shadow-xs"></span>
-                <span className="text-gray-700 font-medium">Ko'k nuqta — Xizmatlar</span>
+                <span className="text-gray-700 font-medium">{t('map.legendBlue')}</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full bg-red-500 inline-block border border-white shadow-xs"></span>
-                <span className="text-gray-700 font-medium">Qizil nuqta — Bo'sh ish o'rinlari</span>
+                <span className="text-gray-700 font-medium">{t('map.legendRed')}</span>
               </div>
               {location && (
                 <div className="flex items-center gap-2 pt-1 border-t border-gray-100">
                   <span className="text-blue-600">📍</span>
-                  <span className="text-gray-600 font-medium">Sizning hududingiz</span>
+                  <span className="text-gray-600 font-medium">{t('map.yourArea')}</span>
                 </div>
               )}
             </div>
@@ -678,7 +680,7 @@ export const NearbyMapModal: React.FC<NearbyMapModalProps> = ({
               <div className="absolute inset-0 bg-white/70 backdrop-blur-xs flex items-center justify-center z-[500]">
                 <div className="flex items-center gap-2 bg-white px-4 py-2.5 rounded-2xl shadow-lg border border-gray-100 text-sm text-gray-800 font-semibold">
                   <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
-                  E'lonlar yuklanmoqda...
+                  {t('map.loadingListings')}
                 </div>
               </div>
             )}
@@ -688,7 +690,7 @@ export const NearbyMapModal: React.FC<NearbyMapModalProps> = ({
           <div className="hidden md:flex md:w-80 border-l border-gray-200 bg-white flex-col h-full overflow-hidden">
             <div className="p-3 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
               <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">
-                E'lonlar ro'yxati ({visibleListings.length})
+                {t('map.listingsHeader')} ({visibleListings.length})
               </span>
               {location && (
                 <span className="text-[11px] text-blue-600 font-medium truncate max-w-[140px]">

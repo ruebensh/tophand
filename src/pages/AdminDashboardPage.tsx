@@ -34,6 +34,7 @@ import {
   X,
 } from 'lucide-react';
 import { formatDateAgo } from '../lib/utils.ts';
+import { useI18n } from '../i18n/IntlContext.tsx';
 import { PlatformManagementSection } from '../components/admin/PlatformManagementSection.tsx';
 import { ThemeHolidaySection } from '../components/admin/ThemeHolidaySection.tsx';
 import { MonetizationSettings } from '../components/admin/MonetizationSettings.tsx';
@@ -60,6 +61,7 @@ interface AdminDashboardPageProps {
 }
 
 export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNavigate }) => {
+  const { t } = useI18n();
   const [activeTab, setActiveTab] = useState<
     'overview' | 'platform' | 'theme' | 'users' | 'organizations' | 'categories' | 'filters' | 'monetization' | 'ads' | 'data' | 'team' | 'messaging' | 'audit'
   >('overview');
@@ -206,13 +208,13 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         method: 'POST',
         body: JSON.stringify({ reason: banReason.trim() }),
       });
-      alert('Foydalanuvchi butunlay bloklandi');
+      alert(t('admin.banOk'));
       setSelectedUserForBan(null);
       setBanReason('');
       fetchUsers();
       fetchOverviewAndAnalytics();
     } catch (err: any) {
-      alert(err.message || 'Xatolik');
+      alert(err.message || t('common.error'));
     } finally {
       setIsBanning(false);
     }
@@ -221,28 +223,28 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   const handleUnban = async (userId: string) => {
     try {
       await apiRequest(`/api/admin/users/${userId}/unban`, { method: 'POST' });
-      alert('Foydalanuvchi blokdan chiqarildi');
+      alert(t('admin.unbanOk'));
       fetchUsers();
       fetchOverviewAndAnalytics();
     } catch (err: any) {
-      alert(err.message || 'Xatolik');
+      alert(err.message || t('common.error'));
     }
   };
 
   const handleToggleRole = async (userId: string, currentRole: string) => {
     const newRole = currentRole === 'MODERATOR' ? 'USER' : 'MODERATOR';
-    if (!confirm(`Foydalanuvchi rolini "${newRole}" ga o'zgartirmoqchimisiz?`)) return;
+    if (!confirm(t('admin.roleChangeConfirm', { role: newRole }))) return;
 
     try {
       await apiRequest(`/api/admin/users/${userId}/role`, {
         method: 'POST',
         body: JSON.stringify({ role: newRole }),
       });
-      alert('Rol muvaffaqiyatli yangilandi');
+      alert(t('admin.roleUpdated'));
       fetchUsers();
       fetchOverviewAndAnalytics();
     } catch (err: any) {
-      alert(err.message || 'Xatolik');
+      alert(err.message || t('common.error'));
     }
   };
 
@@ -253,33 +255,33 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         method: 'POST',
         body: JSON.stringify({ verify: nextVerify }),
       });
-      alert(nextVerify ? 'Tashkilot tasdiqlandi (VERIFIED)' : 'Tasdiq bekor qilindi');
+      alert(nextVerify ? t('admin.orgVerified') : t('admin.orgUnverified'));
       fetchOrgs();
       fetchOverviewAndAnalytics();
     } catch (err: any) {
-      alert(err.message || 'Xatolik');
+      alert(err.message || t('common.error'));
     }
   };
 
   const handleDeleteOrg = async (orgId: string, orgName: string) => {
-    if (!confirm(`Haqiqatan ham "${orgName}" tashkilotini o‘chirmoqchimisiz?`)) return;
+    if (!confirm(t('admin.orgDeleteConfirm', { name: orgName }))) return;
     try {
       await apiRequest(`/api/admin/organizations/${orgId}`, { method: 'DELETE' });
-      alert('Tashkilot muvaffaqiyatli o‘chirildi');
+      alert(t('admin.orgDeleted'));
       fetchOrgs();
     } catch (err: any) {
-      alert(err.message || 'O‘chirishda xatolik yuz berdi');
+      alert(err.message || t('admin.deleteErrFull'));
     }
   };
 
   const handleDeleteCategory = async (catId: string, catName: string, isSub?: boolean) => {
-    const label = isSub ? 'subkategoriyasini' : 'kategoriyasini va uning barcha subkategoriyalarini';
-    if (!confirm(`Haqiqatan ham "${catName}" ${label} o‘chirmoqchimisiz?`)) return;
+    const label = isSub ? t('admin.delLabelSub') : t('admin.delLabelParent');
+    if (!confirm(t('admin.catDeleteConfirm', { name: catName, label }))) return;
     try {
       await apiRequest(`/api/admin/categories/${catId}`, { method: 'DELETE' });
       fetchCategories();
     } catch (err: any) {
-      alert(err.message || 'O‘chirishda xatolik yuz berdi');
+      alert(err.message || t('admin.deleteErrFull'));
     }
   };
 
@@ -296,17 +298,17 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
           <button
             onClick={() => onNavigate('/')}
             className="p-2 rounded-full border border-gray-200 hover:bg-gray-50 text-gray-500 cursor-pointer"
-            title="Asosiy sahifaga qaytish"
+            title={t('admin.backHome')}
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
           <div>
             <div className="flex items-center gap-2">
               <Shield className="w-5 h-5 text-blue-600" />
-              <h1 className="text-xl font-bold text-gray-950">TopHand Bosh Admin Paneli</h1>
+              <h1 className="text-xl font-bold text-gray-950">{t('admin.panelTitle')}</h1>
             </div>
             <p className="text-xs text-gray-500">
-              Kengaytirilgan statistika, platforma brendi, pasport verifikatsiyasi va to‘liq boshqaruv
+              {t('admin.panelSub')}
             </p>
           </div>
         </div>
@@ -316,26 +318,26 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
           className="px-3.5 py-1.5 rounded-full bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
         >
           <Shield className="w-3.5 h-3.5 text-amber-600" />
-          <span>Moderator paneliga o‘tish</span>
+          <span>{t('admin.toModPanel')}</span>
         </button>
       </div>
 
       {/* Tabs */}
       <div className="flex items-center gap-2 border-b border-gray-200 mb-6 overflow-x-auto pb-1">
         {[
-          { id: 'overview', label: 'Umumiy hisobot va statistika', icon: BarChart3 },
-          { id: 'platform', label: 'Platforma boshqaruvi', icon: Palette },
-          { id: 'theme', label: 'Bayramlar va Mavzular', icon: Palette },
-          { id: 'users', label: 'Foydalanuvchilar va pasportlar', icon: Users },
-          { id: 'organizations', label: 'Tashkilotlar', icon: Building2 },
-          { id: 'categories', label: 'Kategoriyalar', icon: Layers },
-          { id: 'filters', label: 'Filtrlar', icon: Filter },
-          { id: 'monetization', label: 'Monetizatsiya', icon: DollarSign },
-          { id: 'ads', label: 'Reklamalar', icon: Megaphone },
-          { id: 'data', label: 'Excel ma’lumotlar', icon: Table2 },
-          { id: 'team', label: 'Jamoa / Moderatorlar', icon: Users2 },
-          { id: 'messaging', label: 'Xabarlar', icon: Send },
-          { id: 'audit', label: 'Audit jurnali', icon: FileText },
+          { id: 'overview', label: t('admin.tabOverview'), icon: BarChart3 },
+          { id: 'platform', label: t('admin.tabPlatform'), icon: Palette },
+          { id: 'theme', label: t('admin.tabTheme'), icon: Palette },
+          { id: 'users', label: t('admin.tabUsers'), icon: Users },
+          { id: 'organizations', label: t('admin.tabOrgs'), icon: Building2 },
+          { id: 'categories', label: t('admin.tabCategories'), icon: Layers },
+          { id: 'filters', label: t('admin.tabFilters'), icon: Filter },
+          { id: 'monetization', label: t('admin.tabMonetization'), icon: DollarSign },
+          { id: 'ads', label: t('admin.tabAds'), icon: Megaphone },
+          { id: 'data', label: t('admin.tabData'), icon: Table2 },
+          { id: 'team', label: t('admin.tabTeam'), icon: Users2 },
+          { id: 'messaging', label: t('admin.tabMessaging'), icon: Send },
+          { id: 'audit', label: t('admin.tabAudit'), icon: FileText },
         ].map((tab) => {
           const IconComp = tab.icon;
           const isActive = activeTab === tab.id;
@@ -363,33 +365,33 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
           {overview && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div className="p-5 rounded-2xl bg-white border border-gray-100 shadow-2xs">
-                <span className="text-[11px] font-bold text-gray-400 uppercase">Jami foydalanuvchilar</span>
+                <span className="text-[11px] font-bold text-gray-400 uppercase">{t('admin.kpiUsers')}</span>
                 <p className="text-2xl font-black text-gray-900 mt-1">{overview.total_users}</p>
                 <span className="text-[10px] text-gray-500 mt-0.5 block">
-                  {overview.moderators_count} mod / {overview.banned_users} bloklangan
+                  {t('admin.kpiUsersSub', { mod: overview.moderators_count, banned: overview.banned_users })}
                 </span>
               </div>
 
               <div className="p-5 rounded-2xl bg-white border border-gray-100 shadow-2xs">
-                <span className="text-[11px] font-bold text-blue-600 uppercase">Faol e’lonlar</span>
+                <span className="text-[11px] font-bold text-blue-600 uppercase">{t('admin.kpiActive')}</span>
                 <p className="text-2xl font-black text-blue-900 mt-1">{overview.active_listings}</p>
                 <span className="text-[10px] text-gray-500 mt-0.5 block">
-                  {overview.archived_listings} ta arxivda (30 kunlik)
+                  {t('admin.kpiActiveSub', { n: overview.archived_listings })}
                 </span>
               </div>
 
               <div className="p-5 rounded-2xl bg-white border border-gray-100 shadow-2xs">
-                <span className="text-[11px] font-bold text-amber-600 uppercase">Kutilayotgan shikoyatlar</span>
+                <span className="text-[11px] font-bold text-amber-600 uppercase">{t('admin.kpiReports')}</span>
                 <p className="text-2xl font-black text-amber-900 mt-1">{overview.pending_reports}</p>
-                <span className="text-[10px] text-amber-700 mt-0.5 block">Moderator nazorati talab</span>
+                <span className="text-[10px] text-amber-700 mt-0.5 block">{t('admin.kpiReportsHint')}</span>
               </div>
 
               <div className="p-5 rounded-2xl bg-white border border-gray-100 shadow-2xs">
-                <span className="text-[11px] font-bold text-emerald-600 uppercase">Tasdiqlangan korxonalar</span>
+                <span className="text-[11px] font-bold text-emerald-600 uppercase">{t('admin.kpiOrgs')}</span>
                 <p className="text-2xl font-black text-emerald-900 mt-1">
                   {overview.verified_organizations} / {overview.total_organizations}
                 </p>
-                <span className="text-[10px] text-emerald-700 mt-0.5 block">Ishonchli ish beruvchilar</span>
+                <span className="text-[10px] text-emerald-700 mt-0.5 block">{t('admin.kpiOrgsHint')}</span>
               </div>
             </div>
           )}
@@ -401,11 +403,11 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                 <div className="flex items-center gap-2">
                   <TrendingUp className="w-5 h-5 text-blue-600" />
                   <h3 className="font-bold text-base text-gray-900">
-                    Kengaytirilgan qidiruv va filtrlar statistikasi
+                    {t('admin.analyticsTitle')}
                   </h3>
                 </div>
                 <span className="text-xs text-gray-500 font-medium">
-                  Jami tahlil qilingan amallar: <strong>{analytics.total_tracked_events || 0} ta</strong>
+                  {t('admin.trackedTotal')} <strong>{analytics.total_tracked_events || 0}</strong>
                 </span>
               </div>
 
@@ -415,10 +417,10 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                   <div className="flex items-center justify-between mb-4">
                     <div>
                       <h4 className="font-bold text-sm text-gray-900">
-                        Eng ko‘p ishlatilgan kategoriyalar
+                        {t('admin.topCatsTitle')}
                       </h4>
                       <p className="text-[11px] text-gray-500">
-                        Foydalanuvchilar qidiruv va filtrlarda eng ko‘p tanlagan sohalar
+                        {t('admin.topCatsHint')}
                       </p>
                     </div>
                     <Layers className="w-4 h-4 text-blue-600" />
@@ -436,7 +438,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                               <span>{cat.category_name}</span>
                             </span>
                             <span className="font-bold text-blue-600 font-mono text-[11px]">
-                              {cat.usage_count} marta
+                              {t('admin.timesWord', { n: cat.usage_count })}
                             </span>
                           </div>
                           <div className="w-full h-2 rounded-full bg-gray-100 overflow-hidden">
@@ -456,10 +458,10 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                   <div className="flex items-center justify-between mb-4">
                     <div>
                       <h4 className="font-bold text-sm text-gray-900">
-                        Filtr parametrlari tahlili
+                        {t('admin.filterAnalysis')}
                       </h4>
                       <p className="text-[11px] text-gray-500">
-                        Qaysi filtrlar orqali foydalanuvchilar takliflarni saralagan
+                        {t('admin.filterAnalysisHint')}
                       </p>
                     </div>
                     <Filter className="w-4 h-4 text-purple-600" />
@@ -477,7 +479,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                               <span>{flt.filter_name}</span>
                             </span>
                             <span className="font-bold text-purple-600 font-mono text-[11px]">
-                              {flt.usage_count} marta
+                              {t('admin.timesWord', { n: flt.usage_count })}
                             </span>
                           </div>
                           <div className="w-full h-2 rounded-full bg-purple-50 overflow-hidden">
@@ -500,10 +502,10 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                   <div className="flex items-center justify-between mb-4">
                     <div>
                       <h4 className="font-bold text-sm text-gray-900">
-                        Eng ommabop qidiruv so‘rovlari
+                        {t('admin.topKeywordsTitle')}
                       </h4>
                       <p className="text-[11px] text-gray-500">
-                        Auditoriya tomonidan eng ko‘p yozilgan kasb va kalit so‘zlar
+                        {t('admin.topKeywordsHint')}
                       </p>
                     </div>
                     <Search className="w-4 h-4 text-emerald-600" />
@@ -524,7 +526,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                       ))}
                     </div>
                   ) : (
-                    <p className="text-xs text-gray-400 italic">Hozircha qidiruv so‘rovlari to‘planmoqda...</p>
+                    <p className="text-xs text-gray-400 italic">{t('admin.keywordsCollecting')}</p>
                   )}
                 </div>
 
@@ -533,10 +535,10 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                   <div className="flex items-center justify-between mb-4">
                     <div>
                       <h4 className="font-bold text-sm text-gray-900">
-                        Foydalanuvchilar ishonchliligi (Trust & Identity)
+                        {t('admin.trustTitle')}
                       </h4>
                       <p className="text-[11px] text-gray-500">
-                        Pasport ma’lumotlari va tasdiq nishoni (Verified badge) holati
+                        {t('admin.trustHint')}
                       </p>
                     </div>
                     <FileCheck className="w-4 h-4 text-blue-600" />
@@ -544,19 +546,19 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
 
                   <div className="grid grid-cols-2 gap-3 mb-4">
                     <div className="p-3.5 rounded-2xl bg-emerald-50/60 border border-emerald-100">
-                      <span className="text-[10px] font-bold text-emerald-700 uppercase block">Tasdiqlangan shaxslar</span>
+                      <span className="text-[10px] font-bold text-emerald-700 uppercase block">{t('admin.verifiedPersons')}</span>
                       <p className="text-xl font-black text-emerald-900 mt-0.5">
                         {analytics.verification_stats?.verified_users || 0}
                       </p>
-                      <span className="text-[10px] text-emerald-600">Pasporti tasdiqlangan</span>
+                      <span className="text-[10px] text-emerald-600">{t('admin.passportVerified')}</span>
                     </div>
 
                     <div className="p-3.5 rounded-2xl bg-amber-50/60 border border-amber-100">
-                      <span className="text-[10px] font-bold text-amber-700 uppercase block">Kutilayotgan arizalar</span>
+                      <span className="text-[10px] font-bold text-amber-700 uppercase block">{t('admin.pendingApps')}</span>
                       <p className="text-xl font-black text-amber-900 mt-0.5">
                         {analytics.verification_stats?.pending_verifications || 0}
                       </p>
-                      <span className="text-[10px] text-amber-600">Admin tekshirishi kerak</span>
+                      <span className="text-[10px] text-amber-600">{t('admin.adminCheckNeeded')}</span>
                     </div>
                   </div>
 
@@ -568,7 +570,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                     className="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-xs"
                   >
                     <FileCheck className="w-4 h-4" />
-                    <span>Pasport arizalarini ko‘rish va tekshirish →</span>
+                    <span>{t('admin.viewPassportApps')}</span>
                   </button>
                 </div>
               </div>
@@ -593,7 +595,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                 value={userSearch}
                 onChange={(e) => setUserSearch(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && fetchUsers()}
-                placeholder="Ism, username, telefon yoki Telegram ID..."
+                placeholder={t('admin.userSearchPh')}
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-8 pr-3 py-2 text-xs focus:outline-hidden focus:border-blue-600"
               />
               <Search className="w-4 h-4 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
@@ -605,11 +607,11 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                 onChange={(e) => setUserVerificationFilter(e.target.value)}
                 className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-hidden"
               >
-                <option value="">Barcha verifikatsiya holati</option>
-                <option value="VERIFIED">Faqat tasdiqlanganlar (VERIFIED)</option>
-                <option value="PENDING">Kutilayotgan arizalar (PENDING)</option>
-                <option value="UNVERIFIED">Tasdiqlanmaganlar (UNVERIFIED)</option>
-                <option value="REJECTED">Rad etilganlar (REJECTED)</option>
+                <option value="">{t('admin.verAll')}</option>
+                <option value="VERIFIED">{t('admin.verVerified')}</option>
+                <option value="PENDING">{t('admin.verPending')}</option>
+                <option value="UNVERIFIED">{t('admin.verUnverified')}</option>
+                <option value="REJECTED">{t('admin.verRejected')}</option>
               </select>
 
               <select
@@ -617,7 +619,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                 onChange={(e) => setUserRoleFilter(e.target.value)}
                 className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-hidden"
               >
-                <option value="">Barcha rollar</option>
+                <option value="">{t('admin.rolesAll')}</option>
                 <option value="USER">USER</option>
                 <option value="MODERATOR">MODERATOR</option>
                 <option value="ADMIN">ADMIN</option>
@@ -627,23 +629,23 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                 onClick={fetchUsers}
                 className="px-4 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs hover:bg-blue-700 transition-colors cursor-pointer"
               >
-                Qidirish
+                {t('common.search')}
               </button>
             </div>
           </div>
 
           {selectedUserIds.length > 0 && (
             <div className="flex items-center justify-between gap-3 mx-4 mt-4 px-4 py-2.5 rounded-2xl bg-blue-50 border border-blue-100">
-              <span className="text-xs font-bold text-blue-800">{selectedUserIds.length} ta foydalanuvchi tanlandi</span>
+              <span className="text-xs font-bold text-blue-800">{t('admin.selectedCount', { n: selectedUserIds.length })}</span>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setBulkMessagingOpen(true)}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] cursor-pointer"
                 >
-                  <Send className="w-3.5 h-3.5" /> Xabar yuborish
+                  <Send className="w-3.5 h-3.5" /> {t('mod.tabMessaging')}
                 </button>
                 <button onClick={() => setSelectedUserIds([])} className="px-3 py-1.5 rounded-full border border-blue-200 text-blue-700 font-bold text-[11px] hover:bg-white cursor-pointer">
-                  Bekor
+                  {t('admin.cancelShort')}
                 </button>
               </div>
             </div>
@@ -661,27 +663,27 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                       className="w-4 h-4 accent-blue-600 cursor-pointer"
                     />
                   </th>
-                  <th className="p-3.5">Foydalanuvchi</th>
+                  <th className="p-3.5">{t('admin.thUser')}</th>
                   <th className="p-3.5">Telegram</th>
-                  <th className="p-3.5">Hudud</th>
-                  <th className="p-3.5">Rol</th>
-                  <th className="p-3.5">Pasport & Tasdiq</th>
-                  <th className="p-3.5">E’lonlar</th>
-                  <th className="p-3.5">Holat</th>
-                  <th className="p-3.5 text-right">Amallar</th>
+                  <th className="p-3.5">{t('admin.thRegion')}</th>
+                  <th className="p-3.5">{t('admin.thRole')}</th>
+                  <th className="p-3.5">{t('admin.thPassportVerify')}</th>
+                  <th className="p-3.5">{t('admin.thListings')}</th>
+                  <th className="p-3.5">{t('admin.thStatus')}</th>
+                  <th className="p-3.5 text-right">{t('admin.thActions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {isUsersLoading ? (
                   <tr>
                     <td colSpan={9} className="p-8 text-center text-xs text-gray-400">
-                      Foydalanuvchilar ro‘yxati yuklanmoqda...
+                      {t('admin.usersLoading')}
                     </td>
                   </tr>
                 ) : usersList.length === 0 ? (
                   <tr>
                     <td colSpan={9} className="p-8 text-center text-xs text-gray-400">
-                      Foydalanuvchilar topilmadi.
+                      {t('admin.usersEmpty')}
                     </td>
                   </tr>
                 ) : (
@@ -724,7 +726,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                         </td>
 
                         <td className="p-3.5 text-gray-500">
-                          {u.district_name || 'Aniqlanmagan'}, {u.region_name || ''}
+                          {u.district_name || t('admin.locationUnset')}, {u.region_name || ''}
                         </td>
 
                         <td className="p-3.5">
@@ -745,18 +747,18 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                           {isVerified ? (
                             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
                               <CheckCircle2 className="w-3 h-3" />
-                              <span>TASDIQLANGAN</span>
+                              <span>{t('admin.badgeVerified')}</span>
                             </span>
                           ) : isPending ? (
                             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold animate-pulse">
-                              <span>ARIZA KUTILMOQDA</span>
+                              <span>{t('admin.badgePending')}</span>
                             </span>
                           ) : hasPassport ? (
                             <span className="px-2 py-0.5 rounded-md bg-gray-100 text-gray-700 text-[10px] font-medium">
-                              Pasport kiritilgan
+                              {t('admin.passportEntered')}
                             </span>
                           ) : (
-                            <span className="text-gray-400 text-[10px]">Kiritilmagan</span>
+                            <span className="text-gray-400 text-[10px]">{t('admin.passportNot')}</span>
                           )}
                         </td>
 
@@ -768,7 +770,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                               {u.ban_type} BAN
                             </span>
                           ) : (
-                            <span className="text-emerald-600 font-bold text-[10px]">Faol</span>
+                            <span className="text-emerald-600 font-bold text-[10px]">{t('status.active')}</span>
                           )}
                         </td>
 
@@ -780,10 +782,10 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                             type="button"
                             onClick={() => openPassportModal(u)}
                             className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-[11px] transition-colors inline-flex items-center gap-1 cursor-pointer"
-                            title="Pasport ma’lumotlari va IIV protokoli"
+                            title={t('admin.passportTitle')}
                           >
                             <FileCheck className="w-3 h-3" />
-                            <span>Pasport / IIV</span>
+                            <span>{t('admin.passportBtn')}</span>
                           </button>
 
                           {u.role !== 'ADMIN' && (
@@ -792,7 +794,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                               onClick={() => handleToggleRole(u.id, u.role)}
                               className="px-2.5 py-1 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-100 text-[11px] font-medium cursor-pointer"
                             >
-                              {u.role === 'MODERATOR' ? 'Mod-dan olish' : 'Mod qilish'}
+                              {u.role === 'MODERATOR' ? t('admin.revokeMod') : t('admin.makeMod')}
                             </button>
                           )}
 
@@ -802,7 +804,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                               onClick={() => handleUnban(u.id)}
                               className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold cursor-pointer"
                             >
-                              Blokdan olish
+                              {t('admin.unbanBtn')}
                             </button>
                           ) : (
                             u.role !== 'ADMIN' && (
@@ -811,7 +813,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                                 onClick={() => setSelectedUserForBan(u)}
                                 className="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 text-[11px] font-bold cursor-pointer"
                               >
-                                Bloklash
+                                {t('admin.banBtn')}
                               </button>
                             )
                           )}
@@ -831,9 +833,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         <div className="bg-white rounded-3xl border border-gray-100 shadow-xs overflow-hidden">
           <div className="p-4 border-b border-gray-100 flex items-center justify-between gap-3">
             <div>
-              <h3 className="font-bold text-sm text-gray-900">Tashkilotlar va Ish beruvchilar</h3>
+              <h3 className="font-bold text-sm text-gray-900">{t('admin.orgsTitle')}</h3>
               <p className="text-[11px] text-gray-500">
-                Admin barcha tashkilotlarni to‘liq boshqarishi, qo‘shishi, tahrirlashi va tasdiqlashi mumkin.
+                {t('admin.orgsHint')}
               </p>
             </div>
             <button
@@ -844,7 +846,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
               className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>Yangi tashkilot qo‘shish</span>
+              <span>{t('admin.newOrgBtn')}</span>
             </button>
           </div>
 
@@ -852,24 +854,24 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
             <table className="w-full text-left text-xs text-gray-700">
               <thead className="bg-gray-50 border-b border-gray-100 text-[11px] font-bold text-gray-500 uppercase">
                 <tr>
-                  <th className="p-3.5">Tashkilot</th>
-                  <th className="p-3.5">Egasi / Mas’ul</th>
-                  <th className="p-3.5">Aloqa</th>
-                  <th className="p-3.5">Holati</th>
-                  <th className="p-3.5 text-right">Amallar</th>
+                  <th className="p-3.5">{t('admin.thOrg')}</th>
+                  <th className="p-3.5">{t('admin.thOwner')}</th>
+                  <th className="p-3.5">{t('admin.thContact')}</th>
+                  <th className="p-3.5">{t('admin.thState')}</th>
+                  <th className="p-3.5 text-right">{t('admin.thActions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {isOrgsLoading ? (
                   <tr>
                     <td colSpan={5} className="p-8 text-center text-xs text-gray-400">
-                      Tashkilotlar yuklanmoqda...
+                      {t('admin.orgsLoading')}
                     </td>
                   </tr>
                 ) : orgsList.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="p-8 text-center text-xs text-gray-400">
-                      Tashkilotlar mavjud emas.
+                      {t('admin.orgsEmpty')}
                     </td>
                   </tr>
                 ) : (
@@ -890,7 +892,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                         <div>
                           <span className="block text-gray-950 font-extrabold">{o.name}</span>
                           <span className="text-[11px] text-gray-500 font-normal line-clamp-1 max-w-xs">
-                            {o.description || o.address || 'Tavsif kiritilmagan'}
+                            {o.description || o.address || t('admin.noDesc')}
                           </span>
                         </div>
                       </td>
@@ -903,7 +905,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                       </td>
 
                       <td className="p-3.5 text-gray-500 font-medium">
-                        <div>{o.phone || 'Tel: kiritilmagan'}</div>
+                        <div>{o.phone || t('admin.noPhone')}</div>
                         {o.website && (
                           <a
                             href={o.website}
@@ -911,7 +913,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                             rel="noopener noreferrer"
                             className="text-blue-600 hover:underline text-[11px] flex items-center gap-1 mt-0.5"
                           >
-                            <span>Saytga o‘tish</span>
+                            <span>{t('admin.goSite')}</span>
                             <ExternalLink className="w-3 h-3" />
                           </a>
                         )}
@@ -920,7 +922,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                       <td className="p-3.5">
                         {o.verification_status === 'VERIFIED' ? (
                           <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
-                            VERIFIED (Rasmiy)
+                            {t('admin.verifiedOfficial')}
                           </span>
                         ) : (
                           <span className="px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600 text-[10px] font-medium">
@@ -939,7 +941,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                               : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs'
                           }`}
                         >
-                          {o.verification_status === 'VERIFIED' ? 'Bekor qilish' : 'Tasdiqlash'}
+                          {o.verification_status === 'VERIFIED' ? t('common.cancel') : t('common.confirm')}
                         </button>
 
                         <button
@@ -950,7 +952,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                           }}
                           className="px-2.5 py-1 rounded-lg border border-gray-200 hover:bg-gray-100 text-gray-700 text-[11px] font-medium cursor-pointer"
                         >
-                          Tahrirlash
+                          {t('common.edit')}
                         </button>
 
                         <button
@@ -958,7 +960,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                           onClick={() => handleDeleteOrg(o.id, o.name)}
                           className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-bold cursor-pointer"
                         >
-                          O‘chirish
+                          {t('common.delete')}
                         </button>
                       </td>
                     </tr>
@@ -1027,7 +1029,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
           const subs = visibleSubs(parent);
           const isExpanded = expandedCategories[parent.id] === true; // default yopiq
           const isJobs = parent.catalog_id === 'jobs';
-          const scopeLabel = parent.scope === 'JOB_OPENING' ? 'Vakansiya' : parent.scope === 'JOB_SEEKER' ? 'Rezyume' : '';
+          const scopeLabel = parent.scope === 'JOB_OPENING' ? t('admin.scopeVacancy') : parent.scope === 'JOB_SEEKER' ? t('admin.scopeResume') : '';
           return (
             <div key={parent.id} className="border-t border-gray-100 first:border-t-0">
               {/* Parent Category Row */}
@@ -1037,7 +1039,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                     type="button"
                     onClick={() => setExpandedCategories((prev) => ({ ...prev, [parent.id]: !isExpanded }))}
                     className="p-1.5 rounded-lg hover:bg-gray-200/60 text-gray-500 cursor-pointer transition-colors"
-                    title={isExpanded ? 'Subkategoriyalarni yopish' : 'Subkategoriyalarni ochish'}
+                    title={isExpanded ? t('admin.closeSubs') : t('admin.openSubs')}
                   >
                     {isExpanded ? <ChevronDown className="w-4 h-4 text-gray-700" /> : <ChevronRight className="w-4 h-4 text-gray-700" />}
                   </button>
@@ -1055,15 +1057,15 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                         </span>
                       )}
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${parent.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'}`}>
-                        {parent.is_active ? 'Faol' : 'Nofaol'}
+                        {parent.is_active ? t('status.active') : t('admin.inactive')}
                       </span>
                     </div>
                     <div className="flex items-center gap-3 text-[11px] text-gray-400 mt-0.5">
                       <span className="font-mono">slug: {parent.slug}</span>
                       <span>•</span>
-                      <span>{parent.subs?.length || 0} ta subkategoriya</span>
+                      <span>{t('admin.subsCount', { n: parent.subs?.length || 0 })}</span>
                       <span>•</span>
-                      <span>{parent.active_count || 0} ta faol e’lon</span>
+                      <span>{t('admin.activeListingsCount', { n: parent.active_count || 0 })}</span>
                     </div>
                   </div>
                 </div>
@@ -1074,24 +1076,24 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                     type="button"
                     onClick={() => { setSelectedCategory(null); setModalDefaultParentId(parent.id); setModalDefaultCatalogId(parent.catalog_id || 'services'); setIsCategoryModalOpen(true); }}
                     className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors"
-                    title="Ushbu kategoriya ichiga yangi subkategoriya qo'shish"
+                    title={t('admin.addSubTitle')}
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>Subkategoriya</span>
+                    <span>{t('admin.subcategoryBtn')}</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => { setSelectedCategory(parent); setModalDefaultParentId(null); setIsCategoryModalOpen(true); }}
                     className="px-2.5 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-100 text-gray-700 text-xs font-medium cursor-pointer transition-colors"
                   >
-                    Tahrirlash
+                    {t('common.edit')}
                   </button>
                   <button
                     type="button"
                     onClick={() => handleDeleteCategory(parent.id, parent.name_uz, false)}
                     className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold cursor-pointer transition-colors"
                   >
-                    O‘chirish
+                    {t('common.delete')}
                   </button>
                 </div>
               </div>
@@ -1101,7 +1103,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                 <div className="px-3.5 pb-4">
                   {subs.length === 0 ? (
                     <div className="p-4 text-center text-xs text-gray-400 bg-white rounded-xl border border-dashed border-gray-200">
-                      Ushbu kategoriyada hali subkategoriyalar mavjud emas. "+ Subkategoriya" orqali qo‘shing.
+                      {t('admin.subsEmpty')}
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
@@ -1115,14 +1117,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                             <div className="flex items-center gap-2 text-[10px] text-gray-400 mt-0.5">
                               <span className="font-mono truncate">{sub.slug}</span>
                               <span>•</span>
-                              <span className={sub.is_active ? 'text-emerald-600 font-semibold' : 'text-gray-400'}>{sub.is_active ? 'Faol' : 'Nofaol'}</span>
+                              <span className={sub.is_active ? 'text-emerald-600 font-semibold' : 'text-gray-400'}>{sub.is_active ? t('status.active') : t('admin.inactive')}</span>
                             </div>
                           </div>
                           <div className="flex items-center gap-1 shrink-0">
-                            <button type="button" onClick={() => { setSelectedCategory(sub); setModalDefaultParentId(parent.id); setIsCategoryModalOpen(true); }} className="p-1 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-900 cursor-pointer" title="Subkategoriyani tahrirlash">
+                            <button type="button" onClick={() => { setSelectedCategory(sub); setModalDefaultParentId(parent.id); setIsCategoryModalOpen(true); }} className="p-1 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-900 cursor-pointer" title={t('admin.editSub')}>
                               <Edit2 className="w-3.5 h-3.5" />
                             </button>
-                            <button type="button" onClick={() => handleDeleteCategory(sub.id, sub.name_uz, true)} className="p-1 rounded-md text-rose-500 hover:bg-rose-50 cursor-pointer" title="Subkategoriyani o‘chirish">
+                            <button type="button" onClick={() => handleDeleteCategory(sub.id, sub.name_uz, true)} className="p-1 rounded-md text-rose-500 hover:bg-rose-50 cursor-pointer" title={t('admin.deleteSub')}>
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
@@ -1144,10 +1146,10 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                 <div>
                   <h3 className="font-extrabold text-base text-gray-900 flex items-center gap-2">
                     <Layers className="w-5 h-5 text-blue-600" />
-                    Katalog → Kategoriya → Subkategoriya
+                    {t('admin.catsTitle')}
                   </h3>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    Jami {catalogMeta.length} ta katalog, {categoriesList.length} ta asosiy kategoriya va {totalSubs} ta subkategoriya
+                    {t('admin.catsSummary', { catalogs: catalogMeta.length, cats: categoriesList.length, subs: totalSubs })}
                   </p>
                 </div>
 
@@ -1156,7 +1158,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                   className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-xs cursor-pointer shrink-0"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>Yangi kategoriya</span>
+                  <span>{t('admin.newCategory')}</span>
                 </button>
               </div>
 
@@ -1172,7 +1174,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                         : 'bg-gray-50 text-gray-500 hover:text-gray-900 border border-gray-100'
                     }`}
                   >
-                    Barchasi ({categoriesList.length})
+                    {t('admin.allWithCount', { n: categoriesList.length })}
                   </button>
                   {catalogMeta.map((cat) => {
                     const active = categoryCatalogFilter === cat.id;
@@ -1201,7 +1203,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                     type="text"
                     value={categorySearch}
                     onChange={(e) => setCategorySearch(e.target.value)}
-                    placeholder="Kategoriya yoki subkategoriya qidirish..."
+                    placeholder={t('admin.catSearchPh')}
                     className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium focus:outline-hidden focus:border-blue-600"
                   />
                 </div>
@@ -1211,7 +1213,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
             {/* Catalog-grouped sections */}
             {isCategoriesLoading ? (
               <div className="bg-white rounded-3xl p-12 text-center text-xs text-gray-400 border border-gray-100">
-                Kategoriyalar va subkategoriyalar yuklanmoqda...
+                {t('admin.catsLoading')}
               </div>
             ) : (
               <div className="space-y-4">
@@ -1227,7 +1229,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                           <CategoryChip name={cat.icon} size="md" tone={CAT_TONE[cat.id]} />
                           <div className="min-w-0">
                             <div className="font-extrabold text-sm text-gray-900 truncate">{cat.name_uz}</div>
-                            <div className="text-[11px] text-gray-400">{parents.length} ta kategoriya · katalog: {cat.id}</div>
+                            <div className="text-[11px] text-gray-400">{t('admin.catSectionCount', { n: parents.length, id: cat.id })}</div>
                           </div>
                         </div>
                         <button
@@ -1235,13 +1237,13 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                           className="shrink-0 px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors"
                         >
                           <Plus className="w-3.5 h-3.5" />
-                          <span className="hidden sm:inline">Kategoriya</span>
+                          <span className="hidden sm:inline">{t('admin.addCategory')}</span>
                         </button>
                       </div>
 
                       {parents.length === 0 ? (
                         <div className="p-8 text-center text-xs text-gray-400">
-                          Ushbu katalogda kategoriya topilmadi. "+ Kategoriya" orqali qo'shing.
+                          {t('admin.catEmptyCatalog')}
                         </div>
                       ) : (
                         parents.map(renderParent)
@@ -1277,9 +1279,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       {activeTab === 'audit' && (
         <div className="bg-white rounded-3xl border border-gray-100 shadow-xs overflow-hidden">
           <div className="p-4 border-b border-gray-100">
-            <h3 className="font-bold text-sm text-gray-900">Barcha ma’muriy amallar auditi (Append-only)</h3>
+            <h3 className="font-bold text-sm text-gray-900">{t('admin.auditTitle')}</h3>
             <p className="text-xs text-gray-400">
-              Har bir xodim va moderator tomonidan amalga oshirilgan o‘zgarishlar avtomatik xronologik jurnalda saqlanadi
+              {t('admin.auditHint')}
             </p>
           </div>
 
@@ -1287,24 +1289,24 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
             <table className="w-full text-left text-xs text-gray-700">
               <thead className="bg-gray-50 border-b border-gray-100 text-[11px] font-bold text-gray-500 uppercase">
                 <tr>
-                  <th className="p-3.5">Amal</th>
-                  <th className="p-3.5">Ijrochi</th>
-                  <th className="p-3.5">Obyekt</th>
-                  <th className="p-3.5">Meta / Sabab</th>
-                  <th className="p-3.5">Vaqt</th>
+                  <th className="p-3.5">{t('admin.thActionWord')}</th>
+                  <th className="p-3.5">{t('admin.thExecutor')}</th>
+                  <th className="p-3.5">{t('admin.thTarget')}</th>
+                  <th className="p-3.5">{t('admin.thMetaReason')}</th>
+                  <th className="p-3.5">{t('admin.thTime')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 font-mono text-[11px]">
                 {isAuditLoading ? (
                   <tr>
                     <td colSpan={5} className="p-8 text-center text-xs text-gray-400">
-                      Audit jurnali yuklanmoqda...
+                      {t('admin.auditLoading')}
                     </td>
                   </tr>
                 ) : auditLogs.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="p-8 text-center text-xs text-gray-400">
-                      Audit yozuvlari mavjud emas.
+                      {t('admin.auditEmpty')}
                     </td>
                   </tr>
                 ) : (
@@ -1353,7 +1355,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-8 bg-gray-950/50 backdrop-blur-sm overflow-y-auto" onClick={() => setBulkMessagingOpen(false)}>
           <div className="w-full max-w-4xl bg-white rounded-3xl shadow-2xl my-4" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-4 border-b border-gray-100">
-              <h3 className="font-bold text-sm text-gray-900">Tanlangan foydalanuvchilarga xabar ({selectedUserIds.length})</h3>
+              <h3 className="font-bold text-sm text-gray-900">{t('admin.bulkMsgTitle', { n: selectedUserIds.length })}</h3>
               <button onClick={() => setBulkMessagingOpen(false)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 cursor-pointer"><X className="w-5 h-5" /></button>
             </div>
             <div className="p-4">
@@ -1385,24 +1387,24 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
           <div className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl border border-gray-100">
             <div className="flex items-center gap-2 text-rose-600 mb-3">
               <Ban className="w-6 h-6" />
-              <h3 className="font-bold text-base text-gray-900">Foydalanuvchini bloklash</h3>
+              <h3 className="font-bold text-base text-gray-900">{t('admin.banDialogTitle')}</h3>
             </div>
             <p className="text-xs text-gray-600 mb-4">
               <strong>{selectedUserForBan.name}</strong> (
-              @{selectedUserForBan.telegram_username || selectedUserForBan.telegram_id}) hisobini butunlay bloklamoqchimisiz?
+              @{selectedUserForBan.telegram_username || selectedUserForBan.telegram_id}) {t('admin.banAskSuffix')}
             </p>
 
             <form onSubmit={handlePermanentBan} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Bloklash sababi (Audit jurnali uchun) <span className="text-rose-500">*</span>
+                  {t('admin.banReasonLabel')} <span className="text-rose-500">*</span>
                 </label>
                 <textarea
                   required
                   rows={3}
                   value={banReason}
                   onChange={(e) => setBanReason(e.target.value)}
-                  placeholder="Qoidabuzarlik tafsilotini kiriting..."
+                  placeholder={t('admin.banReasonPh')}
                   className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs font-medium focus:outline-hidden focus:border-rose-500"
                 />
               </div>
@@ -1413,14 +1415,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                   onClick={() => setSelectedUserForBan(null)}
                   className="flex-1 py-2.5 rounded-full border border-gray-200 text-xs font-semibold hover:bg-gray-50 cursor-pointer"
                 >
-                  Bekor qilish
+                  {t('common.cancel')}
                 </button>
                 <button
                   type="submit"
                   disabled={isBanning}
                   className="flex-1 py-2.5 rounded-full bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md cursor-pointer"
                 >
-                  {isBanning ? 'Bloklanmoqda...' : 'Doimiy bloklash'}
+                  {isBanning ? t('admin.banning') : t('admin.banForever')}
                 </button>
               </div>
             </form>

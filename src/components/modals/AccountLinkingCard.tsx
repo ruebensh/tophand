@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { apiRequest } from '../../lib/api.ts';
 import { Mail, ShieldCheck, Loader2, CheckCircle2, KeyRound } from 'lucide-react';
+import { useI18n } from '../../i18n/IntlContext.tsx';
 
 declare global {
   interface Window {
@@ -15,6 +16,7 @@ declare global {
  * account. This is what lets a user sign in through either method later.
  */
 export const AccountLinkingCard: React.FC = () => {
+  const { t, intlLocale } = useI18n();
   const { user, sendLinkEmailCode, verifyLinkEmail, linkGoogle } = useAuth();
 
   const [emailStep, setEmailStep] = useState<'idle' | 'code'>('idle');
@@ -57,7 +59,7 @@ export const AccountLinkingCard: React.FC = () => {
           size: 'medium',
           text: 'continue_with',
           shape: 'rectangular',
-          locale: 'uz',
+          locale: intlLocale.slice(0, 2),
         });
       } catch (err) {
         console.error('Google link button error:', err);
@@ -90,9 +92,9 @@ export const AccountLinkingCard: React.FC = () => {
         name: payload.name,
         picture: payload.picture,
       });
-      setNotice('Google hisobingiz muvaffaqiyatli ulandi.');
+      setNotice(t('profile.alGoogleOk'));
     } catch (err: any) {
-      setError(err.message || 'Google ni ulashda xatolik');
+      setError(err.message || t('profile.alGoogleErr'));
     }
   };
 
@@ -105,9 +107,9 @@ export const AccountLinkingCard: React.FC = () => {
       const res = await sendLinkEmailCode(email.trim());
       if (res.demo_code) setCode(res.demo_code);
       setEmailStep('code');
-      setNotice(res.message || 'Tasdiqlash kodi emailingizga yuborildi');
+      setNotice(res.message || t('profile.alCodeSent'));
     } catch (err: any) {
-      setError(err.message || 'Kodni yuborishda xatolik');
+      setError(err.message || t('profile.alCodeErr'));
     } finally {
       setBusy(false);
     }
@@ -122,9 +124,9 @@ export const AccountLinkingCard: React.FC = () => {
       setEmailStep('idle');
       setEmail('');
       setCode('');
-      setNotice('Email manzilingiz tasdiqlandi va hisobga biriktirildi.');
+      setNotice(t('profile.alEmailOk'));
     } catch (err: any) {
-      setError(err.message || 'Emailni tasdiqlashda xatolik');
+      setError(err.message || t('profile.alEmailErr'));
     } finally {
       setBusy(false);
     }
@@ -134,9 +136,9 @@ export const AccountLinkingCard: React.FC = () => {
 
   return (
     <div className="mt-6 rounded-2xl border border-gray-100 bg-white p-5 sm:p-6 shadow-2xs">
-      <h4 className="text-sm font-extrabold text-gray-900 mb-1">Hisob va kirish usullari</h4>
+      <h4 className="text-sm font-extrabold text-gray-900 mb-1">{t('profile.alTitle')}</h4>
       <p className="text-[11px] text-gray-500 mb-4">
-        Email va Google hisoblaringizni bog‘lab, istalgan usulda kira olasiz.
+        {t('profile.alSub')}
       </p>
 
       {error && (
@@ -156,13 +158,13 @@ export const AccountLinkingCard: React.FC = () => {
             <div className="min-w-0">
               <p className="text-xs font-semibold text-gray-800">Email</p>
               <p className="text-[11px] text-gray-500 truncate">
-                {emailLinked ? user.email : user.email ? `${user.email} (tasdiqlanmagan)` : 'Email biriktirilmagan'}
+                {emailLinked ? user.email : user.email ? `${user.email} (${t('profile.alUnverified')})` : t('profile.alEmailNone')}
               </p>
             </div>
           </div>
           {emailLinked ? (
             <span className="shrink-0 inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600">
-              <ShieldCheck className="w-4 h-4" /> Ulangan
+              <ShieldCheck className="w-4 h-4" /> {t('profile.alLinked')}
             </span>
           ) : (
             <button
@@ -170,7 +172,7 @@ export const AccountLinkingCard: React.FC = () => {
               onClick={() => { setEmailStep('idle'); setError(''); setNotice(''); }}
               className="shrink-0 text-[11px] font-bold text-blue-600 hover:text-blue-800 cursor-pointer"
             >
-              {user.email ? 'Tasdiqlash' : 'Email qo‘shish'}
+              {user.email ? t('common.confirm') : t('profile.alAddEmail')}
             </button>
           )}
         </div>
@@ -181,7 +183,7 @@ export const AccountLinkingCard: React.FC = () => {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="Email manzilingiz"
+              placeholder={t('profile.alEmailPh')}
               required
               className="flex-1 min-w-0 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium focus:outline-hidden focus:ring-2 focus:ring-blue-500"
             />
@@ -191,7 +193,7 @@ export const AccountLinkingCard: React.FC = () => {
               className="shrink-0 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
             >
               {busy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              Kod yuborish
+              {t('profile.alSendCode')}
             </button>
           </form>
         )}
@@ -206,7 +208,7 @@ export const AccountLinkingCard: React.FC = () => {
                 maxLength={6}
                 value={code}
                 onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, ''))}
-                placeholder="6 xonali kod"
+                placeholder={t('profile.alCodePh')}
                 required
                 className="w-full pl-9 pr-3 py-2 bg-blue-50/40 border border-blue-200 rounded-xl text-xs font-mono tracking-widest text-blue-900 font-bold focus:outline-hidden focus:border-blue-600"
               />
@@ -217,7 +219,7 @@ export const AccountLinkingCard: React.FC = () => {
               className="shrink-0 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
             >
               {busy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              Tasdiqlash
+              {t('common.confirm')}
             </button>
           </form>
         )}
@@ -232,12 +234,12 @@ export const AccountLinkingCard: React.FC = () => {
             </div>
             <div className="min-w-0">
               <p className="text-xs font-semibold text-gray-800">Google</p>
-              <p className="text-[11px] text-gray-500">{user.has_google ? 'Google hisob ulangan' : 'Google biriktirilmagan'}</p>
+              <p className="text-[11px] text-gray-500">{user.has_google ? t('profile.alGoogleLinked') : t('profile.alGoogleNone')}</p>
             </div>
           </div>
           {user.has_google && (
             <span className="shrink-0 inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600">
-              <CheckCircle2 className="w-4 h-4" /> Ulangan
+              <CheckCircle2 className="w-4 h-4" /> {t('profile.alLinked')}
             </span>
           )}
         </div>

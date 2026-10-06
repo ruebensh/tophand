@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { apiRequest } from '../../lib/api.ts';
 import { X, Building2, Save, Trash2, CheckCircle2 } from 'lucide-react';
 import { Region, District } from '../../types/index.ts';
+import { useI18n } from '../../i18n/IntlContext.tsx';
 
 interface OrganizationEditModalProps {
   isOpen: boolean;
@@ -16,6 +17,7 @@ export const OrganizationEditModal: React.FC<OrganizationEditModalProps> = ({
   org,
   onSaved,
 }) => {
+  const { t } = useI18n();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [phone, setPhone] = useState('');
@@ -73,7 +75,7 @@ export const OrganizationEditModal: React.FC<OrganizationEditModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      alert('Tashkilot nomi kiritilishi shart');
+      alert(t('admin.oemNameRequired'));
       return;
     }
 
@@ -106,7 +108,7 @@ export const OrganizationEditModal: React.FC<OrganizationEditModalProps> = ({
       onSaved();
       onClose();
     } catch (err: any) {
-      alert(err.message || 'Xatolik yuz berdi');
+      alert(err.message || t('admin.oemGenericErr'));
     } finally {
       setIsSubmitting(false);
     }
@@ -114,7 +116,7 @@ export const OrganizationEditModal: React.FC<OrganizationEditModalProps> = ({
 
   const handleDelete = async () => {
     if (!org?.id) return;
-    if (!confirm(`Haqiqatan ham "${org.name}" tashkilotini o‘chirmoqchimisiz?`)) return;
+    if (!confirm(t('admin.orgDeleteConfirm', { name: org.name }))) return;
 
     setIsSubmitting(true);
     try {
@@ -122,7 +124,7 @@ export const OrganizationEditModal: React.FC<OrganizationEditModalProps> = ({
       onSaved();
       onClose();
     } catch (err: any) {
-      alert(err.message || 'O‘chirishda xatolik');
+      alert(err.message || t('admin.oemDeleteErr'));
     } finally {
       setIsSubmitting(false);
     }
@@ -141,9 +143,9 @@ export const OrganizationEditModal: React.FC<OrganizationEditModalProps> = ({
             </div>
             <div>
               <h3 className="font-extrabold text-base text-gray-950">
-                {org ? 'Tashkilotni tahrirlash' : 'Yangi tashkilot qo‘shish'}
+                {org ? t('admin.oemEditTitle') : t('admin.newOrgBtn')}
               </h3>
-              <p className="text-xs text-gray-400">Ma’muriyat tomonidan to‘liq boshqaruv</p>
+              <p className="text-xs text-gray-400">{t('admin.oemSub')}</p>
             </div>
           </div>
           <button
@@ -156,20 +158,20 @@ export const OrganizationEditModal: React.FC<OrganizationEditModalProps> = ({
 
         <form onSubmit={handleSubmit} className="p-5 sm:p-6 overflow-y-auto space-y-4 text-xs">
           <div>
-            <label className="font-bold text-gray-700 block mb-1">Tashkilot nomi *</label>
+            <label className="font-bold text-gray-700 block mb-1">{t('admin.oemNameLabel')} *</label>
             <input
               type="text"
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl font-bold text-gray-900 focus:outline-hidden focus:border-blue-600"
-              placeholder="Masalan: Kun.uz Axborot Agentligi"
+              placeholder={t('admin.oemNamePh')}
             />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="font-bold text-gray-700 block mb-1">Telefon</label>
+              <label className="font-bold text-gray-700 block mb-1">{t('admin.oemPhone')}</label>
               <input
                 type="text"
                 value={phone}
@@ -179,7 +181,7 @@ export const OrganizationEditModal: React.FC<OrganizationEditModalProps> = ({
               />
             </div>
             <div>
-              <label className="font-bold text-gray-700 block mb-1">Veb-sayt</label>
+              <label className="font-bold text-gray-700 block mb-1">{t('admin.oemWebsite')}</label>
               <input
                 type="text"
                 value={website}
@@ -192,13 +194,13 @@ export const OrganizationEditModal: React.FC<OrganizationEditModalProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="font-bold text-gray-700 block mb-1">Viloyat</label>
+              <label className="font-bold text-gray-700 block mb-1">{t('admin.oemRegion')}</label>
               <select
                 value={regionId}
                 onChange={(e) => setRegionId(e.target.value)}
                 className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl"
               >
-                <option value="">Tanlang</option>
+                <option value="">{t('admin.oemSelectPh')}</option>
                 {regions.map((r) => (
                   <option key={r.id} value={r.id}>
                     {r.name_uz}
@@ -207,14 +209,14 @@ export const OrganizationEditModal: React.FC<OrganizationEditModalProps> = ({
               </select>
             </div>
             <div>
-              <label className="font-bold text-gray-700 block mb-1">Tuman</label>
+              <label className="font-bold text-gray-700 block mb-1">{t('admin.oemDistrict')}</label>
               <select
                 value={districtId}
                 onChange={(e) => setDistrictId(e.target.value)}
                 disabled={!regionId}
                 className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl disabled:opacity-50"
               >
-                <option value="">Tanlang</option>
+                <option value="">{t('admin.oemSelectPh')}</option>
                 {districts.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.name_uz}
@@ -225,13 +227,13 @@ export const OrganizationEditModal: React.FC<OrganizationEditModalProps> = ({
           </div>
 
           <div>
-            <label className="font-bold text-gray-700 block mb-1">Manzil</label>
+            <label className="font-bold text-gray-700 block mb-1">{t('admin.oemAddress')}</label>
             <input
               type="text"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl"
-              placeholder="Amir Temur ko‘chasi, 10-uy"
+              placeholder={t('admin.oemAddressPh')}
             />
           </div>
 
@@ -247,25 +249,25 @@ export const OrganizationEditModal: React.FC<OrganizationEditModalProps> = ({
           </div>
 
           <div>
-            <label className="font-bold text-gray-700 block mb-1">Tasdiq holati</label>
+            <label className="font-bold text-gray-700 block mb-1">{t('admin.oemVerStatus')}</label>
             <select
               value={verificationStatus}
               onChange={(e) => setVerificationStatus(e.target.value as any)}
               className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl font-bold"
             >
-              <option value="UNVERIFIED">Oddiy (Tasdiqlanmagan)</option>
-              <option value="VERIFIED">Tasdiqlangan tashkilot (Ko‘k nishon)</option>
+              <option value="UNVERIFIED">{t('admin.oemUnverified')}</option>
+              <option value="VERIFIED">{t('admin.oemVerified')}</option>
             </select>
           </div>
 
           <div>
-            <label className="font-bold text-gray-700 block mb-1">Tavsif</label>
+            <label className="font-bold text-gray-700 block mb-1">{t('admin.oemDesc')}</label>
             <textarea
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl"
-              placeholder="Tashkilot faoliyati haqida qisqacha ma’lumot..."
+              placeholder={t('admin.oemDescPh')}
             />
           </div>
 
@@ -277,7 +279,7 @@ export const OrganizationEditModal: React.FC<OrganizationEditModalProps> = ({
                 className="px-4 py-2 rounded-full text-rose-600 hover:bg-rose-50 border border-rose-200 font-bold flex items-center gap-1.5 cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                <span>O‘chirish</span>
+                <span>{t('common.delete')}</span>
               </button>
             ) : <div />}
 
@@ -287,7 +289,7 @@ export const OrganizationEditModal: React.FC<OrganizationEditModalProps> = ({
                 onClick={onClose}
                 className="px-4 py-2 rounded-full border border-gray-200 font-semibold"
               >
-                Bekor qilish
+                {t('common.cancel')}
               </button>
               <button
                 type="submit"
@@ -295,7 +297,7 @@ export const OrganizationEditModal: React.FC<OrganizationEditModalProps> = ({
                 className="px-6 py-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-bold flex items-center gap-1.5 shadow-xs cursor-pointer"
               >
                 <Save className="w-3.5 h-3.5" />
-                <span>{org ? 'O‘zgarishlarni saqlash' : 'Qo‘shish'}</span>
+                <span>{org ? t('admin.oemSaveChanges') : t('admin.oemAdd')}</span>
               </button>
             </div>
           </div>

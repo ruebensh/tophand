@@ -3,6 +3,7 @@ import { apiRequest } from '../../lib/api.ts';
 import { X, Layers, Save, Trash2, GitBranch } from 'lucide-react';
 import { CategoryChip } from '../common/CategoryIcon.tsx';
 import type { Catalog } from '../../types/index.ts';
+import { useI18n } from '../../i18n/IntlContext.tsx';
 
 // Katalog bo'yicha barqaror rang toni (Header/AdminDashboard bilan mos).
 const CAT_TONE: Record<string, string> = {
@@ -38,6 +39,7 @@ export const CategoryEditModal: React.FC<CategoryEditModalProps> = ({
   catalogs = [],
   onSaved,
 }) => {
+  const { t } = useI18n();
   const catalogOptions = catalogs.length > 0 ? catalogs : FALLBACK_CATALOGS;
   const isEditing = Boolean(category?.id);
   const [isSubcategory, setIsSubcategory] = useState<boolean>(false);
@@ -86,12 +88,12 @@ export const CategoryEditModal: React.FC<CategoryEditModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nameUz.trim()) {
-      alert('Kategoriya nomi kiritilishi shart');
+      alert(t('admin.cemNameRequired'));
       return;
     }
 
     if (isSubcategory && !parentId) {
-      alert('Subkategoriya uchun asosiy ota kategoriyani tanlang');
+      alert(t('admin.cemParentRequired'));
       return;
     }
 
@@ -123,7 +125,7 @@ export const CategoryEditModal: React.FC<CategoryEditModalProps> = ({
       onSaved();
       onClose();
     } catch (err: any) {
-      alert(err.message || 'Xatolik yuz berdi');
+      alert(err.message || t('common.errGeneric'));
     } finally {
       setIsSubmitting(false);
     }
@@ -131,8 +133,8 @@ export const CategoryEditModal: React.FC<CategoryEditModalProps> = ({
 
   const handleDelete = async () => {
     if (!category?.id) return;
-    const typeLabel = category.parent_id ? 'subkategoriyasini' : 'kategoriyasini va uning barcha subkategoriyalarini';
-    if (!confirm(`Haqiqatan ham "${category.name_uz}" ${typeLabel} o‘chirmoqchimisiz?`)) return;
+    const labelKey = category.parent_id ? 'admin.delLabelSub' : 'admin.delLabelParent';
+    if (!confirm(t('admin.catDeleteConfirm', { name: category.name_uz, label: t(labelKey) }))) return;
 
     setIsSubmitting(true);
     try {
@@ -140,7 +142,7 @@ export const CategoryEditModal: React.FC<CategoryEditModalProps> = ({
       onSaved();
       onClose();
     } catch (err: any) {
-      alert(err.message || 'O‘chirishda xatolik yuz berdi');
+      alert(err.message || t('admin.deleteErrFull'));
     } finally {
       setIsSubmitting(false);
     }
@@ -161,10 +163,10 @@ export const CategoryEditModal: React.FC<CategoryEditModalProps> = ({
             <div>
               <h3 className="font-extrabold text-base text-gray-950">
                 {isEditing
-                  ? `${isSubcategory ? 'Subkategoriya' : 'Asosiy kategoriya'}ni tahrirlash`
-                  : `${isSubcategory ? 'Yangi subkategoriya' : 'Yangi asosiy kategoriya'} qo‘shish`}
+                  ? (isSubcategory ? t('admin.editSub') : t('admin.cemEditMain'))
+                  : (isSubcategory ? t('admin.cemAddSub') : t('admin.cemAddMain'))}
               </h3>
-              <p className="text-xs text-gray-500">Katalog va e’lonlar strukturasi boshqaruvi</p>
+              <p className="text-xs text-gray-500">{t('admin.cemSub')}</p>
             </div>
           </div>
           <button
@@ -179,7 +181,7 @@ export const CategoryEditModal: React.FC<CategoryEditModalProps> = ({
           {/* Category Type Switch (Only when creating new) */}
           {!isEditing && (
             <div>
-              <label className="font-bold text-gray-700 block mb-1.5">Kategoriya darajasi</label>
+              <label className="font-bold text-gray-700 block mb-1.5">{t('admin.cemLevelLabel')}</label>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -196,8 +198,8 @@ export const CategoryEditModal: React.FC<CategoryEditModalProps> = ({
                 >
                   <Layers className="w-4 h-4 shrink-0" />
                   <div className="text-left">
-                    <p className="leading-none">Asosiy kategoriya</p>
-                    <span className="text-[10px] font-normal text-gray-400">Mustaqil katta bo‘lim</span>
+                    <p className="leading-none">{t('admin.cemMainWord')}</p>
+                    <span className="text-[10px] font-normal text-gray-400">{t('admin.cemMainHint')}</span>
                   </div>
                 </button>
 
@@ -218,8 +220,8 @@ export const CategoryEditModal: React.FC<CategoryEditModalProps> = ({
                 >
                   <GitBranch className="w-4 h-4 shrink-0" />
                   <div className="text-left">
-                    <p className="leading-none">Subkategoriya</p>
-                    <span className="text-[10px] font-normal text-gray-400">Kategoriya ichidagi yo‘nalish</span>
+                    <p className="leading-none">{t('admin.cemSubWord')}</p>
+                    <span className="text-[10px] font-normal text-gray-400">{t('admin.cemSubHint')}</span>
                   </div>
                 </button>
               </div>
@@ -228,7 +230,7 @@ export const CategoryEditModal: React.FC<CategoryEditModalProps> = ({
 
           {/* Catalog selector — barcha 13 katalog */}
           <div>
-            <label className="font-bold text-gray-700 block mb-1.5">Tegishli Katalog *</label>
+            <label className="font-bold text-gray-700 block mb-1.5">{t('admin.cemCatalogLabel')} *</label>
             <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
               {catalogOptions.map((c) => {
                 const active = catalogId === c.id;
@@ -264,7 +266,7 @@ export const CategoryEditModal: React.FC<CategoryEditModalProps> = ({
           {isSubcategory && (
             <div>
               <label className="font-bold text-gray-700 block mb-1">
-                Asosiy ota kategoriya <span className="text-rose-500">*</span>
+                {t('admin.cemParentLabel')} <span className="text-rose-500">*</span>
               </label>
               <select
                 required
@@ -272,11 +274,11 @@ export const CategoryEditModal: React.FC<CategoryEditModalProps> = ({
                 onChange={(e) => setParentId(e.target.value)}
                 className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl font-medium text-gray-900 focus:outline-hidden focus:border-blue-600"
               >
-                <option value="">-- Ota kategoriyani tanlang --</option>
+                <option value="">{t('admin.cemParentPh')}</option>
                 {parentCategories
                   .filter((p) => (p.catalog_id || 'services') === catalogId)
                   .map((p) => {
-                    const scope = p.scope === 'JOB_OPENING' ? ' · Vakansiya' : p.scope === 'JOB_SEEKER' ? ' · Rezyume' : '';
+                    const scope = p.scope === 'JOB_OPENING' ? ' · ' + t('admin.scopeVacancy') : p.scope === 'JOB_SEEKER' ? ' · ' + t('admin.scopeResume') : '';
                     return (
                       <option key={p.id} value={p.id}>
                         {p.name_uz}
@@ -286,7 +288,7 @@ export const CategoryEditModal: React.FC<CategoryEditModalProps> = ({
                   })}
               </select>
               <p className="text-[10px] text-gray-400 mt-1">
-                Faqat tanlangan katalogdagi ota-kategoriyalar ko'rsatiladi.
+                {t('admin.cemParentHint')}
               </p>
             </div>
           )}
@@ -294,7 +296,7 @@ export const CategoryEditModal: React.FC<CategoryEditModalProps> = ({
           {/* Name (UZ) */}
           <div>
             <label className="font-bold text-gray-700 block mb-1">
-              {isSubcategory ? 'Subkategoriya nomi' : 'Kategoriya nomi'} (UZ) <span className="text-rose-500">*</span>
+              {isSubcategory ? t('admin.cemSubNameLabel') : t('admin.cemNameLabel')} (UZ) <span className="text-rose-500">*</span>
             </label>
             <input
               type="text"
@@ -307,14 +309,14 @@ export const CategoryEditModal: React.FC<CategoryEditModalProps> = ({
                 }
               }}
               className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl font-bold text-gray-900 focus:outline-hidden focus:border-blue-600"
-              placeholder={isSubcategory ? 'Masalan: Kran va quvurlar montaji' : 'Masalan: Santexnika xizmatlari'}
+              placeholder={isSubcategory ? t('admin.cemSubNamePh') : t('admin.cemNamePh')}
             />
           </div>
 
           {/* Slug */}
           <div>
             <label className="font-bold text-gray-700 block mb-1">
-              Slug (URL identifikator) <span className="text-rose-500">*</span>
+              {t('admin.cemSlugLabel')} <span className="text-rose-500">*</span>
             </label>
             <input
               type="text"
@@ -330,17 +332,17 @@ export const CategoryEditModal: React.FC<CategoryEditModalProps> = ({
           {/* Icon & Sort order */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="font-bold text-gray-700 block mb-1">Ikonka (Lucide icon yoki Emoji)</label>
+              <label className="font-bold text-gray-700 block mb-1">{t('admin.cemIconLabel')}</label>
               <input
                 type="text"
                 value={icon}
                 onChange={(e) => setIcon(e.target.value)}
                 className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl font-medium"
-                placeholder={isSubcategory ? 'Layers' : 'Wrench yoki 🔧'}
+                placeholder={isSubcategory ? 'Layers' : t('admin.cemIconPh')}
               />
             </div>
             <div>
-              <label className="font-bold text-gray-700 block mb-1">Tartib raqami</label>
+              <label className="font-bold text-gray-700 block mb-1">{t('admin.cemSortLabel')}</label>
               <input
                 type="number"
                 value={sortOrder}
@@ -352,14 +354,14 @@ export const CategoryEditModal: React.FC<CategoryEditModalProps> = ({
 
           {/* Status */}
           <div>
-            <label className="font-bold text-gray-700 block mb-1">Holati</label>
+            <label className="font-bold text-gray-700 block mb-1">{t('admin.thState')}</label>
             <select
               value={isActive}
               onChange={(e) => setIsActive(Number(e.target.value))}
               className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl font-semibold"
             >
-              <option value={1}>Faol (Platformada e’lonlar va filtrlarda ko‘rsatiladi)</option>
-              <option value={0}>Nofaol (Yashiringan)</option>
+              <option value={1}>{t('admin.cemActiveOpt')}</option>
+              <option value={0}>{t('admin.cemInactiveOpt')}</option>
             </select>
           </div>
 
@@ -372,7 +374,7 @@ export const CategoryEditModal: React.FC<CategoryEditModalProps> = ({
                 className="px-4 py-2 rounded-xl text-rose-600 hover:bg-rose-50 border border-rose-200 font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                <span>O‘chirish</span>
+                <span>{t('common.delete')}</span>
               </button>
             ) : <div />}
 
@@ -382,7 +384,7 @@ export const CategoryEditModal: React.FC<CategoryEditModalProps> = ({
                 onClick={onClose}
                 className="px-4 py-2 rounded-xl border border-gray-200 font-semibold hover:bg-gray-50 cursor-pointer"
               >
-                Bekor qilish
+                {t('common.cancel')}
               </button>
               <button
                 type="submit"
@@ -390,7 +392,7 @@ export const CategoryEditModal: React.FC<CategoryEditModalProps> = ({
                 className="px-6 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
               >
                 <Save className="w-3.5 h-3.5" />
-                <span>{isEditing ? 'Saqlash' : 'Qo‘shish'}</span>
+                <span>{isEditing ? t('common.save') : t('common.add')}</span>
               </button>
             </div>
           </div>

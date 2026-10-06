@@ -24,27 +24,28 @@ import {
 } from '../../lib/api.ts';
 import { useAds } from '../../context/AdsContext.tsx';
 import type { AdCampaign, AdType, AdPlacement } from '../../types/index.ts';
+import { useI18n } from '../../i18n/IntlContext.tsx';
 
 const inputCls =
   'w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium focus:bg-white focus:ring-2 focus:ring-blue-500';
 const labelCls = 'block text-[11px] font-bold text-gray-700 mb-1';
 
-const TYPE_OPTIONS: { id: AdType; label: string; icon: React.FC<{ className?: string }> }[] = [
-  { id: 'image', label: 'Rasm', icon: ImageIcon },
-  { id: 'text', label: 'Matn', icon: TypeIcon },
-  { id: 'video', label: 'Video', icon: VideoIcon },
+const TYPE_OPTIONS: { id: AdType; labelKey: string; icon: React.FC<{ className?: string }> }[] = [
+  { id: 'image', labelKey: 'admin.amsTypeImage', icon: ImageIcon },
+  { id: 'text', labelKey: 'admin.amsTypeText', icon: TypeIcon },
+  { id: 'video', labelKey: 'admin.amsTypeVideo', icon: VideoIcon },
 ];
 
-const PLACEMENT_OPTIONS: { id: AdPlacement; label: string }[] = [
-  { id: 'top', label: 'Tepa banner' },
-  { id: 'popular', label: 'Mashxur qatori' },
-  { id: 'inline', label: "E'lonlar orasida" },
-  { id: 'sidebar', label: 'Sidebar blok' },
-  { id: 'all', label: 'Barcha joylar' },
+const PLACEMENT_OPTIONS: { id: AdPlacement; labelKey: string }[] = [
+  { id: 'top', labelKey: 'admin.amsPlTop' },
+  { id: 'popular', labelKey: 'admin.amsPlPopular' },
+  { id: 'inline', labelKey: 'admin.amsPlInline' },
+  { id: 'sidebar', labelKey: 'admin.amsPlSidebar' },
+  { id: 'all', labelKey: 'admin.amsPlAll' },
 ];
 
 const placementLabel = (p: AdPlacement) =>
-  PLACEMENT_OPTIONS.find((o) => o.id === p)?.label || p;
+  PLACEMENT_OPTIONS.find((o) => o.id === p)?.labelKey || p;
 
 // ISO → <input type="datetime-local"> qiymati (mahalliy vaqt).
 function toLocalInput(iso?: string | null): string {
@@ -105,6 +106,7 @@ const toDraft = (ad: AdCampaign): Draft => ({
 });
 
 export const AdsManagerSection: React.FC = () => {
+  const { t } = useI18n();
   const { refresh } = useAds();
   const [ads, setAds] = useState<AdCampaign[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -119,7 +121,7 @@ export const AdsManagerSection: React.FC = () => {
     try {
       setAds(await adminListAds());
     } catch (e: any) {
-      setErr(e.message || 'Yuklashda xatolik');
+      setErr(e.message || t('admin.mnsLoadErr'));
     } finally {
       setIsLoading(false);
     }
@@ -151,7 +153,7 @@ export const AdsManagerSection: React.FC = () => {
       const url = await uploadImageFile(file, 'ads');
       patch({ image_url: url });
     } catch (e: any) {
-      setErr(e.message || 'Rasm yuklashda xatolik');
+      setErr(e.message || t('admin.thsImgErr'));
     } finally {
       setUploading(null);
     }
@@ -165,7 +167,7 @@ export const AdsManagerSection: React.FC = () => {
       const url = await uploadVideoFile(file);
       patch({ video_url: url });
     } catch (e: any) {
-      setErr(e.message || 'Video yuklashda xatolik');
+      setErr(e.message || t('admin.amsVideoErr'));
     } finally {
       setUploading(null);
     }
@@ -173,10 +175,10 @@ export const AdsManagerSection: React.FC = () => {
 
   const handleSave = async () => {
     // Frontend validatsiya (backend ham tekshiradi).
-    if (!draft.title.trim()) return setErr('Sarlavha kerak');
-    if (!draft.link_url.trim()) return setErr('Havola (link) kerak');
-    if (draft.type === 'image' && !draft.image_url) return setErr('Rasm yuklang');
-    if (draft.type === 'video' && !draft.video_url) return setErr('Video yuklang yoki URL kiriting');
+    if (!draft.title.trim()) return setErr(t('admin.amsTitleReq'));
+    if (!draft.link_url.trim()) return setErr(t('admin.amsLinkReq'));
+    if (draft.type === 'image' && !draft.image_url) return setErr(t('admin.amsNeedImage'));
+    if (draft.type === 'video' && !draft.video_url) return setErr(t('admin.amsNeedVideo'));
 
     setIsSaving(true);
     setErr(null);
@@ -201,7 +203,7 @@ export const AdsManagerSection: React.FC = () => {
       await refresh(); // saytdagi reklama real vaqtda yangilanadi
       setModalOpen(false);
     } catch (e: any) {
-      setErr(e.message || 'Saqlashda xatolik');
+      setErr(e.message || t('admin.mnsSaveErr'));
     } finally {
       setIsSaving(false);
     }
@@ -213,18 +215,18 @@ export const AdsManagerSection: React.FC = () => {
       setAds((prev) => prev.map((a) => (a.id === ad.id ? { ...a, active: a.active ? 0 : 1 } : a)));
       await refresh();
     } catch (e: any) {
-      setErr(e.message || 'Holatni o‘zgartirib bo‘lmadi');
+      setErr(e.message || t('admin.amsToggleErr'));
     }
   };
 
   const handleDelete = async (ad: AdCampaign) => {
-    if (!window.confirm(`"${ad.title}" reklamasi o‘chirilsinmi?`)) return;
+    if (!window.confirm(t('admin.amsDeleteConfirm', { title: ad.title }))) return;
     try {
       await adminDeleteAd(ad.id);
       setAds((prev) => prev.filter((a) => a.id !== ad.id));
       await refresh();
     } catch (e: any) {
-      setErr(e.message || "O'chirishda xatolik");
+      setErr(e.message || t('admin.amsDeleteErr'));
     }
   };
 
@@ -234,22 +236,20 @@ export const AdsManagerSection: React.FC = () => {
         <div className="p-4 border-b border-gray-100 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Megaphone className="w-5 h-5 text-blue-600" />
-            <h3 className="font-black text-sm text-gray-900">Ichki Reklama menejeri</h3>
+            <h3 className="font-black text-sm text-gray-900">{t('admin.amsTitle')}</h3>
           </div>
           <button
             type="button"
             onClick={openCreate}
             className="px-4 py-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer"
           >
-            <Plus className="w-4 h-4" /> Yangi reklama
+            <Plus className="w-4 h-4" /> {t('admin.amsNewAd')}
           </button>
         </div>
 
         <div className="p-4 sm:p-6">
           <p className="text-[11px] text-gray-500 mb-4">
-            Bu yerda yaratilgan kampaniyalar saytdagi reklama joylarida (tepa banner, mashxur qatori,
-            e'lonlar orasida, sidebar) chiqadi. Ko‘rinish uchun Admin → Monetizatsiya bo‘limidagi
-            “Reklimalarni umuman yoqish” va tegishli slot yoqilgan bo‘lishi kerak.
+            {t('admin.amsHelper')}
           </p>
 
           {err && !modalOpen && (
@@ -260,15 +260,15 @@ export const AdsManagerSection: React.FC = () => {
 
           {isLoading ? (
             <div className="flex items-center justify-center py-16 text-gray-400 text-xs gap-2">
-              <Loader2 className="w-4 h-4 animate-spin" /> Reklamalar yuklanmoqda...
+              <Loader2 className="w-4 h-4 animate-spin" /> {t('admin.amsLoading')}
             </div>
           ) : ads.length === 0 ? (
             <div className="py-14 text-center">
               <div className="w-14 h-14 rounded-2xl bg-gray-50 text-gray-400 flex items-center justify-center mx-auto mb-3">
                 <Megaphone className="w-7 h-7" />
               </div>
-              <p className="font-bold text-sm text-gray-800">Hozircha reklama kampaniyasi yo‘q</p>
-              <p className="text-xs text-gray-400 mt-1">“Yangi reklama” tugmasi bilan birinchi kampaniyani yarating.</p>
+              <p className="font-bold text-sm text-gray-800">{t('admin.amsEmpty')}</p>
+              <p className="text-xs text-gray-400 mt-1">{t('admin.amsEmptyHint')}</p>
             </div>
           ) : (
             <div className="space-y-2.5">
@@ -295,11 +295,11 @@ export const AdsManagerSection: React.FC = () => {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-bold text-sm text-gray-900 truncate max-w-[240px]">{ad.title}</span>
                       <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-600">
-                        {placementLabel(ad.placement)}
+                        {t(placementLabel(ad.placement))}
                       </span>
                       {!ad.active && (
                         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-gray-200 text-gray-600">
-                          O‘chiq
+                          {t('admin.amsOff')}
                         </span>
                       )}
                     </div>
@@ -310,7 +310,7 @@ export const AdsManagerSection: React.FC = () => {
                       <span className="inline-flex items-center gap-1">
                         <MousePointerClick className="w-3 h-3" /> {ad.clicks}
                       </span>
-                      <span>Prioritet: {ad.priority}</span>
+                      <span>{t('admin.amsPriorityLabel')} {ad.priority}</span>
                     </div>
                   </div>
 
@@ -323,13 +323,13 @@ export const AdsManagerSection: React.FC = () => {
                         ad.active ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                       }`}
                     >
-                      {ad.active ? 'Yoqilgan' : 'O‘chiq'}
+                      {ad.active ? t('admin.amsOn') : t('admin.amsOff')}
                     </button>
                     <button
                       type="button"
                       onClick={() => openEdit(ad)}
                       className="p-2 rounded-lg text-gray-500 hover:bg-white hover:text-blue-600 transition-colors cursor-pointer"
-                      title="Tahrish"
+                      title={t('common.edit')}
                     >
                       <Pencil className="w-4 h-4" />
                     </button>
@@ -337,7 +337,7 @@ export const AdsManagerSection: React.FC = () => {
                       type="button"
                       onClick={() => handleDelete(ad)}
                       className="p-2 rounded-lg text-gray-500 hover:bg-white hover:text-rose-600 transition-colors cursor-pointer"
-                      title="O'chirish"
+                      title={t('common.delete')}
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -362,13 +362,13 @@ export const AdsManagerSection: React.FC = () => {
                 <Megaphone className="w-5 h-5" />
               </div>
               <h3 className="font-extrabold text-base text-gray-950">
-                {draft.id ? 'Reklamani tahrish' : 'Yangi reklama'}
+                {draft.id ? t('admin.amsEditTitle') : t('admin.amsNewAd')}
               </h3>
             </div>
             <button
               onClick={() => setModalOpen(false)}
               className="w-9 h-9 -mr-1 rounded-full flex items-center justify-center text-gray-900 hover:bg-gray-100 transition-colors cursor-pointer"
-              aria-label="Yopish"
+              aria-label={t('admin.amsClose')}
             >
               <X className="w-[18px] h-[18px]" strokeWidth={2.2} />
             </button>
@@ -384,21 +384,21 @@ export const AdsManagerSection: React.FC = () => {
 
           {/* Type */}
           <div>
-            <span className={labelCls}>Reklama turi</span>
+            <span className={labelCls}>{t('admin.amsAdType')}</span>
             <div className="grid grid-cols-3 gap-2">
-              {TYPE_OPTIONS.map((t) => {
-                const Icon = t.icon;
-                const on = draft.type === t.id;
+              {TYPE_OPTIONS.map((opt) => {
+                const Icon = opt.icon;
+                const on = draft.type === opt.id;
                 return (
                   <button
-                    key={t.id}
+                    key={opt.id}
                     type="button"
-                    onClick={() => patch({ type: t.id })}
+                    onClick={() => patch({ type: opt.id })}
                     className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
                       on ? 'bg-blue-600 text-white border-blue-600' : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
                     }`}
                   >
-                    <Icon className="w-4 h-4" /> {t.label}
+                    <Icon className="w-4 h-4" /> {t(opt.labelKey)}
                   </button>
                 );
               })}
@@ -407,22 +407,22 @@ export const AdsManagerSection: React.FC = () => {
 
           {/* Title + body */}
           <div>
-            <label className={labelCls}>Sarlavha</label>
+            <label className={labelCls}>{t('admin.amsTitleField')}</label>
             <input
               type="text"
               value={draft.title}
               onChange={(e) => patch({ title: e.target.value })}
-              placeholder="Masalan: Eng tez ustalar — TopHand'da"
+              placeholder={t('admin.amsTitlePh')}
               className={inputCls}
             />
           </div>
           <div>
-            <label className={labelCls}>Qo'shimcha tavsif (ixtiyoriy)</label>
+            <label className={labelCls}>{t('admin.amsDescField')}</label>
             <textarea
               value={draft.body}
               onChange={(e) => patch({ body: e.target.value })}
               rows={2}
-              placeholder="Qisqa tavsif..."
+              placeholder={t('admin.amsDescPh')}
               className={inputCls}
             />
           </div>
@@ -430,7 +430,7 @@ export const AdsManagerSection: React.FC = () => {
           {/* Media */}
           {draft.type === 'image' && (
             <MediaField
-              label="Rasm"
+              label={t('admin.amsTypeImage')}
               value={draft.image_url}
               uploading={uploading === 'image'}
               accept="image/*"
@@ -449,7 +449,7 @@ export const AdsManagerSection: React.FC = () => {
           {draft.type === 'video' && (
             <div className="space-y-3">
               <MediaField
-                label="Video fayl (MP4/WebM, ≤50MB)"
+                label={t('admin.amsVideoLabel')}
                 value={draft.video_url}
                 uploading={uploading === 'video'}
                 accept="video/mp4,video/webm"
@@ -458,7 +458,7 @@ export const AdsManagerSection: React.FC = () => {
                 preview={<VideoIcon className="w-6 h-6 text-gray-300" />}
               />
               <div>
-                <label className={labelCls}>yoki Video / YouTube havolasi</label>
+                <label className={labelCls}>{t('admin.amsVideoOrUrl')}</label>
                 <input
                   type="text"
                   value={draft.video_url}
@@ -473,7 +473,7 @@ export const AdsManagerSection: React.FC = () => {
           {/* Link + CTA */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="sm:col-span-2">
-              <label className={labelCls}>Havola (link_url)</label>
+              <label className={labelCls}>{t('admin.amsLinkField')}</label>
               <input
                 type="text"
                 value={draft.link_url}
@@ -483,7 +483,7 @@ export const AdsManagerSection: React.FC = () => {
               />
             </div>
             <div>
-              <label className={labelCls}>Tugma matni</label>
+              <label className={labelCls}>{t('admin.amsCtaField')}</label>
               <input
                 type="text"
                 value={draft.cta_label}
@@ -497,7 +497,7 @@ export const AdsManagerSection: React.FC = () => {
           {/* Placement + priority */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className={labelCls}>Joylashuv</label>
+              <label className={labelCls}>{t('admin.amsPlacement')}</label>
               <select
                 value={draft.placement}
                 onChange={(e) => patch({ placement: e.target.value as AdPlacement })}
@@ -505,13 +505,13 @@ export const AdsManagerSection: React.FC = () => {
               >
                 {PLACEMENT_OPTIONS.map((o) => (
                   <option key={o.id} value={o.id}>
-                    {o.label}
+                    {t(o.labelKey)}
                   </option>
                 ))}
               </select>
             </div>
             <div>
-              <label className={labelCls}>Prioritet (katta = oldin)</label>
+              <label className={labelCls}>{t('admin.amsPriorityField')}</label>
               <input
                 type="number"
                 value={draft.priority}
@@ -524,7 +524,7 @@ export const AdsManagerSection: React.FC = () => {
           {/* Dates + active */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className={labelCls}>Boshlanish (ixtiyoriy)</label>
+              <label className={labelCls}>{t('admin.amsStartField')}</label>
               <input
                 type="datetime-local"
                 value={draft.starts_at}
@@ -533,7 +533,7 @@ export const AdsManagerSection: React.FC = () => {
               />
             </div>
             <div>
-              <label className={labelCls}>Tugash (ixtiyoriy)</label>
+              <label className={labelCls}>{t('admin.amsEndField')}</label>
               <input
                 type="datetime-local"
                 value={draft.ends_at}
@@ -544,7 +544,7 @@ export const AdsManagerSection: React.FC = () => {
           </div>
 
           <label className="flex items-center justify-between p-3 rounded-2xl bg-gray-50/70 border border-gray-100 cursor-pointer">
-            <span className="text-xs font-bold text-gray-800">Reklama yoqilgan</span>
+            <span className="text-xs font-bold text-gray-800">{t('admin.amsActiveLabel')}</span>
             <input
               type="checkbox"
               checked={draft.active}
@@ -561,7 +561,7 @@ export const AdsManagerSection: React.FC = () => {
             disabled={isSaving}
             className="px-4 py-2 rounded-full text-xs font-bold text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer disabled:opacity-50"
           >
-            Bekor qilish
+            {t('common.cancel')}
           </button>
           <button
             type="button"
@@ -570,7 +570,7 @@ export const AdsManagerSection: React.FC = () => {
             className="px-5 py-2.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs flex items-center gap-2 transition-colors cursor-pointer disabled:opacity-50"
           >
             {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
-            Saqlash
+            {t('common.save')}
           </button>
         </div>
       </Modal>
@@ -587,7 +587,9 @@ const MediaField: React.FC<{
   onUpload: (file?: File) => void;
   onClear: () => void;
   preview: React.ReactNode;
-}> = ({ label, value, uploading, accept, onUpload, onClear, preview }) => (
+}> = ({ label, value, uploading, accept, onUpload, onClear, preview }) => {
+  const { t } = useI18n();
+  return (
   <div>
     <label className={labelCls}>{label}</label>
     <div className="flex items-center gap-3">
@@ -597,7 +599,7 @@ const MediaField: React.FC<{
       <div className="flex-1 min-w-0">
         <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gray-50 border border-gray-200 text-xs font-bold text-gray-700 hover:bg-gray-100 cursor-pointer">
           {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-          {uploading ? 'Yuklanmoqda...' : 'Fayl tanlash'}
+          {uploading ? t('admin.amsUploading') : t('admin.amsChooseFile')}
           <input
             type="file"
             accept={accept}
@@ -611,12 +613,13 @@ const MediaField: React.FC<{
             onClick={onClear}
             className="ml-2 text-[11px] font-bold text-rose-500 hover:underline cursor-pointer"
           >
-            Tozalash
+            {t('admin.amsClear')}
           </button>
         )}
       </div>
     </div>
   </div>
-);
+  );
+};
 
 export default AdsManagerSection;

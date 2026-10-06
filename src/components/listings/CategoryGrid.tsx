@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Category } from '../../types/index.ts';
+import { useI18n } from '../../i18n/IntlContext.tsx';
 import {
   Wrench,
   Zap,
@@ -52,6 +53,7 @@ export const CategoryGrid: React.FC<CategoryGridProps> = ({
   onSelectCategory,
   className = '',
 }) => {
+  const { t, localized } = useI18n();
   // Mobile expand/collapse state: show top 6 or all categories
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -71,8 +73,8 @@ export const CategoryGrid: React.FC<CategoryGridProps> = ({
             <LayoutGrid className="w-4 h-4" />
           </div>
           <div>
-            <h2 className="text-sm font-bold text-[#172B4D] tracking-tight">Kategoriyalar</h2>
-            <p className="text-[10px] text-[#5E6C84]">Mutaxassislik yoki xizmatni tanlang</p>
+            <h2 className="text-sm font-bold text-[#172B4D] tracking-tight">{t('nav.categories')}</h2>
+            <p className="text-[10px] text-[#5E6C84]">{t('home.catGridHint')}</p>
           </div>
         </div>
 
@@ -81,12 +83,12 @@ export const CategoryGrid: React.FC<CategoryGridProps> = ({
             onClick={() => onSelectCategory(undefined)}
             className="flex items-center gap-1 text-[11px] font-semibold text-[#1673E6] hover:bg-blue-50 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
           >
-            <span>Barchasi</span>
+            <span>{t('common.all')}</span>
             <X className="w-3 h-3" />
           </button>
         ) : (
           <span className="text-[11px] font-medium text-[#5E6C84]">
-            {categories.length} ta yo‘nalish
+            {t('home.catGridCount', { n: categories.length })}
           </span>
         )}
       </div>
@@ -115,7 +117,7 @@ export const CategoryGrid: React.FC<CategoryGridProps> = ({
                 <IconComponent className="w-4 h-4" />
               </div>
               <span className="text-[11px] font-semibold line-clamp-1 leading-tight">
-                {cat.name_uz}
+                {localized(cat)}
               </span>
               {cat.active_count !== undefined && cat.active_count > 0 ? (
                 <span
@@ -123,7 +125,7 @@ export const CategoryGrid: React.FC<CategoryGridProps> = ({
                     isSelected ? 'text-blue-100' : 'text-[#5E6C84]'
                   }`}
                 >
-                  {cat.active_count} ta
+                  {t('common.count', { n: cat.active_count })}
                 </span>
               ) : (
                 <span
@@ -131,7 +133,7 @@ export const CategoryGrid: React.FC<CategoryGridProps> = ({
                     isSelected ? 'text-blue-100' : 'text-gray-400'
                   }`}
                 >
-                  0 ta
+                  {t('common.count', { n: 0 })}
                 </span>
               )}
             </button>
@@ -149,12 +151,12 @@ export const CategoryGrid: React.FC<CategoryGridProps> = ({
           {shouldShowAll ? (
             <>
               <ChevronUp className="w-3.5 h-3.5" />
-              <span>Kamroq ko‘rsatish</span>
+              <span>{t('home.catGridShowLess')}</span>
             </>
           ) : (
             <>
               <ChevronDown className="w-3.5 h-3.5" />
-              <span>Barcha kategoriyalarni ko‘rish ({categories.length})</span>
+              <span>{t('home.catGridShowAll', { n: categories.length })}</span>
             </>
           )}
         </button>

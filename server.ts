@@ -30,6 +30,7 @@ import walletRoutes from './server/routes/walletRoutes.ts';
 import monetizationRoutes from './server/routes/monetizationRoutes.ts';
 import adsRoutes from './server/routes/adsRoutes.ts';
 import seoRoutes from './server/routes/seoRoutes.ts';
+import translateRoutes from './server/routes/translateRoutes.ts';
 
 dotenv.config();
 
@@ -79,6 +80,8 @@ function rateLimit(opts: { windowMs: number; max: number; message: string }) {
 
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100, message: "Juda ko'p urinish. Birozdan so'ng qayta urinib ko'ring." });
 const codeLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 10, message: "Kod yuborish chegarasi oshdi. 1 soatdan so'ng urinib ko'ring." });
+// Mashina-tarjimasi pullli API'ni himoya qilish: bir IP uchun soatiga cheklov.
+const translateLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 300, message: "Tarjima chegarasi oshdi. Birozdan so'ng urinib ko'ring." });
 
 // Static assets with permissive CORS & Cross-Origin-Resource-Policy for browser image loading
 app.use((_req, res, next) => {
@@ -138,6 +141,7 @@ app.use('/api/reviews', reviewRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/monetization', monetizationRoutes);
 app.use('/api/ads', adsRoutes);
+app.use('/api/translate', translateLimiter, translateRoutes);
 
 // Health check endpoint
 app.get('/api/health', (_req, res) => {

@@ -4,6 +4,7 @@ import { Region, District } from '../../types/index.ts';
 import { apiRequest, uploadImageFile } from '../../lib/api.ts';
 import { MapPin, Sparkles, Navigation, Camera, Loader2, CheckCircle2 } from 'lucide-react';
 import { Modal } from '../common/Modal.tsx';
+import { useI18n } from '../../i18n/IntlContext.tsx';
 
 /**
  * Mandatory profile-completion step shown after any sign-up / first login
@@ -11,6 +12,7 @@ import { Modal } from '../common/Modal.tsx';
  * (upload locally or keep the Google photo) and location.
  */
 export const ProfileCompletionModal: React.FC = () => {
+  const { t, localized } = useI18n();
   const { user, isProfileModalOpen, profileCanSkip, closeProfileModal, completeProfile } = useAuth();
 
   const [firstName, setFirstName] = useState('');
@@ -77,7 +79,7 @@ export const ProfileCompletionModal: React.FC = () => {
       const url = await uploadImageFile(file, 'avatars');
       setPhotoUrl(url);
     } catch (err: any) {
-      setError(err.message || 'Rasm yuklashda xatolik');
+      setError(err.message || t('profile.errPhoto'));
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = '';
@@ -86,7 +88,7 @@ export const ProfileCompletionModal: React.FC = () => {
 
   const handleDetectLocation = () => {
     if (!navigator.geolocation) {
-      setError('Brauzeringiz geolokatsiyani qo‘llab-quvvatlamaydi');
+      setError(t('profile.pcErrGeo'));
       return;
     }
     setGeoLocating(true);
@@ -113,7 +115,7 @@ export const ProfileCompletionModal: React.FC = () => {
         }
       },
       () => {
-        setError('Joylashuvni aniqlashga ruxsat berilmadi');
+        setError(t('home.gpsDenied'));
         setGeoLocating(false);
       },
       { timeout: 10000, enableHighAccuracy: true }
@@ -124,15 +126,15 @@ export const ProfileCompletionModal: React.FC = () => {
     e.preventDefault();
     setError('');
     if (firstName.trim().split(/\s+/).length < 1 || !lastName.trim()) {
-      setError('Ism va familiyangizni to‘liq kiriting');
+      setError(t('profile.pcErrName'));
       return;
     }
     if (phone.replace(/\D/g, '').length < 9) {
-      setError('Telefon raqami majburiy va to‘liq bo‘lishi kerak');
+      setError(t('profile.pcErrPhone'));
       return;
     }
     if (!regionId || !districtId) {
-      setError('Viloyat va tumanni tanlang');
+      setError(t('create.errRegionDistrict'));
       return;
     }
 
@@ -150,7 +152,7 @@ export const ProfileCompletionModal: React.FC = () => {
         longitude: lng,
       });
     } catch (err: any) {
-      setError(err.message || 'Saqlashda xatolik yuz berdi');
+      setError(err.message || t('profile.errSave'));
     } finally {
       setIsSubmitting(false);
     }
@@ -168,9 +170,9 @@ export const ProfileCompletionModal: React.FC = () => {
         <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-3">
           <Sparkles className="w-6 h-6" />
         </div>
-        <h3 className="font-extrabold text-lg text-gray-900">Profilni to‘ldiring</h3>
+        <h3 className="font-extrabold text-lg text-gray-900">{t('profile.pcTitle')}</h3>
         <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
-          Davom etish uchun ismingiz, telefon raqamingiz va profilingizni to‘ldiring. Bu ma’lumotlar e’lonlaringizda ishonch yaratadi.
+          {t('profile.pcSub')}
         </p>
       </div>
 
@@ -184,7 +186,7 @@ export const ProfileCompletionModal: React.FC = () => {
           <div className="relative shrink-0">
             <img
               src={photoUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(firstName + lastName || 'TopHand')}`}
-              alt="Profil"
+              alt={t('profile.pcAvatarAlt')}
               className="w-20 h-20 rounded-2xl object-cover ring-2 ring-gray-100 bg-gray-50"
             />
             <button
@@ -192,18 +194,16 @@ export const ProfileCompletionModal: React.FC = () => {
               onClick={() => fileRef.current?.click()}
               disabled={uploading}
               className="absolute -bottom-1.5 -right-1.5 w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-sm hover:bg-blue-700 cursor-pointer disabled:opacity-50"
-              aria-label="Rasm yuklash"
+              aria-label={t('profile.pcUploadAria')}
             >
               {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
             </button>
             <input ref={fileRef} type="file" accept="image/*" onChange={handleUpload} className="hidden" />
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-gray-800">Profil rasmi <span className="text-gray-400 font-medium">(ixtiyoriy)</span></p>
+            <p className="text-xs font-semibold text-gray-800">{t('profile.pcPhotoLabel')} <span className="text-gray-400 font-medium">({t('common.optional')})</span></p>
             <p className="text-[11px] text-gray-500 mt-0.5">
-              {user?.has_google
-                ? 'Google rasminiz qo‘yilgan. O‘zgartirish uchun yangi rasm yuklang.'
-                : 'O‘zingizni tanitish uchun rasm yuklang.'}
+              {user?.has_google ? t('profile.pcPhotoGoogle') : t('profile.pcPhotoSelf')}
             </p>
             {photoUrl && (
               <button
@@ -211,7 +211,7 @@ export const ProfileCompletionModal: React.FC = () => {
                 onClick={() => fileRef.current?.click()}
                 className="text-[11px] font-bold text-blue-600 hover:text-blue-800 mt-1 cursor-pointer"
               >
-                {uploading ? 'Yuklanmoqda...' : 'Rasmni yuklash / almashtirish'}
+                {uploading ? t('home.loading') : t('profile.pcChangePhoto')}
               </button>
             )}
           </div>
@@ -221,7 +221,7 @@ export const ProfileCompletionModal: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-semibold text-gray-700 mb-1">
-              Ism <span className="text-rose-500">*</span>
+              {t('profile.pcFirst')} <span className="text-rose-500">*</span>
             </label>
             <input
               type="text"
@@ -234,7 +234,7 @@ export const ProfileCompletionModal: React.FC = () => {
           </div>
           <div>
             <label className="block text-xs font-semibold text-gray-700 mb-1">
-              Familiya <span className="text-rose-500">*</span>
+              {t('profile.pcLast')} <span className="text-rose-500">*</span>
             </label>
             <input
               type="text"
@@ -250,7 +250,7 @@ export const ProfileCompletionModal: React.FC = () => {
         {/* Phone (required) */}
         <div>
           <label className="block text-xs font-semibold text-gray-700 mb-1">
-            Telefon raqami <span className="text-rose-500">*</span>
+            {t('profile.pcPhone')} <span className="text-rose-500">*</span>
           </label>
           <input
             type="tel"
@@ -261,7 +261,7 @@ export const ProfileCompletionModal: React.FC = () => {
             className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 text-xs font-medium focus:outline-hidden focus:ring-2 focus:ring-blue-500"
           />
           <p className="text-[11px] text-gray-400 mt-0.5">
-            Raqamingiz profilingizda ochiq ko‘rinmaydi — faqat “Qo‘ng‘iroq” tugmasi orqali xavfsiz uzatiladi.
+            {t('profile.pcPhoneHint')}
           </p>
         </div>
 
@@ -269,7 +269,7 @@ export const ProfileCompletionModal: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-semibold text-gray-700 mb-1">
-              Viloyat / Shahar <span className="text-rose-500">*</span>
+              {t('create.regionLabel')} <span className="text-rose-500">*</span>
             </label>
             <select
               required
@@ -280,15 +280,15 @@ export const ProfileCompletionModal: React.FC = () => {
               }}
               className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium text-gray-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
             >
-              <option value="">Tanlang...</option>
+              <option value="">{t('create.selectPh')}</option>
               {regions.map((r) => (
-                <option key={r.id} value={r.id}>{r.name_uz}</option>
+                <option key={r.id} value={r.id}>{localized(r)}</option>
               ))}
             </select>
           </div>
           <div>
             <label className="block text-xs font-semibold text-gray-700 mb-1">
-              Tuman <span className="text-rose-500">*</span>
+              {t('profile.pcDistrict')} <span className="text-rose-500">*</span>
             </label>
             <select
               required
@@ -297,9 +297,9 @@ export const ProfileCompletionModal: React.FC = () => {
               onChange={(e) => setDistrictId(e.target.value)}
               className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium text-gray-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
             >
-              <option value="">Tanlang...</option>
+              <option value="">{t('create.selectPh')}</option>
               {districts.map((d) => (
-                <option key={d.id} value={d.id}>{d.name_uz}</option>
+                <option key={d.id} value={d.id}>{localized(d)}</option>
               ))}
             </select>
           </div>
@@ -309,7 +309,7 @@ export const ProfileCompletionModal: React.FC = () => {
         <div className="flex items-center justify-between p-3 rounded-xl bg-blue-50/50 border border-blue-100 text-xs">
           <div className="flex items-center gap-2 text-gray-700">
             <MapPin className="w-4 h-4 text-blue-600 shrink-0" />
-            <span>{lat && lng ? 'GPS koordinatalar belgilandi' : 'Aniq masofa uchun GPS (ixtiyoriy)'}</span>
+            <span>{lat && lng ? t('create.gpsSet') : t('create.gpsNearby')}</span>
           </div>
           <button
             type="button"
@@ -318,18 +318,18 @@ export const ProfileCompletionModal: React.FC = () => {
             className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 shrink-0 cursor-pointer"
           >
             <Navigation className={`w-3.5 h-3.5 ${geoLocating ? 'animate-spin' : ''}`} />
-            <span>{geoLocating ? 'Aniqlanmoqda...' : lat ? 'Qayta aniqlash' : 'Ruxsat berish'}</span>
+            <span>{geoLocating ? t('home.detecting') : lat ? t('profile.pcRedetect') : t('profile.pcAllow')}</span>
           </button>
         </div>
 
         {/* Bio (optional) */}
         <div>
-          <label className="block text-xs font-semibold text-gray-700 mb-1">O‘zingiz haqingizda (ixtiyoriy)</label>
+          <label className="block text-xs font-semibold text-gray-700 mb-1">{t('profile.pcBio')} ({t('common.optional')})</label>
           <textarea
             rows={2}
             value={bio}
             onChange={(e) => setBio(e.target.value)}
-            placeholder="Masalan: 10 yillik tajribaga ega usta..."
+            placeholder={t('profile.pcBioPh')}
             className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 text-xs font-medium focus:outline-hidden focus:ring-2 focus:ring-blue-500"
           />
         </div>
@@ -341,7 +341,7 @@ export const ProfileCompletionModal: React.FC = () => {
             className="w-full h-[48px] rounded-2xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-sm shadow-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
           >
             {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-            <span>{isSubmitting ? 'Saqlanmoqda...' : 'Saqlash va davom etish'}</span>
+            <span>{isSubmitting ? t('profile.pcSaving') : t('profile.pcSaveBtn')}</span>
           </button>
           {profileCanSkip && (
             <button
@@ -349,7 +349,7 @@ export const ProfileCompletionModal: React.FC = () => {
               onClick={closeProfileModal}
               className="w-full text-center text-xs font-semibold text-gray-500 hover:text-gray-800 py-1 cursor-pointer"
             >
-              Keyinroq to‘ldiraman
+              {t('profile.pcSkip')}
             </button>
           )}
         </div>

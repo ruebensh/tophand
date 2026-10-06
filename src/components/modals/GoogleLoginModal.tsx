@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext.tsx';
 import { X, Mail, Lock, Eye, EyeOff, Loader2, ArrowLeft, CheckCircle2, User, KeyRound } from 'lucide-react';
 import { TopHandLogo } from '../common/TopHandLogo.tsx';
 import { Modal } from '../common/Modal.tsx';
+import { useI18n } from '../../i18n/IntlContext.tsx';
 
 declare global {
   interface Window {
@@ -13,6 +14,7 @@ declare global {
 type AuthViewMode = 'login' | 'register' | 'register_code' | 'forgot_password' | 'enter_code';
 
 export const GoogleLoginModal: React.FC = () => {
+  const { t, intlLocale } = useI18n();
   const {
     isLoginModalOpen,
     closeLoginModal,
@@ -89,7 +91,7 @@ export const GoogleLoginModal: React.FC = () => {
           text: mode === 'register' ? 'signup_with' : 'continue_with',
           shape: 'rectangular',
           width: 320,
-          locale: 'uz',
+          locale: intlLocale.slice(0, 2),
         });
       } catch (err) {
         console.error('Error rendering Google button:', err);
@@ -120,7 +122,7 @@ export const GoogleLoginModal: React.FC = () => {
         picture: payload.picture,
       });
     } catch (err: any) {
-      setErrorMsg(err.message || "Google orqali kirishda xatolik yuz berdi");
+      setErrorMsg(err.message || t('auth.errGoogle'));
     }
   };
 
@@ -136,7 +138,7 @@ export const GoogleLoginModal: React.FC = () => {
     try {
       await loginWithEmail(email.trim(), password);
     } catch (err: any) {
-      setErrorMsg(err.message || "Email yoki parol noto'g'ri");
+      setErrorMsg(err.message || t('auth.errCreds'));
     } finally {
       setIsSubmitting(false);
     }
@@ -152,12 +154,12 @@ export const GoogleLoginModal: React.FC = () => {
 
     try {
       const res = await sendRegisterCode(email.trim());
-      setSuccessMsg(res.message || 'Tasdiqlash kodi emailingizga yuborildi');
+      setSuccessMsg(res.message || t('profile.alCodeSent'));
       if (res.demo_code) setVerificationCode(res.demo_code);
       setPassword('');
       setMode('register_code');
     } catch (err: any) {
-      setErrorMsg(err.message || 'Kodni yuborishda xatolik yuz berdi');
+      setErrorMsg(err.message || t('auth.errCodeSend'));
     } finally {
       setIsSubmitting(false);
     }
@@ -173,7 +175,7 @@ export const GoogleLoginModal: React.FC = () => {
     try {
       await registerWithEmail(email.trim(), verificationCode.trim(), password);
     } catch (err: any) {
-      setErrorMsg(err.message || "Ro'yxatdan o'tishda xatolik yuz berdi");
+      setErrorMsg(err.message || t('auth.errRegister'));
     } finally {
       setIsSubmitting(false);
     }
@@ -188,13 +190,13 @@ export const GoogleLoginModal: React.FC = () => {
 
     try {
       const res = await sendPasswordResetCode(email.trim());
-      setSuccessMsg(res.message || 'Tasdiqlash kodi emailingizga yuborildi');
+      setSuccessMsg(res.message || t('profile.alCodeSent'));
       if (res.demo_code) {
         setVerificationCode(res.demo_code);
       }
       setMode('enter_code');
     } catch (err: any) {
-      setErrorMsg(err.message || 'Kodni yuborishda xatolik yuz berdi');
+      setErrorMsg(err.message || t('auth.errCodeSend'));
     } finally {
       setIsSubmitting(false);
     }
@@ -209,14 +211,14 @@ export const GoogleLoginModal: React.FC = () => {
 
     try {
       const res = await resetPasswordWithCode(email.trim(), verificationCode.trim(), newPassword);
-      setSuccessMsg(res.message || 'Parol muvaffaqiyatli yangilandi');
+      setSuccessMsg(res.message || t('auth.passUpdated'));
       setTimeout(() => {
         setMode('login');
         setPassword(newPassword);
-        setSuccessMsg('Yangi parol bilan tizimga kiring');
+        setSuccessMsg(t('auth.loginWithNewPass'));
       }, 1500);
     } catch (err: any) {
-      setErrorMsg(err.message || 'Parolni yangilashda xatolik yuz berdi');
+      setErrorMsg(err.message || t('auth.errPassReset'));
     } finally {
       setIsSubmitting(false);
     }
@@ -235,7 +237,7 @@ export const GoogleLoginModal: React.FC = () => {
           <TopHandLogo size="sm" showText={true} />
           <button
             onClick={closeLoginModal}
-            aria-label="Yopish"
+            aria-label={t('common.close')}
             className="w-9 h-9 -mr-1 rounded-full flex items-center justify-center text-gray-900 hover:bg-gray-100 transition-colors cursor-pointer"
           >
             <X className="w-[18px] h-[18px]" strokeWidth={2.2} />
@@ -250,8 +252,8 @@ export const GoogleLoginModal: React.FC = () => {
           {mode === 'login' && (
             <div className="space-y-4">
               <div className="text-center mb-2">
-                <h3 className="text-base font-extrabold text-gray-950">Xush kelibsiz!</h3>
-                <p className="text-xs text-gray-500 mt-0.5">TopHand xizmatlari va e’lonlar platformasi</p>
+                <h3 className="text-base font-extrabold text-gray-950">{t('auth.welcome')}</h3>
+                <p className="text-xs text-gray-500 mt-0.5">{t('auth.welcomeSub')}</p>
               </div>
 
               {/* Google Sign-in */}
@@ -262,7 +264,7 @@ export const GoogleLoginModal: React.FC = () => {
               {/* Divider */}
               <div className="flex items-center gap-3 my-4">
                 <div className="flex-1 h-px bg-gray-100" />
-                <span className="text-[11px] font-medium text-gray-400">yoki email orqali</span>
+                <span className="text-[11px] font-medium text-gray-400">{t('auth.orEmail')}</span>
                 <div className="flex-1 h-px bg-gray-100" />
               </div>
 
@@ -274,7 +276,7 @@ export const GoogleLoginModal: React.FC = () => {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Email manzilingiz"
+                    placeholder={t('profile.alEmailPh')}
                     required
                     className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-hidden focus:bg-white focus:border-blue-600 transition-all font-medium"
                   />
@@ -286,7 +288,7 @@ export const GoogleLoginModal: React.FC = () => {
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Parol"
+                    placeholder={t('auth.passPh')}
                     required
                     className="w-full pl-10 pr-10 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-hidden focus:bg-white focus:border-blue-600 transition-all font-medium"
                   />
@@ -309,7 +311,7 @@ export const GoogleLoginModal: React.FC = () => {
                     }}
                     className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 transition-colors cursor-pointer"
                   >
-                    Parolni unutdingizmi?
+                    {t('auth.forgotLink')}
                   </button>
                 </div>
 
@@ -331,14 +333,14 @@ export const GoogleLoginModal: React.FC = () => {
                   className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all shadow-xs disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {isSubmitting || isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                  <span>Tizimga kirish</span>
+                  <span>{t('auth.loginBtn')}</span>
                 </button>
               </form>
 
               {/* Switch to Register */}
               <div className="text-center pt-2 border-t border-gray-100">
                 <p className="text-xs text-gray-500">
-                  Hisobingiz yo‘qmi?{' '}
+                  {t('auth.noAccount')}{' '}
                   <button
                     type="button"
                     onClick={() => {
@@ -348,7 +350,7 @@ export const GoogleLoginModal: React.FC = () => {
                     }}
                     className="font-bold text-blue-600 hover:text-blue-700 cursor-pointer"
                   >
-                    Ro‘yxatdan o‘tish
+                    {t('auth.registerLink')}
                   </button>
                 </p>
               </div>
@@ -369,8 +371,8 @@ export const GoogleLoginModal: React.FC = () => {
                   <ArrowLeft className="w-4 h-4" />
                 </button>
                 <div>
-                  <h3 className="text-base font-extrabold text-gray-950">Yangi hisob yaratish</h3>
-                  <p className="text-xs text-gray-500">TopHand oilasiga qo‘shiling</p>
+                  <h3 className="text-base font-extrabold text-gray-950">{t('auth.regTitle')}</h3>
+                  <p className="text-xs text-gray-500">{t('auth.regSub')}</p>
                 </div>
               </div>
 
@@ -382,7 +384,7 @@ export const GoogleLoginModal: React.FC = () => {
               {/* Divider */}
               <div className="flex items-center gap-3 my-4">
                 <div className="flex-1 h-px bg-gray-100" />
-                <span className="text-[11px] font-medium text-gray-400">yoki email orqali</span>
+                <span className="text-[11px] font-medium text-gray-400">{t('auth.orEmail')}</span>
                 <div className="flex-1 h-px bg-gray-100" />
               </div>
 
@@ -393,14 +395,14 @@ export const GoogleLoginModal: React.FC = () => {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Email manzilingiz"
+                    placeholder={t('profile.alEmailPh')}
                     required
                     className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-hidden focus:bg-white focus:border-blue-600 transition-all font-medium"
                   />
                 </div>
 
                 <p className="text-[11px] text-gray-500">
-                  Email manzilingizga tasdiqlash kodi yuboramiz, so‘ng parol o‘rnatasiz.
+                  {t('auth.regHint')}
                 </p>
 
                 {errorMsg && (
@@ -421,19 +423,19 @@ export const GoogleLoginModal: React.FC = () => {
                   className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all shadow-xs disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {isSubmitting || isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                  <span>Tasdiqlash kodini yuborish</span>
+                  <span>{t('auth.sendCodeBtn')}</span>
                 </button>
               </form>
 
               <div className="text-center pt-2 border-t border-gray-100">
                 <p className="text-xs text-gray-500">
-                  Hisobingiz bormi?{' '}
+                  {t('auth.haveAccount')}{' '}
                   <button
                     type="button"
                     onClick={() => setMode('login')}
                     className="font-bold text-blue-600 hover:text-blue-700 cursor-pointer"
                   >
-                    Kirish
+                    {t('auth.loginLink')}
                   </button>
                 </p>
               </div>
@@ -454,10 +456,8 @@ export const GoogleLoginModal: React.FC = () => {
                   <ArrowLeft className="w-4 h-4" />
                 </button>
                 <div>
-                  <h3 className="text-base font-extrabold text-gray-950">Kodni kiriting</h3>
-                  <p className="text-xs text-gray-500">
-                    <strong>{email}</strong> manziliga 6 xonali kod yuborildi
-                  </p>
+                  <h3 className="text-base font-extrabold text-gray-950">{t('auth.codeTitle')}</h3>
+                  <p className="text-xs text-gray-500">{t('auth.codeSentTo', { email })}</p>
                 </div>
               </div>
 
@@ -470,7 +470,7 @@ export const GoogleLoginModal: React.FC = () => {
                     maxLength={6}
                     value={verificationCode}
                     onChange={(e) => setVerificationCode(e.target.value.replace(/[^0-9]/g, ''))}
-                    placeholder="6 xonali kod"
+                    placeholder={t('profile.alCodePh')}
                     required
                     className="w-full pl-10 pr-4 py-2.5 bg-blue-50/40 border border-blue-200 rounded-xl text-sm font-mono tracking-widest text-blue-900 font-bold focus:outline-hidden focus:border-blue-600 text-center"
                   />
@@ -482,7 +482,7 @@ export const GoogleLoginModal: React.FC = () => {
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Parol (kamida 6 ta belgi)"
+                    placeholder={t('auth.passPhMin')}
                     required
                     minLength={6}
                     className="w-full pl-10 pr-10 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-hidden focus:bg-white focus:border-blue-600 transition-all font-medium"
@@ -508,7 +508,7 @@ export const GoogleLoginModal: React.FC = () => {
                   className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all shadow-xs disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {isSubmitting || isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                  <span>Hisob yaratish</span>
+                  <span>{t('auth.createAccountBtn')}</span>
                 </button>
 
                 <button
@@ -517,7 +517,7 @@ export const GoogleLoginModal: React.FC = () => {
                   disabled={isSubmitting}
                   className="w-full text-center text-[11px] font-semibold text-gray-500 hover:text-gray-900 cursor-pointer"
                 >
-                  Kodni qayta yuborish
+                  {t('auth.resendCode')}
                 </button>
               </form>
             </div>
@@ -537,8 +537,8 @@ export const GoogleLoginModal: React.FC = () => {
                   <ArrowLeft className="w-4 h-4" />
                 </button>
                 <div>
-                  <h3 className="text-base font-extrabold text-gray-950">Parolni tiklash</h3>
-                  <p className="text-xs text-gray-500">Emailingizga tasdiqlash kodi yuboramiz</p>
+                  <h3 className="text-base font-extrabold text-gray-950">{t('auth.resetTitle')}</h3>
+                  <p className="text-xs text-gray-500">{t('auth.resetSub')}</p>
                 </div>
               </div>
 
@@ -549,7 +549,7 @@ export const GoogleLoginModal: React.FC = () => {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Hisobingiz email manzili"
+                    placeholder={t('auth.resetEmailPh')}
                     required
                     className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-hidden focus:bg-white focus:border-blue-600 transition-all font-medium"
                   />
@@ -567,7 +567,7 @@ export const GoogleLoginModal: React.FC = () => {
                   className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all shadow-xs disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {isSubmitting || isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                  <span>Tasdiqlash kodini yuborish</span>
+                  <span>{t('auth.sendCodeBtn')}</span>
                 </button>
               </form>
 
@@ -577,7 +577,7 @@ export const GoogleLoginModal: React.FC = () => {
                   onClick={() => setMode('login')}
                   className="text-xs text-gray-500 hover:text-gray-900 font-semibold cursor-pointer"
                 >
-                  Ortga qaytish
+                  {t('auth.backBtn')}
                 </button>
               </div>
             </div>
@@ -597,10 +597,8 @@ export const GoogleLoginModal: React.FC = () => {
                   <ArrowLeft className="w-4 h-4" />
                 </button>
                 <div>
-                  <h3 className="text-base font-extrabold text-gray-950">Kodni kiriting</h3>
-                  <p className="text-xs text-gray-500">
-                    <strong>{email}</strong> manziliga 6 xonali kod yuborildi
-                  </p>
+                  <h3 className="text-base font-extrabold text-gray-950">{t('auth.codeTitle')}</h3>
+                  <p className="text-xs text-gray-500">{t('auth.codeSentTo', { email })}</p>
                 </div>
               </div>
 
@@ -612,7 +610,7 @@ export const GoogleLoginModal: React.FC = () => {
                     maxLength={6}
                     value={verificationCode}
                     onChange={(e) => setVerificationCode(e.target.value.replace(/[^0-9]/g, ''))}
-                    placeholder="6 xonali kod (masalan: 123456)"
+                    placeholder={t('auth.codePhExample')}
                     required
                     className="w-full pl-10 pr-4 py-2.5 bg-blue-50/40 border border-blue-200 rounded-xl text-sm font-mono tracking-widest text-blue-900 font-bold focus:outline-hidden focus:border-blue-600 text-center"
                   />
@@ -624,7 +622,7 @@ export const GoogleLoginModal: React.FC = () => {
                     type={showPassword ? 'text' : 'password'}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Yangi parol (kamida 6 ta belgi)"
+                    placeholder={t('auth.newPassPh')}
                     required
                     minLength={6}
                     className="w-full pl-10 pr-10 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-hidden focus:bg-white focus:border-blue-600 transition-all font-medium"
@@ -657,7 +655,7 @@ export const GoogleLoginModal: React.FC = () => {
                   className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all shadow-xs disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {isSubmitting || isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                  <span>Parolni yangilash va kirish</span>
+                  <span>{t('auth.updatePassBtn')}</span>
                 </button>
               </form>
 
@@ -667,7 +665,7 @@ export const GoogleLoginModal: React.FC = () => {
                   onClick={() => setMode('login')}
                   className="text-xs text-gray-500 hover:text-gray-900 font-semibold cursor-pointer"
                 >
-                  Kirish sahifasiga qaytish
+                  {t('auth.backToLogin')}
                 </button>
               </div>
             </div>

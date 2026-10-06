@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
+import { msg, type MsgLocale } from '../i18n/messages.ts';
 dotenv.config();
 
 // Transporter is only used as a fallback when no Brevo API key is set.
@@ -22,7 +23,7 @@ const transporter = nodemailer.createTransport({
 
 const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
 
-function buildHtmlEmail(code: string): string {
+function buildHtmlEmail(code: string, lang: MsgLocale = 'uz'): string {
   return `
     <!DOCTYPE html>
     <html>
@@ -47,13 +48,13 @@ function buildHtmlEmail(code: string): string {
           <div class="logo">top<span>hand</span>.uz</div>
         </div>
         <div class="content">
-          <div class="title">Parolni tiklash yoki tasdiqlash</div>
-          <p class="text">TopHand hisobingiz uchun tasdiqlash kodi quyida keltirilgan. Kod 15 daqiqa davomida amal qiladi:</p>
+          <div class="title">${msg('email.codeTitle', lang)}</div>
+          <p class="text">${msg('email.codeIntro', lang)}</p>
           <div class="code-box">${code}</div>
-          <p class="text" style="font-size: 12px; margin-bottom: 0;">Agar siz ushbu kodni so‘ramagan bo‘lsangiz, bu xatni e’tiborsiz qoldiring.</p>
+          <p class="text" style="font-size: 12px; margin-bottom: 0;">${msg('email.codeIgnore', lang)}</p>
         </div>
         <div class="footer">
-          © ${new Date().getFullYear()} TopHand.uz • Mahalliy Xizmatlar va Ish Bozori Platformasi
+          © ${new Date().getFullYear()} TopHand.uz • ${msg('email.footer', lang)}
         </div>
       </div>
     </body>
@@ -71,10 +72,12 @@ function buildHtmlEmail(code: string): string {
 export async function sendVerificationCodeEmail(
   toEmail: string,
   code: string,
-  subject: string = 'TopHand - Tasdiqlash kodi'
+  subject?: string,
+  lang: MsgLocale = 'uz'
 ): Promise<{ success: boolean; simulated?: boolean }> {
-  const htmlContent = buildHtmlEmail(code);
-  const textContent = `TopHand platformasi tasdiqlash kodi: ${code}. Kod 15 daqiqa davomida amal qiladi.`;
+  const effectiveSubject = subject || msg('email.verifySubject', lang);
+  const htmlContent = buildHtmlEmail(code, lang);
+  const textContent = `${msg('email.codeIntro', lang)} ${code}`;
 
   const apiKey = (process.env.BREVO_API_KEY || '').trim();
   const smtpConfigured = Boolean(process.env.SMTP_USER && process.env.SMTP_PASS);
@@ -97,7 +100,7 @@ export async function sendVerificationCodeEmail(
         body: JSON.stringify({
           sender: { name: senderName, email: senderEmail },
           to: [{ email: toEmail }],
-          subject,
+          subject: effectiveSubject,
           htmlContent,
           textContent,
         }),
@@ -123,7 +126,7 @@ export async function sendVerificationCodeEmail(
       await transporter.sendMail({
         from: `"TopHand Platformasi" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
         to: toEmail,
-        subject,
+        subject: effectiveSubject,
         html: htmlContent,
         text: textContent,
       });

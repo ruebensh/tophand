@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { apiRequest } from '../../lib/api.ts';
 import { Send, RefreshCw, Users, ListChecks, Globe2, Sparkles, Search } from 'lucide-react';
+import { useI18n } from '../../i18n/IntlContext.tsx';
 
 type Scope = 'all' | 'selected' | 'filter';
 
@@ -14,6 +15,7 @@ interface StaffMessagingProps {
 }
 
 export const StaffMessaging: React.FC<StaffMessagingProps> = ({ initialUserIds }) => {
+  const { t: tr } = useI18n();
   const [scope, setScope] = useState<Scope>(initialUserIds && initialUserIds.length ? 'selected' : 'all');
   const [selectedIds, setSelectedIds] = useState<string>((initialUserIds || []).join(', '));
   const [filterRole, setFilterRole] = useState('USER');
@@ -93,12 +95,12 @@ export const StaffMessaging: React.FC<StaffMessagingProps> = ({ initialUserIds }
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!body.trim()) { setMsg("Xabar matni bo'sh."); return; }
+    if (!body.trim()) { setMsg(tr('admin.smEmptyBody')); return; }
     const recipients: any = {};
     if (scope === 'all') recipients.all = true;
     else if (scope === 'selected') {
       const ids = selectedIds.split(',').map((s) => s.trim()).filter(Boolean);
-      if (!ids.length) { setMsg('Hech qanday foydalanuvchi tanlanmadi.'); return; }
+      if (!ids.length) { setMsg(tr('admin.smNoSelection')); return; }
       recipients.user_ids = ids;
     } else {
       recipients.filter = { role: filterRole || undefined, region_id: filterRegion || undefined };
@@ -111,20 +113,20 @@ export const StaffMessaging: React.FC<StaffMessagingProps> = ({ initialUserIds }
         method: 'POST',
         body: JSON.stringify({ recipients, mode, subject: subject.trim() || undefined, body: body.trim(), link: link.trim() || undefined }),
       });
-      setMsg(`${res.sent} ta foydalanuvchiga yuborildi.`);
+      setMsg(tr('admin.smSent', { n: res.sent }));
       setBody(''); setSubject(''); setLink('');
       load();
     } catch (err: any) {
-      setMsg(err?.message || 'Yuborishda xatolik');
+      setMsg(err?.message || tr('admin.smSendErr'));
     } finally {
       setSending(false);
     }
   };
 
-  const scopeBtns: { id: Scope; label: string; icon: any }[] = [
-    { id: 'all', label: 'Barchasiga', icon: Globe2 },
-    { id: 'selected', label: 'Tanlanganlar', icon: ListChecks },
-    { id: 'filter', label: 'Filtr bo‘yicha', icon: Users },
+  const scopeBtns: { id: Scope; labelKey: string; icon: any }[] = [
+    { id: 'all', labelKey: 'admin.smScopeAll', icon: Globe2 },
+    { id: 'selected', labelKey: 'admin.smScopeSelected', icon: ListChecks },
+    { id: 'filter', labelKey: 'admin.smScopeFilter', icon: Users },
   ];
 
   return (
@@ -133,22 +135,22 @@ export const StaffMessaging: React.FC<StaffMessagingProps> = ({ initialUserIds }
       <div className="lg:col-span-2 bg-white rounded-3xl border border-gray-100 shadow-xs p-5 sm:p-6">
         <div className="flex items-center gap-2 mb-4">
           <Send className="w-5 h-5 text-blue-600" />
-          <h3 className="font-bold text-sm text-gray-900">TopHand nomidan xabar yuborish</h3>
+          <h3 className="font-bold text-sm text-gray-900">{tr('admin.smTitle')}</h3>
         </div>
 
         {noAccess && (
           <div className="mb-4 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-3 text-[11px] font-bold">
-            Sizda xabar yuborish ruxsati yo'q. Administrator "Jamoa" bo'limida sizga "Xabar" ruxsatini berishi kerak.
+            {tr('admin.smNoAccess')}
           </div>
         )}
 
         {templates.length > 0 && (
           <div className="mb-4">
             <label className="block text-[11px] font-bold text-gray-600 mb-1 flex items-center gap-1">
-              <Sparkles className="w-3.5 h-3.5 text-purple-600" /> Shablon (canned response)
+              <Sparkles className="w-3.5 h-3.5 text-purple-600" /> {tr('admin.smTemplate')}
             </label>
             <select onChange={(e) => applyTemplate(e.target.value)} defaultValue="" className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs">
-              <option value="" disabled>Shablonni tanlang...</option>
+              <option value="" disabled>{tr('admin.smTemplatePh')}</option>
               {templates.map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
             </select>
           </div>
@@ -157,13 +159,13 @@ export const StaffMessaging: React.FC<StaffMessagingProps> = ({ initialUserIds }
         <form onSubmit={handleSend} className="space-y-4">
           {/* Scope */}
           <div>
-            <label className="block text-[11px] font-bold text-gray-600 mb-1.5">Qamrov</label>
+            <label className="block text-[11px] font-bold text-gray-600 mb-1.5">{tr('admin.smScope')}</label>
             <div className="flex gap-2">
               {scopeBtns.map((b) => {
                 const Icon = b.icon;
                 return (
                   <button key={b.id} type="button" onClick={() => setScope(b.id)} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${scope === b.id ? 'bg-blue-600 text-white border-blue-600' : 'bg-gray-50 text-gray-700 border-gray-200'}`}>
-                    <Icon className="w-3.5 h-3.5" /> {b.label}
+                    <Icon className="w-3.5 h-3.5" /> {tr(b.labelKey)}
                   </button>
                 );
               })}
@@ -179,16 +181,16 @@ export const StaffMessaging: React.FC<StaffMessagingProps> = ({ initialUserIds }
                     value={userSearch}
                     onChange={(e) => setUserSearch(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); loadUsers(userSearch); } }}
-                    placeholder="Ism, username yoki Telegram ID bo'yicha qidirish..."
+                    placeholder={tr('admin.smUserSearchPh')}
                     className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-8 pr-3 py-2 text-xs focus:outline-hidden focus:border-blue-600"
                   />
                 </div>
-                <button type="button" onClick={() => loadUsers(userSearch)} className="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer shrink-0">Qidirish</button>
+                <button type="button" onClick={() => loadUsers(userSearch)} className="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer shrink-0">{tr('admin.smSearch')}</button>
               </div>
 
               <div className="max-h-56 overflow-y-auto border border-gray-200 rounded-xl divide-y divide-gray-100">
-                {loadingUsers && <div className="p-4 text-center text-xs text-gray-400">Yuklanmoqda...</div>}
-                {!loadingUsers && users.length === 0 && <div className="p-4 text-center text-xs text-gray-400">Foydalanuvchi topilmadi.</div>}
+                {loadingUsers && <div className="p-4 text-center text-xs text-gray-400">{tr('admin.teamLoading')}</div>}
+                {!loadingUsers && users.length === 0 && <div className="p-4 text-center text-xs text-gray-400">{tr('admin.smUserEmpty')}</div>}
                 {!loadingUsers && users.map((u) => (
                   <label key={u.id} className="flex items-center gap-2.5 p-2.5 hover:bg-blue-50/50 cursor-pointer">
                     <input type="checkbox" checked={selectedIdList.includes(u.id)} onChange={() => toggleUser(u.id)} className="w-4 h-4 accent-blue-600 shrink-0 cursor-pointer" />
@@ -196,22 +198,22 @@ export const StaffMessaging: React.FC<StaffMessagingProps> = ({ initialUserIds }
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
                         <span className="font-bold text-xs text-gray-900 truncate">{u.name}</span>
-                        {u.is_banned ? <span className="text-[9px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded">BLOK</span> : null}
+                        {u.is_banned ? <span className="text-[9px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded">{tr('admin.smBlok')}</span> : null}
                         {u.role !== 'USER' && <span className="text-[9px] font-bold text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded">{u.role}</span>}
                       </div>
-                      <span className="text-[10px] text-gray-400">{u.telegram_username ? `@${u.telegram_username}` : u.id} · {u.region_name || 'hududsiz'} · {u.listings_count || 0} e'lon</span>
+                      <span className="text-[10px] text-gray-400">{u.telegram_username ? `@${u.telegram_username}` : u.id} · {u.region_name || tr('admin.smNoRegion')} · {u.listings_count || 0} {tr('admin.smListing')}</span>
                     </div>
                   </label>
                 ))}
               </div>
 
               <div className="flex items-center justify-between text-[11px]">
-                <span className="font-bold text-gray-600">Tanlangan: {selectedIdList.length} ta</span>
-                {selectedIdList.length > 0 && <button type="button" onClick={() => setSelectedIds('')} className="text-rose-600 font-bold hover:underline cursor-pointer">Tozalash</button>}
+                <span className="font-bold text-gray-600">{tr('admin.smSelected', { n: selectedIdList.length })}</span>
+                {selectedIdList.length > 0 && <button type="button" onClick={() => setSelectedIds('')} className="text-rose-600 font-bold hover:underline cursor-pointer">{tr('admin.smClear')}</button>}
               </div>
 
               <details className="text-[11px]">
-                <summary className="text-gray-400 cursor-pointer select-none">IDlarni qo'lda kiritish</summary>
+                <summary className="text-gray-400 cursor-pointer select-none">{tr('admin.smManualIds')}</summary>
                 <input value={selectedIds} onChange={(e) => setSelectedIds(e.target.value)} placeholder="usr_abc, usr_def" className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-mono" />
               </details>
             </div>
@@ -220,41 +222,41 @@ export const StaffMessaging: React.FC<StaffMessagingProps> = ({ initialUserIds }
           {scope === 'filter' && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <select value={filterRole} onChange={(e) => setFilterRole(e.target.value)} className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs">
-                <option value="">Har qanday rol</option>
+                <option value="">{tr('admin.smAnyRole')}</option>
                 <option value="USER">USER</option>
                 <option value="MODERATOR">MODERATOR</option>
                 <option value="ADMIN">ADMIN</option>
               </select>
-              <input value={filterRegion} onChange={(e) => setFilterRegion(e.target.value)} placeholder="Viloyat ID (ixtiyoriy)" className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs" />
+              <input value={filterRegion} onChange={(e) => setFilterRegion(e.target.value)} placeholder={tr('admin.smRegionIdPh')} className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs" />
             </div>
           )}
 
           {/* Mode */}
           <div className="flex items-center gap-3 text-xs">
-            <span className="font-bold text-gray-600">Rejim:</span>
-            <label className="inline-flex items-center gap-1 cursor-pointer"><input type="radio" checked={mode === 'BROADCAST'} onChange={() => setMode('BROADCAST')} /> Bitta xabar (broadcast)</label>
-            <label className="inline-flex items-center gap-1 cursor-pointer"><input type="radio" checked={mode === 'PER_USER'} onChange={() => setMode('PER_USER')} /> Har biriga alohida ({'{{name}}'})</label>
+            <span className="font-bold text-gray-600">{tr('admin.smMode')}</span>
+            <label className="inline-flex items-center gap-1 cursor-pointer"><input type="radio" checked={mode === 'BROADCAST'} onChange={() => setMode('BROADCAST')} /> {tr('admin.smModeBroadcast')}</label>
+            <label className="inline-flex items-center gap-1 cursor-pointer"><input type="radio" checked={mode === 'PER_USER'} onChange={() => setMode('PER_USER')} /> {tr('admin.smModePerUser')} ({'{{name}}'})</label>
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-gray-600 mb-1">Mavzu</label>
-            <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Masalan: Texnik xizmat ko'rsatish" className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs" />
+            <label className="block text-[11px] font-bold text-gray-600 mb-1">{tr('admin.smSubject')}</label>
+            <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder={tr('admin.smSubjectPh')} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs" />
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-gray-600 mb-1">Xabar matni <span className="text-rose-500">*</span></label>
-            <textarea rows={5} required value={body} onChange={(e) => setBody(e.target.value)} placeholder="Foydalanuvchiga bildirishnoma sifatida yetib boradi..." className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs" />
+            <label className="block text-[11px] font-bold text-gray-600 mb-1">{tr('admin.smBodyLabel')} <span className="text-rose-500">*</span></label>
+            <textarea rows={5} required value={body} onChange={(e) => setBody(e.target.value)} placeholder={tr('admin.smBodyPh')} className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs" />
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-gray-600 mb-1">Havola (ixtiyoriy, masalan: /wallet)</label>
+            <label className="block text-[11px] font-bold text-gray-600 mb-1">{tr('admin.smLinkLabel')}</label>
             <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="/listing/..." className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs" />
           </div>
 
           {msg && <div className="text-xs font-bold text-blue-700 bg-blue-50 border border-blue-100 rounded-xl p-2.5">{msg}</div>}
 
           <button type="submit" disabled={sending || noAccess} className="w-full py-3 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md disabled:opacity-50 cursor-pointer inline-flex items-center justify-center gap-2">
-            <Send className="w-4 h-4" /> {sending ? 'Yuborilmoqda...' : 'Yuborish'}
+            <Send className="w-4 h-4" /> {sending ? tr('admin.smSending') : tr('common.submit')}
           </button>
         </form>
       </div>
@@ -262,21 +264,21 @@ export const StaffMessaging: React.FC<StaffMessagingProps> = ({ initialUserIds }
       {/* History */}
       <div className="bg-white rounded-3xl border border-gray-100 shadow-xs overflow-hidden">
         <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-          <span className="font-bold text-sm text-gray-900">Yuborilganlar tarixi</span>
+          <span className="font-bold text-sm text-gray-900">{tr('admin.smHistory')}</span>
           <button onClick={load} className="p-1.5 text-gray-400 hover:text-gray-600 cursor-pointer"><RefreshCw className="w-4 h-4" /></button>
         </div>
         <div className="p-3 space-y-2 max-h-[560px] overflow-y-auto">
-          {history.length === 0 && <p className="text-xs text-gray-400 p-4 text-center">Tarix bo'sh.</p>}
+          {history.length === 0 && <p className="text-xs text-gray-400 p-4 text-center">{tr('admin.smHistoryEmpty')}</p>}
           {history.map((h) => (
             <div key={h.id} className="p-3 rounded-2xl border border-gray-100 bg-gray-50/60">
               <div className="flex items-center justify-between gap-2">
-                <span className="font-bold text-xs text-gray-900 truncate">{h.subject || 'Mavzusiz'}</span>
+                <span className="font-bold text-xs text-gray-900 truncate">{h.subject || tr('admin.smNoSubject')}</span>
                 <span className="text-[10px] text-gray-400 shrink-0">{new Date(h.created_at).toLocaleDateString()}</span>
               </div>
               <p className="text-[11px] text-gray-600 line-clamp-2 mt-0.5">{h.body}</p>
               <div className="flex items-center gap-2 mt-1 text-[10px] text-gray-400">
                 <span className="px-1.5 py-0.5 rounded bg-white border border-gray-200">{h.mode}</span>
-                <span>{h.recipient_count} qabul qiluvchi</span>
+                <span>{tr('admin.smRecipients', { n: h.recipient_count })}</span>
                 {h.sender_name && <span>· {h.sender_name}</span>}
               </div>
             </div>

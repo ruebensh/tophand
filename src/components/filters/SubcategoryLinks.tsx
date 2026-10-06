@@ -3,6 +3,7 @@
 // va qolgan filtrlar shu subkategoriyaga moslashadi (attrSchema qayta yuklanadi).
 
 import { Category } from '../../types/index.ts';
+import { useI18n } from '../../i18n/IntlContext.tsx';
 
 export function SubcategoryLinks({
   parent,
@@ -15,13 +16,14 @@ export function SubcategoryLinks({
   activeId: string | undefined;
   onSelect: (id: string) => void;
 }) {
+  const { t, localized } = useI18n();
   if (!subs || subs.length === 0) return null;
   const isParentActive = !activeId || activeId === parent.id;
 
   return (
     <div className="mb-5">
       <span className="font-mono text-[11px] uppercase tracking-wider text-[#5E6C84] font-semibold mb-2 block">
-        Yo‘nalishlar
+        {t('home.directionsWord')}
       </span>
       <div className="flex flex-col gap-0.5">
         <button
@@ -31,7 +33,7 @@ export function SubcategoryLinks({
             isParentActive ? 'text-[#1673E6] font-semibold' : 'text-[#5E6C84] hover:text-[#1673E6]'
           }`}
         >
-          {parent.name_uz} (barchasi)
+          {localized(parent)} ({t('common.all')})
         </button>
         {subs.map((sub) => {
           const active = activeId === sub.id;
@@ -44,7 +46,7 @@ export function SubcategoryLinks({
                 active ? 'text-[#1673E6] font-semibold' : 'text-[#5E6C84] hover:text-[#1673E6]'
               }`}
             >
-              {sub.name_uz}
+              {localized(sub)}
             </button>
           );
         })}

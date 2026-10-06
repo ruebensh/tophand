@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useI18n } from '../../i18n/IntlContext.tsx';
 import {
   Briefcase,
   Wrench,
@@ -29,7 +30,8 @@ export const CategoryNav: React.FC<CategoryNavProps> = ({
   onNavigate,
   className = '',
 }) => {
-  const [categories, setCategories] = useState<{ id: string; name_uz: string; active_count?: number }[]>([]);
+  const { t, localized } = useI18n();
+  const [categories, setCategories] = useState<{ id: string; name_uz: string; name_ru?: string | null; name_en?: string | null; active_count?: number }[]>([]);
 
   useEffect(() => {
     fetch('/api/categories')
@@ -44,17 +46,17 @@ export const CategoryNav: React.FC<CategoryNavProps> = ({
 
   // Main Listing Types for filtered Home Page views
   const primaryTypeItems: NavItem[] = [
-    { id: 'all', label: 'Barchasi', route: '/' },
-    { id: 'SERVICE_OFFER', label: 'Xizmatlar', route: '/?type=SERVICE_OFFER' },
-    { id: 'JOB_OPENING', label: 'Ish e’lonlari', route: '/?type=JOB_OPENING' },
-    { id: 'SERVICE_REQUEST', label: 'Buyurtmalar', route: '/?type=SERVICE_REQUEST' },
-    { id: 'JOB_SEEKER', label: 'Rezyumelar', route: '/?type=JOB_SEEKER' },
+    { id: 'all', label: t('home.tabAll'), route: '/' },
+    { id: 'SERVICE_OFFER', label: t('home.tabServices'), route: '/?type=SERVICE_OFFER' },
+    { id: 'JOB_OPENING', label: t('home.tabJobs'), route: '/?type=JOB_OPENING' },
+    { id: 'SERVICE_REQUEST', label: t('home.tabOrders'), route: '/?type=SERVICE_REQUEST' },
+    { id: 'JOB_SEEKER', label: t('home.tabResumes'), route: '/?type=JOB_SEEKER' },
   ];
 
   // Specific domain category items
   const categoryItems: NavItem[] = categories.map((cat) => ({
     id: cat.id,
-    label: cat.name_uz,
+    label: localized(cat),
     route: `/?category=${cat.id}`,
     badge: cat.active_count && cat.active_count > 0 ? `${cat.active_count}` : undefined,
   }));
@@ -70,7 +72,7 @@ export const CategoryNav: React.FC<CategoryNavProps> = ({
 
   return (
     <nav
-      aria-label="Kategoriyalar bo‘yicha tezkor o‘tish"
+      aria-label={t('home.catNavAria')}
       className={`w-full border-t border-[#EBECF0] bg-[#F9FAFB]/95 backdrop-blur-xs px-3 py-2 overflow-x-auto no-scrollbar scroll-smooth flex items-center gap-1.5 ${className}`}
     >
       {allItems.map((item) => {

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { apiRequest, getCatalogs, getCategoryTree } from '../../lib/api.ts';
 import { AttributeEditModal } from './AttributeEditModal.tsx';
 import { CategoryChip } from '../common/CategoryIcon.tsx';
+import { useI18n } from '../../i18n/IntlContext.tsx';
 import type { Catalog, Category, CategoryAttribute } from '../../types/index.ts';
 import {
   Plus, Trash2, Pencil, ChevronUp, ChevronDown, Loader2, Filter,
@@ -15,8 +16,8 @@ const CAT_TONE: Record<string, string> = {
 };
 
 const TYPE_BADGE: Record<string, string> = {
-  select: 'Tanlash', multiselect: 'Ko‘p tanlash', range: 'Oraliq', number: 'Raqam',
-  year: 'Yil', text: 'Matn', bool: 'Ha/Yo‘q', color: 'Rang',
+  select: 'admin.fasTypeSelect', multiselect: 'admin.fasTypeMulti', range: 'admin.fasTypeRange', number: 'admin.fasTypeNumber',
+  year: 'admin.fasTypeYear', text: 'admin.fasTypeText', bool: 'admin.fasTypeBool', color: 'admin.fasTypeColor',
 };
 
 // Bir kategoriya (ota yoki sub) tanlanganda query qilinadigan obyekt
@@ -30,6 +31,7 @@ interface Node {
 }
 
 export const FiltersAdminSection: React.FC = () => {
+  const { t } = useI18n();
   const [catalogs, setCatalogs] = useState<Catalog[]>([]);
   const [tree, setTree] = useState<any[]>([]);
   const [loadingTree, setLoadingTree] = useState(true);
@@ -54,7 +56,7 @@ export const FiltersAdminSection: React.FC = () => {
       setTree(Array.isArray(t) ? t : []);
       if (cats?.length && !activeCatalog) setActiveCatalog(cats[0].id);
     } catch (err: any) {
-      alert(err.message || 'Katalog/kategoriyalar yuklanmadi');
+      alert(err.message || t('admin.fasCatalogFail'));
     } finally {
       setLoadingTree(false);
     }
@@ -71,7 +73,7 @@ export const FiltersAdminSection: React.FC = () => {
       );
       setAttrs(Array.isArray(data) ? data : []);
     } catch (err: any) {
-      alert(err.message || 'Filtrlar yuklanmadi');
+      alert(err.message || t('admin.fasFiltersFail'));
       setAttrs([]);
     } finally {
       setLoadingAttrs(false);
@@ -132,13 +134,13 @@ export const FiltersAdminSection: React.FC = () => {
   };
 
   const handleDelete = async (a: CategoryAttribute) => {
-    if (!confirm(`“${a.label}” filtri o‘chirilsinmi?`)) return;
+    if (!confirm(t('admin.fasDeleteConfirm', { label: a.label }))) return;
     setSaving(true);
     try {
       await apiRequest(`/api/admin/attributes/${encodeURIComponent(a.id)}`, { method: 'DELETE' });
       setAttrs((prev) => prev.filter((x) => x.id !== a.id));
     } catch (err: any) {
-      alert(err.message || 'O‘chirishda xatolik');
+      alert(err.message || t('admin.fasDeleteErr'));
     } finally {
       setSaving(false);
     }
@@ -166,7 +168,7 @@ export const FiltersAdminSection: React.FC = () => {
         method: 'POST', body: JSON.stringify({ order }),
       });
     } catch (err: any) {
-      alert(err.message || 'Tartib saqlanmadi');
+      alert(err.message || t('admin.fasOrderFail'));
       if (selected) loadAttrs(selected);
     } finally {
       setSaving(false);
@@ -180,9 +182,9 @@ export const FiltersAdminSection: React.FC = () => {
       <div className="bg-white rounded-3xl border border-gray-100 shadow-xs flex flex-col overflow-hidden lg:h-[calc(100vh-190px)]">
         <div className="p-4 border-b border-gray-100">
           <h3 className="font-extrabold text-sm text-gray-950 flex items-center gap-2">
-            <Filter className="w-4 h-4 text-blue-600" /> Kategoriya filtrlari
+            <Filter className="w-4 h-4 text-blue-600" /> {t('admin.fasTitle')}
           </h3>
-          <p className="text-[11px] text-gray-500 mt-0.5">Katalog → kategoriya → subkategoriya tanlang</p>
+          <p className="text-[11px] text-gray-500 mt-0.5">{t('admin.fasSubtitle')}</p>
         </div>
 
         {/* catalog chips */}
@@ -208,7 +210,7 @@ export const FiltersAdminSection: React.FC = () => {
             <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
             <input
               value={nodeSearch} onChange={(e) => setNodeSearch(e.target.value)}
-              placeholder="Kategoriya qidirish…"
+              placeholder={t('admin.fasSearchPh')}
               className="w-full pl-8 pr-2.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:outline-hidden focus:border-blue-600"
             />
           </div>
@@ -217,10 +219,10 @@ export const FiltersAdminSection: React.FC = () => {
         <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-0.5">
           {loadingTree ? (
             <div className="flex items-center justify-center py-10 text-gray-400 text-xs gap-2">
-              <Loader2 className="w-4 h-4 animate-spin" /> Yuklanmoqda…
+              <Loader2 className="w-4 h-4 animate-spin" /> {t('common.loading')}
             </div>
           ) : catalogNodes.length === 0 ? (
-            <p className="text-xs text-gray-400 text-center py-8">Kategoriya topilmadi.</p>
+            <p className="text-xs text-gray-400 text-center py-8">{t('admin.fasNoCat')}</p>
           ) : (
             catalogNodes.map((n) => {
               const active = selected?.id === n.id;
@@ -253,18 +255,18 @@ export const FiltersAdminSection: React.FC = () => {
                 <h3 className="font-extrabold text-sm text-gray-950 truncate">{selected.name_uz}</h3>
                 <p className="text-[11px] text-gray-500 truncate">
                   {selected.isSub && selected.parentName ? `${selected.parentName} › ` : ''}
-                  {attrs.length} ta filtr · {selected.id}
+                  {t('admin.fasCount', { n: attrs.length })} · {selected.id}
                 </p>
               </>
             ) : (
-              <h3 className="font-extrabold text-sm text-gray-400">Chapdan kategoriya tanlang</h3>
+              <h3 className="font-extrabold text-sm text-gray-400">{t('admin.fasPickLeft')}</h3>
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={() => selected && loadAttrs(selected)}
               disabled={!selected}
-              title="Qayta yuklash"
+              title={t('admin.fasReload')}
               className="p-2 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 cursor-pointer"
             >
               <RefreshCw className="w-4 h-4" />
@@ -274,7 +276,7 @@ export const FiltersAdminSection: React.FC = () => {
               disabled={!selected || saving}
               className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer disabled:opacity-40 transition-colors"
             >
-              <Plus className="w-3.5 h-3.5" /> Yangi filtr
+              <Plus className="w-3.5 h-3.5" /> {t('admin.fasNewFilter')}
             </button>
           </div>
         </div>
@@ -283,16 +285,16 @@ export const FiltersAdminSection: React.FC = () => {
           {!selected ? (
             <div className="h-full flex flex-col items-center justify-center text-center text-gray-400 gap-2 py-16">
               <ArrowLeftRight className="w-8 h-8" />
-              <p className="text-xs max-w-xs">Filtrlarni tahrirlash uchun chapdagi ro‘yxatdan katalog va kategoriya tanlang.</p>
+              <p className="text-xs max-w-xs">{t('admin.fasHelper')}</p>
             </div>
           ) : loadingAttrs ? (
             <div className="flex items-center justify-center py-16 text-gray-400 text-xs gap-2">
-              <Loader2 className="w-4 h-4 animate-spin" /> Filtrlar yuklanmoqda…
+              <Loader2 className="w-4 h-4 animate-spin" /> {t('admin.fasLoadingFilters')}
             </div>
           ) : attrs.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center text-gray-400 gap-2 py-16">
               <Filter className="w-8 h-8" />
-              <p className="text-xs">Bu kategoriyada hozircha filtr yo‘q. “Yangi filtr” tugmasi bilan qo‘shing.</p>
+              <p className="text-xs">{t('admin.fasEmpty')}</p>
             </div>
           ) : (
             <div className="space-y-5">
@@ -317,24 +319,24 @@ export const FiltersAdminSection: React.FC = () => {
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="font-bold text-sm text-gray-900 truncate">{a.label}</span>
                               <span className="text-[10px] font-mono text-gray-400 bg-white border border-gray-100 rounded px-1.5 py-0.5">{a.key}</span>
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600">{TYPE_BADGE[a.type] || a.type}</span>
-                              {a.required && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-600">Majburiy</span>}
-                              {a.is_popular && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 inline-flex items-center gap-0.5"><Star className="w-2.5 h-2.5" />Mashxur</span>}
-                              {!a.filterable && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">Filtrda yashirin</span>}
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600">{TYPE_BADGE[a.type] ? t(TYPE_BADGE[a.type]) : a.type}</span>
+                              {a.required && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-600">{t('common.required')}</span>}
+                              {a.is_popular && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 inline-flex items-center gap-0.5"><Star className="w-2.5 h-2.5" />{t('admin.fasPopular')}</span>}
+                              {!a.filterable && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">{t('admin.fasHidden')}</span>}
                             </div>
                             {(a.options?.length || a.unit) && (
                               <p className="text-[11px] text-gray-500 mt-1 truncate">
-                                {a.unit ? <span className="mr-2">Birligi: <b>{a.unit}</b></span> : null}
-                                {a.options?.length ? <>Variantlar ({a.options.length}): {a.options.slice(0, 8).join(', ')}{a.options.length > 8 ? '…' : ''}</> : null}
+                                {a.unit ? <span className="mr-2">{t('admin.fasUnit')} <b>{a.unit}</b></span> : null}
+                                {a.options?.length ? <>{t('admin.fasOptions', { n: a.options.length })} {a.options.slice(0, 8).join(', ')}{a.options.length > 8 ? '…' : ''}</> : null}
                               </p>
                             )}
                           </div>
 
                           <div className="flex items-center gap-1 shrink-0">
-                            <button onClick={() => openEdit(a)} className="p-2 rounded-xl text-gray-500 hover:text-blue-600 hover:bg-white cursor-pointer" title="Tahrirlash">
+                            <button onClick={() => openEdit(a)} className="p-2 rounded-xl text-gray-500 hover:text-blue-600 hover:bg-white cursor-pointer" title={t('common.edit')}>
                               <Pencil className="w-4 h-4" />
                             </button>
-                            <button onClick={() => handleDelete(a)} disabled={saving} className="p-2 rounded-xl text-gray-500 hover:text-rose-600 hover:bg-white cursor-pointer disabled:opacity-40" title="O‘chirish">
+                            <button onClick={() => handleDelete(a)} disabled={saving} className="p-2 rounded-xl text-gray-500 hover:text-rose-600 hover:bg-white cursor-pointer disabled:opacity-40" title={t('common.delete')}>
                               <Trash2 className="w-4 h-4" />
                             </button>
                           </div>

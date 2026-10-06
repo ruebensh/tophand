@@ -18,6 +18,7 @@ import { CategoryFilterPanel } from '../filters/CategoryFilterPanel.tsx';
 import { AdSlot } from '../ads/AdSlot.tsx';
 import { INLINE_AD_EVERY } from '../ads/adConfig.ts';
 import { useAds } from '../../context/AdsContext.tsx';
+import { useI18n } from '../../i18n/IntlContext.tsx';
 
 type Setter = React.Dispatch<React.SetStateAction<Record<string, string | number>>>;
 
@@ -73,6 +74,7 @@ export interface CategoryBrowserProps {
 function PriceRange({
   priceMin, priceMax, setPriceMin, setPriceMax,
 }: Pick<CategoryBrowserProps, 'priceMin' | 'priceMax' | 'setPriceMin' | 'setPriceMax'>) {
+  const { t } = useI18n();
   const [minStr, setMinStr] = useState(priceMin != null ? String(priceMin) : '');
   const [maxStr, setMaxStr] = useState(priceMax != null ? String(priceMax) : '');
   useEffect(() => { setMinStr(priceMin != null ? String(priceMin) : ''); }, [priceMin]);
@@ -84,12 +86,12 @@ function PriceRange({
   const digits = (v: string) => v.replace(/[^\d]/g, '');
   return (
     <div className="flex items-center gap-2">
-      <input type="text" inputMode="numeric" placeholder="Dan" value={minStr}
+      <input type="text" inputMode="numeric" placeholder={t('home.priceFromPh')} value={minStr}
         onChange={(e) => setMinStr(digits(e.target.value))} onBlur={apply}
         onKeyDown={(e) => { if (e.key === 'Enter') apply(); }}
         className="w-full bg-white border border-[#EBECF0] rounded-xl px-3 py-2 text-xs font-medium text-[#172B4D] focus:outline-hidden focus:border-[#1673E6] placeholder-gray-400" />
       <span className="text-gray-400 shrink-0">—</span>
-      <input type="text" inputMode="numeric" placeholder="Gacha" value={maxStr}
+      <input type="text" inputMode="numeric" placeholder={t('home.priceToPh')} value={maxStr}
         onChange={(e) => setMaxStr(digits(e.target.value))} onBlur={apply}
         onKeyDown={(e) => { if (e.key === 'Enter') apply(); }}
         className="w-full bg-white border border-[#EBECF0] rounded-xl px-3 py-2 text-xs font-medium text-[#172B4D] focus:outline-hidden focus:border-[#1673E6] placeholder-gray-400" />
@@ -98,6 +100,7 @@ function PriceRange({
 }
 
 export function CategoryBrowser(props: CategoryBrowserProps) {
+  const { t, localized, intlLocale } = useI18n();
   const { ads } = useAds();
   const inlineEvery = ads.inlineEvery > 0 ? ads.inlineEvery : INLINE_AD_EVERY;
   const {
@@ -110,7 +113,7 @@ export function CategoryBrowser(props: CategoryBrowserProps) {
     isMobileFiltersOpen, setIsMobileFiltersOpen,
   } = props;
 
-  const title = category?.name_uz || 'Kategoriya';
+  const title = category ? localized(category) : t('nav.categories');
 
   // Filtr paneli mazmuni — desktop ustun va mobil drawer ikkalasi ham shu blokdan foydalanadi.
   const panelBody = (
@@ -122,7 +125,7 @@ export function CategoryBrowser(props: CategoryBrowserProps) {
       {attrSchema.length > 0 && (
         <div className="mb-5">
           <span className="font-mono text-[11px] uppercase tracking-wider text-[#5E6C84] font-semibold mb-2.5 block">
-            Parametrlar
+            {t('home.paramsWord')}
           </span>
           <CategoryFilterPanel attrSchema={attrSchema} attrFilters={attrFilters} setAttrFilters={setAttrFilters} />
         </div>
@@ -130,7 +133,7 @@ export function CategoryBrowser(props: CategoryBrowserProps) {
 
       <div className="mb-5">
         <span className="font-mono text-[11px] uppercase tracking-wider text-[#5E6C84] font-semibold mb-2.5 block">
-          Hudud
+          {t('home.regionWord')}
         </span>
         <div className="space-y-2">
           <div className="relative">
@@ -139,8 +142,8 @@ export function CategoryBrowser(props: CategoryBrowserProps) {
               onChange={(e) => { setSelectedRegionId(e.target.value || undefined); setSelectedDistrictId(undefined); }}
               className="w-full bg-white border border-[#EBECF0] rounded-xl px-3 py-2 text-xs font-medium text-[#172B4D] focus:outline-hidden focus:border-[#1673E6] appearance-none pr-8 cursor-pointer"
             >
-              <option value="">Barcha viloyatlar</option>
-              {regions.map((r) => (<option key={r.id} value={r.id}>{r.name_uz}</option>))}
+              <option value="">{t('home.allRegions')}</option>
+              {regions.map((r) => (<option key={r.id} value={r.id}>{localized(r)}</option>))}
             </select>
             <MapPin className="w-3.5 h-3.5 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
@@ -151,8 +154,8 @@ export function CategoryBrowser(props: CategoryBrowserProps) {
                 onChange={(e) => setSelectedDistrictId(e.target.value || undefined)}
                 className="w-full bg-white border border-[#1673E6]/40 rounded-xl px-3 py-2 text-xs font-medium text-[#172B4D] focus:outline-hidden focus:border-[#1673E6] appearance-none pr-8 cursor-pointer"
               >
-                <option value="">Barcha tumanlar</option>
-                {districts.map((d) => (<option key={d.id} value={d.id}>{d.name_uz}</option>))}
+                <option value="">{t('home.allDistricts')}</option>
+                {districts.map((d) => (<option key={d.id} value={d.id}>{localized(d)}</option>))}
               </select>
               <ChevronDown className="w-3.5 h-3.5 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
@@ -162,7 +165,7 @@ export function CategoryBrowser(props: CategoryBrowserProps) {
 
       <div className="mb-5">
         <span className="font-mono text-[11px] uppercase tracking-wider text-[#5E6C84] font-semibold mb-2.5 block">
-          Narx oralig’i (UZS)
+          {t('home.priceRangeSection')}
         </span>
         <PriceRange {...props} />
       </div>
@@ -174,7 +177,7 @@ export function CategoryBrowser(props: CategoryBrowserProps) {
           className="w-full py-2.5 px-4 border border-rose-200 bg-rose-50/50 hover:bg-rose-100/60 rounded-xl text-xs font-semibold text-rose-700 transition-colors cursor-pointer flex items-center justify-center gap-1.5"
         >
           <X className="w-3.5 h-3.5" />
-          <span>Filtrlarni tozalash ({activeFiltersCount})</span>
+          <span>{t('home.clearFilters')} ({activeFiltersCount})</span>
         </button>
       )}
 
@@ -229,9 +232,9 @@ export function CategoryBrowser(props: CategoryBrowserProps) {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <SlidersHorizontal className="w-4 h-4 text-[#1673E6]" />
-                      <span className="font-bold text-sm text-[#172B4D]">Filtrlar</span>
+                      <span className="font-bold text-sm text-[#172B4D]">{t('home.filters')}</span>
                     </div>
-                    <button onClick={() => setIsMobileFiltersOpen(false)} className="p-2 -mr-2 rounded-lg text-gray-500 hover:bg-gray-100 cursor-pointer" aria-label="Yopish">
+                    <button onClick={() => setIsMobileFiltersOpen(false)} className="p-2 -mr-2 rounded-lg text-gray-500 hover:bg-gray-100 cursor-pointer" aria-label={t('common.close')}>
                       <X className="w-5 h-5" />
                     </button>
                   </div>
@@ -242,7 +245,7 @@ export function CategoryBrowser(props: CategoryBrowserProps) {
                     onClick={() => setIsMobileFiltersOpen(false)}
                     className="w-full py-2.5 rounded-xl bg-[#1673E6] text-white font-bold text-sm active:scale-[.99] shadow-sm"
                   >
-                    {totalCount.toLocaleString('ru-RU')} ta e’lonni ko‘rish
+                    {t('home.viewCountListings', { n: totalCount.toLocaleString(intlLocale) })}
                   </button>
                 </div>
               </aside>
@@ -259,10 +262,10 @@ export function CategoryBrowser(props: CategoryBrowserProps) {
               className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold text-[#5E6C84] hover:text-[#1673E6] cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span>Orqaga</span>
+              <span>{t('common.back')}</span>
             </button>
             <nav className="flex items-center gap-1 text-[11px] text-[#5E6C84] mb-1.5 flex-wrap">
-              <button onClick={() => onNavigate('/')} className="hover:text-[#1673E6] cursor-pointer">Bosh sahifa</button>
+              <button onClick={() => onNavigate('/')} className="hover:text-[#1673E6] cursor-pointer">{t('nav.home')}</button>
               <span>/</span>
               {catalogName && (<>
                 <button onClick={() => onNavigate(`/?catalog=${category?.catalog_id || ''}`)} className="hover:text-[#1673E6] cursor-pointer">{catalogName}</button>
@@ -275,7 +278,7 @@ export function CategoryBrowser(props: CategoryBrowserProps) {
               <div className="min-w-0">
                 <h1 className="text-xl sm:text-2xl font-extrabold text-[#172B4D] tracking-tight">{title}</h1>
                 <p className="text-xs sm:text-sm text-[#5E6C84] mt-1">
-                  {totalCount > 0 ? `${totalCount.toLocaleString('ru-RU')} ta taklif topildi` : 'E’lonlar qidirilmoqda...'}
+                  {totalCount > 0 ? t('home.foundCount', { n: totalCount.toLocaleString(intlLocale) }) : t('home.searching')}
                 </p>
               </div>
 
@@ -286,7 +289,7 @@ export function CategoryBrowser(props: CategoryBrowserProps) {
                   className="lg:hidden flex items-center gap-1.5 px-3 py-1.5 border border-[#EBECF0] rounded-xl text-xs font-semibold text-[#172B4D] hover:bg-gray-50"
                 >
                   <SlidersHorizontal className="w-4 h-4 text-[#1673E6]" />
-                  <span>Filtrlar</span>
+                  <span>{t('home.filters')}</span>
                   {activeFiltersCount > 0 && (
                     <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] flex items-center justify-center font-bold">{activeFiltersCount}</span>
                   )}
@@ -299,30 +302,30 @@ export function CategoryBrowser(props: CategoryBrowserProps) {
                     className={`hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
                       onlyFollowed ? 'bg-blue-600 text-white border-blue-600' : 'bg-white hover:bg-gray-50 text-[#172B4D] border-[#EBECF0]'
                     }`}
-                    title="Faqat obunalarim"
+                    title={t('home.onlyFollowedTitle')}
                   >
                     <Users className="h-3.5 w-3.5" />
-                    <span>Obunalarim</span>
+                    <span>{t('home.myFollows')}</span>
                   </button>
                 )}
 
                 <div className="inline-flex h-9 shrink-0 items-center gap-1 rounded-xl border border-[#EBECF0] bg-white pl-2.5 pr-1.5 sm:hidden">
                   <ArrowUpDown className="h-4 w-4 shrink-0 text-[#5E6C84]" />
                   <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="max-w-[110px] cursor-pointer appearance-none truncate bg-transparent text-xs font-medium text-[#172B4D] focus:outline-hidden">
-                    <option value="newest">Yangi</option>
-                    <option value="price_asc">Arzon</option>
-                    <option value="price_desc">Qimmat</option>
-                    <option value="rating_desc">Reyting</option>
+                    <option value="newest">{t('home.sortShortNewest')}</option>
+                    <option value="price_asc">{t('home.sortShortCheap')}</option>
+                    <option value="price_desc">{t('home.sortShortExpensive')}</option>
+                    <option value="rating_desc">{t('home.sortShortRating')}</option>
                   </select>
                 </div>
                 <select
                   value={sortBy} onChange={(e) => setSortBy(e.target.value)}
                   className="hidden cursor-pointer rounded-xl border border-[#EBECF0] bg-white px-3 py-1.5 text-xs font-medium text-[#172B4D] focus:outline-hidden focus:border-[#1673E6] sm:inline-block"
                 >
-                  <option value="newest">Eng yangilari</option>
-                  <option value="price_asc">Narx: pastdan yuqoriga</option>
-                  <option value="price_desc">Narx: yuqoridan pastga</option>
-                  <option value="rating_desc">Reytingi yuqorilar</option>
+                  <option value="newest">{t('home.sortNewest')}</option>
+                  <option value="price_asc">{t('home.sortPriceAsc')}</option>
+                  <option value="price_desc">{t('home.sortPriceDesc')}</option>
+                  <option value="rating_desc">{t('home.sortRating')}</option>
                 </select>
               </div>
             </div>
@@ -349,9 +352,9 @@ export function CategoryBrowser(props: CategoryBrowserProps) {
           ) : listings.length === 0 ? (
             <div className="bg-[#F9FAFB] rounded-3xl border border-[#EBECF0] p-12 text-center max-w-md mx-auto my-8">
               <div className="w-16 h-16 rounded-full bg-blue-50 text-[#1673E6] flex items-center justify-center text-2xl mx-auto mb-3">🔍</div>
-              <h3 className="font-bold text-base text-[#172B4D]">Mos e’lonlar topilmadi</h3>
-              <p className="text-xs text-[#5E6C84] mt-1 mb-5">Filtrlarni tozalab yoki qidiruv so‘zini o‘zgartirib ko‘ring.</p>
-              <button onClick={onReset} className="px-5 py-2.5 rounded-xl bg-[#1673E6] hover:bg-blue-700 text-white font-bold text-xs cursor-pointer">Barcha filtrlarni tozalash</button>
+              <h3 className="font-bold text-base text-[#172B4D]">{t('home.noResultsTitle')}</h3>
+              <p className="text-xs text-[#5E6C84] mt-1 mb-5">{t('home.noResultsBody')}</p>
+              <button onClick={onReset} className="px-5 py-2.5 rounded-xl bg-[#1673E6] hover:bg-blue-700 text-white font-bold text-xs cursor-pointer">{t('home.clearAllFilters')}</button>
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-4">
@@ -378,7 +381,7 @@ export function CategoryBrowser(props: CategoryBrowserProps) {
                 disabled={isLoadingMore}
                 className="bg-transparent border border-[#EBECF0] hover:border-[#1673E6] hover:bg-blue-50/20 px-8 py-3 rounded-xl text-[#1673E6] font-bold text-xs sm:text-sm transition-colors cursor-pointer flex items-center gap-2"
               >
-                <span>{isLoadingMore ? 'Yuklanmoqda...' : 'Yana yuklash'}</span>
+                <span>{isLoadingMore ? t('home.loading') : t('home.loadMore')}</span>
                 <ChevronDown className="w-4 h-4" />
               </button>
             </div>

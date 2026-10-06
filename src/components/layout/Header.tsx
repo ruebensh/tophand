@@ -24,6 +24,8 @@ import { TopHandLogo } from '../common/TopHandLogo.tsx';
 import { VerifiedBadge } from '../common/VerifiedBadge.tsx';
 import { CategoryChip } from '../common/CategoryIcon.tsx';
 import { NearbyMapModal } from '../modals/NearbyMapModal.tsx';
+import { useI18n } from '../../i18n/IntlContext.tsx';
+import { LocaleSwitcher } from '../common/LocaleSwitcher.tsx';
 
 interface HeaderProps {
   onNavigate: (route: string) => void;
@@ -66,6 +68,7 @@ const CatalogRailIcon: React.FC<{ catalogId: string; icon: string; tone: string;
 export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
   const { user, logout, openLoginModal } = useAuth();
   const { notifications, unreadCount, markAllAsRead, markAsRead } = useNotifications();
+  const { t, localized } = useI18n();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
@@ -87,7 +90,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
     if (qi < 0) return '';
     return new URLSearchParams(currentRoute.slice(qi + 1)).get('catalog') || '';
   }, [currentRoute]);
-  const activeCatalogName = catalogs.find((c) => c.id === activeCatalogId)?.name_uz || '';
+  const activeCatalogName = localized(catalogs.find((c) => c.id === activeCatalogId) || null);
 
   // Joriy kategoriya konteksti (URL ?category=) — bo'lsa, mega-menyu shu
   // kategoriyaning subkategoriyalarini ko'rsatadi va tugma "Subkategoriyalar" bo'ladi.
@@ -103,12 +106,12 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
     if (!activeCategoryId || megaTree.length === 0) return null;
     const direct = megaTree.find((p) => p.id === activeCategoryId);
     if (direct && direct.subs && direct.subs.length > 0) {
-      return { parentId: direct.id, parentName: direct.name_uz, subs: direct.subs };
+      return { parentId: direct.id, parentName: localized(direct), subs: direct.subs };
     }
     for (const p of megaTree) {
       const isChild = (p.subs || []).some((s) => s.id === activeCategoryId);
       if (isChild && p.subs && p.subs.length > 0) {
-        return { parentId: p.id, parentName: p.name_uz, subs: p.subs };
+        return { parentId: p.id, parentName: localized(p), subs: p.subs };
       }
     }
     return null;
@@ -210,7 +213,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
     const tree = (
       <div className={`${mobile ? 'columns-1' : 'columns-2 xl:columns-3'} gap-x-6`}>
         {megaTree.length === 0 && (
-          <p className="text-[11px] text-gray-400 italic">Kategoriyalar yuklanmoqda…</p>
+          <p className="text-[11px] text-gray-400 italic">{t('nav.loadingCategories')}</p>
         )}
         {megaTree.map((parent) => {
           const subs = parent.subs || [];
@@ -224,7 +227,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
                 onClick={() => go(`/?catalog=${linkCatalog}&category=${parent.id}`)}
                 className="text-[12px] font-bold text-[#172B4D] hover:text-[#1673E6] text-left cursor-pointer truncate"
               >
-                {parent.name_uz}
+                {localized(parent)}
               </button>
               {subs.length > 0 && (
                 <div className="mt-1 space-y-0.5">
@@ -235,7 +238,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
                       onClick={() => go(`/?catalog=${linkCatalog}&category=${sub.id}`)}
                       className="block w-full text-left text-[11px] text-[#5E6C84] hover:text-[#1673E6] cursor-pointer truncate"
                     >
-                      {sub.name_uz}
+                      {localized(sub)}
                     </button>
                   ))}
                   {hiddenCount > 0 && (
@@ -244,7 +247,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
                       onClick={() => toggleParent(parent.id)}
                       className="block w-full text-left text-[11px] font-semibold text-[#1673E6] hover:underline cursor-pointer mt-0.5"
                     >
-                      {isExpanded ? "Yig'ish ↑" : `Yana ${hiddenCount} ta ↓`}
+                      {isExpanded ? t('nav.collapse') : t('nav.moreCount', { n: hiddenCount })}
                     </button>
                   )}
                 </div>
@@ -265,14 +268,14 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
               onClick={() => go(`/?catalog=${linkCatalog}&category=${subContext.parentId}`)}
               className="truncate text-sm font-extrabold text-[#1673E6] hover:underline cursor-pointer"
             >
-              {subContext.parentName} — barchasi →
+              {subContext.parentName} {t('nav.viewAllSuffix')}
             </button>
             <button
               type="button"
               onClick={() => go(`/?catalog=${linkCatalog}`)}
               className="shrink-0 text-[11px] font-semibold text-[#5E6C84] hover:text-[#1673E6] cursor-pointer"
             >
-              ← Barcha kategoriyalar
+              {t('nav.allCategories')}
             </button>
           </div>
           <div className={`${mobile ? 'columns-1' : 'columns-2 xl:columns-3'} gap-x-6`}>
@@ -283,7 +286,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
                 onClick={() => go(`/?catalog=${linkCatalog}&category=${sub.id}`)}
                 className="break-inside-avoid mb-2 block w-full text-left text-[12px] font-medium text-[#172B4D] hover:text-[#1673E6] cursor-pointer truncate"
               >
-                {sub.name_uz}
+                {localized(sub)}
               </button>
             ))}
           </div>
@@ -301,14 +304,14 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
               onClick={() => go(`/?catalog=${activeCatalogId}`)}
               className="truncate text-sm font-extrabold text-[#1673E6] hover:underline cursor-pointer"
             >
-              {activeCatalogName || 'Katalog'} — barchasi →
+              {activeCatalogName || t('nav.catalog')} {t('nav.viewAllSuffix')}
             </button>
             <button
               type="button"
               onClick={() => go('/')}
               className="shrink-0 text-[11px] font-semibold text-[#5E6C84] hover:text-[#1673E6] cursor-pointer"
             >
-              ← Barcha kataloglar
+              {t('nav.allCatalogs')}
             </button>
           </div>
           {tree}
@@ -332,7 +335,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
               } ${megaCatalogId === cat.id ? 'bg-white text-[#1673E6] font-bold' : 'text-[#172B4D] hover:bg-white/70'}`}
             >
               <CatalogRailIcon catalogId={cat.id} icon={cat.icon} tone={CAT_TONE[cat.id]} mobile={mobile} />
-              <span className={mobile ? 'text-[9px] leading-tight line-clamp-2' : 'text-[13px] truncate'}>{cat.name_uz}</span>
+              <span className={mobile ? 'text-[9px] leading-tight line-clamp-2' : 'text-[13px] truncate'}>{localized(cat)}</span>
             </button>
           ))}
         </div>
@@ -344,7 +347,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
             onClick={() => go(`/?catalog=${megaCatalogId}`)}
             className="text-sm font-extrabold text-[#1673E6] hover:underline mb-3 cursor-pointer"
           >
-            {catalogs.find((c) => c.id === megaCatalogId)?.name_uz || ''} — barchasi →
+            {localized(catalogs.find((c) => c.id === megaCatalogId) || null)} {t('nav.viewAllSuffix')}
           </button>
           {tree}
         </div>
@@ -361,7 +364,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
           <div
             onClick={() => onNavigate('/')}
             className="flex items-center cursor-pointer shrink-0 select-none py-1 hover:opacity-90 transition-opacity"
-            title="tophand.uz — Asosiy sahifa"
+            title={t('nav.brandTitle')}
           >
             <TopHandLogo size="md" showText={true} imgClassName="w-8 h-8 sm:w-9 sm:h-9 object-contain bg-transparent" alt="tophand.uz" />
           </div>
@@ -371,9 +374,9 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
             <button
               type="button"
               onClick={() => onNavigate('/saved')}
-              aria-label="Yoqtirilgan e'lonlar"
+              aria-label={t('nav.savedListings')}
               className="hidden sm:flex p-2 text-[#5E6C84] hover:text-[#1673E6] hover:bg-gray-50 rounded-lg transition-colors cursor-pointer"
-              title="Yoqtirilganlar"
+              title={t('nav.saved')}
             >
               <Heart className="w-5 h-5" />
             </button>
@@ -382,7 +385,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
               <button
                 onClick={() => onNavigate('/chat')}
                 className={`p-2 rounded-lg transition-colors hidden sm:flex ${currentRoute === '/chat' ? 'bg-blue-50 text-blue-600' : 'text-[#5E6C84] hover:text-[#1673E6] hover:bg-gray-50'}`}
-                title="Suhbatlar"
+                title={t('nav.chat')}
               >
                 <MessageSquare className="w-5 h-5" />
               </button>
@@ -392,9 +395,9 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
               <button
                 type="button"
                 onClick={() => { if (!user) openLoginModal(); else setIsNotificationsOpen(!isNotificationsOpen); }}
-                aria-label="Bildirishnomalar"
+                aria-label={t('nav.notifications')}
                 className="relative p-2 text-[#5E6C84] hover:text-[#1673E6] hover:bg-gray-50 rounded-lg transition-colors focus:outline-hidden cursor-pointer"
-                title="Bildirishnomalar"
+                title={t('nav.notifications')}
               >
                 <Bell className="w-5 h-5" />
                 {unreadCount > 0 && (
@@ -407,16 +410,16 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
               {isNotificationsOpen && (
                 <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl border border-gray-100 shadow-xl overflow-hidden z-50">
                   <div className="p-3.5 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-                    <span className="font-bold text-sm text-gray-900">Bildirishnomalar</span>
+                    <span className="font-bold text-sm text-gray-900">{t('nav.notifications')}</span>
                     {unreadCount > 0 && (
                       <button onClick={markAllAsRead} className="text-xs text-[#1673E6] font-semibold hover:underline">
-                        Barchasini o‘qilgan qilish
+                        {t('nav.markAllRead')}
                       </button>
                     )}
                   </div>
                   <div className="max-h-80 overflow-y-auto divide-y divide-gray-50">
                     {notifications.length === 0 ? (
-                      <div className="p-6 text-center text-xs text-gray-400">Hozircha hech qanday bildirishnoma yo‘q</div>
+                      <div className="p-6 text-center text-xs text-gray-400">{t('nav.noNotifications')}</div>
                     ) : (
                       notifications.map((n) => (
                         <div
@@ -443,7 +446,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
               className="hidden md:flex th-accent-bg hover:opacity-90 active:opacity-90 text-white font-semibold text-sm px-4 sm:px-5 h-10 rounded-xl transition-opacity shadow-2xs cursor-pointer items-center gap-1.5"
             >
               <PlusCircle className="w-4 h-4 stroke-[2.5]" />
-              <span>E’lon joylash</span>
+              <span>{t('nav.createListing')}</span>
             </button>
 
             {user ? (
@@ -471,45 +474,45 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
                       <div className="mt-1 flex items-center gap-1">
                         <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-[10px] font-bold">{user.role}</span>
                         {isOfficialAccount(user) ? (
-                          <VerifiedBadge size="xs" showLabel={true} variant="official" labelText="Rasmiy" tooltip="TopHand rasmiy hisobi" />
+                          <VerifiedBadge size="xs" showLabel={true} variant="official" labelText={t('badge.official')} tooltip={t('badge.officialTooltip')} />
                         ) : isStaffAccount(user) ? (
-                          <VerifiedBadge size="xs" showLabel={true} variant="staff" labelText="Moderator" tooltip="TopHand moderatori (staff)" />
+                          <VerifiedBadge size="xs" showLabel={true} variant="staff" labelText={t('badge.staff')} tooltip={t('badge.staffTooltip')} />
                         ) : user.verification_status === 'VERIFIED' ? (
-                          <VerifiedBadge size="xs" showLabel={true} labelText="Tasdiqlangan" tooltip="TopHand tomonidan pasport orqali tasdiqlangan profil" />
+                          <VerifiedBadge size="xs" showLabel={true} labelText={t('badge.verified')} tooltip={t('badge.verifiedTooltip')} />
                         ) : null}
                       </div>
                     </div>
                     <div className="py-1">
                       <button onClick={() => { setIsUserMenuOpen(false); onNavigate(`/profile/${user.id}`); }} className="w-full px-3.5 py-2 text-xs text-left font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-                        <UserIcon className="w-4 h-4 text-gray-400" /> Mening profilim
+                        <UserIcon className="w-4 h-4 text-gray-400" /> {t('nav.myProfile')}
                       </button>
                       <button onClick={() => { setIsUserMenuOpen(false); onNavigate('/saved'); }} className="w-full px-3.5 py-2 text-xs text-left font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-                        <Heart className="w-4 h-4 text-gray-400" /> Yoqtirilgan e’lonlar
+                        <Heart className="w-4 h-4 text-gray-400" /> {t('nav.savedListings')}
                       </button>
                       <button onClick={() => { setIsUserMenuOpen(false); onNavigate('/chat'); }} className="w-full px-3.5 py-2 text-xs text-left font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-                        <MessageSquare className="w-4 h-4 text-gray-400" /> Suhbatlar
+                        <MessageSquare className="w-4 h-4 text-gray-400" /> {t('nav.chat')}
                       </button>
                       {walletVisible && (
                         <button onClick={() => { setIsUserMenuOpen(false); onNavigate('/wallet'); }} className="w-full px-3.5 py-2 text-xs text-left font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-                          <Wallet className="w-4 h-4 text-gray-400" /> Balans va to‘lovlar
+                          <Wallet className="w-4 h-4 text-gray-400" /> {t('nav.wallet')}
                         </button>
                       )}
                     </div>
                     {(user.role === 'MODERATOR' || user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') && (
                       <div className="py-1 bg-amber-50/50">
                         <button onClick={() => { setIsUserMenuOpen(false); onNavigate('/moderator'); }} className="w-full px-3.5 py-2 text-xs text-left font-semibold text-amber-800 hover:bg-amber-100/50 flex items-center gap-2">
-                          <Shield className="w-4 h-4 text-amber-600" /> Moderator paneli
+                          <Shield className="w-4 h-4 text-amber-600" /> {t('nav.moderatorPanel')}
                         </button>
                         {(user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') && (
                           <button onClick={() => { setIsUserMenuOpen(false); onNavigate('/admin'); }} className="w-full px-3.5 py-2 text-xs text-left font-semibold text-blue-800 hover:bg-blue-100/50 flex items-center gap-2">
-                            <Settings className="w-4 h-4 text-blue-600" /> Admin boshqaruvi
+                            <Settings className="w-4 h-4 text-blue-600" /> {t('nav.adminPanel')}
                           </button>
                         )}
                       </div>
                     )}
                     <div className="py-1">
                       <button onClick={() => { setIsUserMenuOpen(false); logout(); }} className="w-full px-3.5 py-2 text-xs text-left font-medium text-rose-600 hover:bg-rose-50 flex items-center gap-2">
-                        <LogOut className="w-4 h-4 text-rose-500" /> Chiqish
+                        <LogOut className="w-4 h-4 text-rose-500" /> {t('nav.logout')}
                       </button>
                     </div>
                   </div>
@@ -520,7 +523,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
                 onClick={() => openLoginModal()}
                 className="hidden sm:flex px-4 py-2 rounded-full border border-[#1673E6] text-[#1673E6] hover:bg-blue-50 text-xs sm:text-sm font-bold transition-colors"
               >
-                Kirish
+                {t('nav.login')}
               </button>
             )}
           </div>
@@ -540,7 +543,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
               className={`flex items-center gap-1.5 h-10 px-2.5 sm:px-4 rounded-xl font-semibold text-sm transition-colors cursor-pointer th-accent-bg text-white ${isMegaOpen ? 'opacity-90' : ''}`}
             >
               <LayoutGrid className="w-5 h-5 sm:w-4 sm:h-4 shrink-0" />
-              <span className="hidden sm:inline">{subContext ? 'Subkategoriyalar' : activeCatalogId ? 'Kategoriyalar' : 'Kataloglar'}</span>
+              <span className="hidden sm:inline">{subContext ? t('nav.subcategories') : activeCatalogId ? t('nav.categories') : t('nav.catalogs')}</span>
               <ChevronDown className={`hidden sm:block w-3.5 h-3.5 transition-transform ${isMegaOpen ? 'rotate-180' : ''}`} />
             </button>
 
@@ -558,7 +561,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
             onSubmit={handleSearchSubmit}
             className="flex items-center flex-1 min-w-0 h-10 bg-[#F2F3F5] hover:bg-[#EDEFF2] focus-within:bg-white border border-transparent focus-within:border-[#1673E6] focus-within:ring-2 focus-within:ring-blue-100 rounded-full px-3.5 transition-all"
           >
-            <button type="submit" className="shrink-0 text-[#5E6C84]" aria-label="Qidirish">
+            <button type="submit" className="shrink-0 text-[#5E6C84]" aria-label={t('nav.search')}>
               <Search className="w-5 h-5 sm:w-4 sm:h-4" />
             </button>
             <input
@@ -571,25 +574,28 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
                 // Real-time: sahifani qayta mount qilmasdan HomePage'ga uzatamiz.
                 window.dispatchEvent(new CustomEvent('tophand:search', { detail: v }));
               }}
-              placeholder="Kasb, usta yoki xizmat qidirish..."
+              placeholder={t('nav.searchPlaceholder')}
               className="w-full bg-transparent text-[15px] sm:text-sm text-[#172B4D] placeholder-[#5E6C84] focus:outline-hidden mx-2 min-w-0"
             />
             {searchQuery && (
-              <button type="button" onClick={() => { setSearchQuery(''); window.dispatchEvent(new CustomEvent('tophand:search', { detail: '' })); }} aria-label="Tozalash" className="shrink-0 text-[#5E6C84] p-1">
+              <button type="button" onClick={() => { setSearchQuery(''); window.dispatchEvent(new CustomEvent('tophand:search', { detail: '' })); }} aria-label={t('nav.clear')} className="shrink-0 text-[#5E6C84] p-1">
                 <X className="w-4 h-4" />
               </button>
             )}
           </form>
+
+          {/* Til almashtgich — 4 variant (uz / uz-kirill / ru / en) */}
+          <LocaleSwitcher />
 
           {/* Xarita tugmasi — qidiruvdan keyin (3-o'rin) */}
           <button
             type="button"
             onClick={() => setIsMapOpen(true)}
             className="flex items-center gap-1.5 h-10 w-10 sm:w-auto sm:px-3 justify-center shrink-0 rounded-xl text-sm font-semibold text-[#172B4D] hover:bg-gray-50 border border-[#EBECF0] transition-colors cursor-pointer"
-            title="Barcha e'lonlar xaritada"
+            title={t('nav.mapAllListings')}
           >
             <MapIcon className="w-5 h-5 sm:w-4 sm:h-4 th-accent-text shrink-0" />
-            <span className="hidden sm:inline">Xarita</span>
+            <span className="hidden sm:inline">{t('nav.map')}</span>
           </button>
           </div>
         </div>
@@ -600,12 +606,12 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
         <div ref={megaMobileRef} className="lg:hidden fixed inset-0 z-50 bg-white flex flex-col">
           <div className="flex items-center justify-between px-4 h-14 shrink-0 border-b border-gray-100">
             <span className="flex items-center gap-2 font-extrabold text-sm text-[#172B4D]">
-              <LayoutGrid className="w-4 h-4 th-accent-text" /> {subContext ? 'Barcha subkategoriyalar' : activeCatalogId ? 'Barcha kategoriyalar' : 'Barcha kataloglar'}
+              <LayoutGrid className="w-4 h-4 th-accent-text" /> {subContext ? t('nav.allSubcategories') : activeCatalogId ? t('nav.allCategories') : t('nav.allCatalogs')}
             </span>
             <button
               type="button"
               onClick={() => setIsMegaOpen(false)}
-              aria-label="Yopish"
+              aria-label={t('nav.close')}
               className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 cursor-pointer"
             >
               <X className="w-5 h-5" />

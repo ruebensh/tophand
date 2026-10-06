@@ -30,6 +30,7 @@ import { useGeo } from '../context/GeoContext.tsx';
 import { useAds } from '../context/AdsContext.tsx';
 import { AdSlot } from '../components/ads/AdSlot.tsx';
 import { INLINE_AD_EVERY } from '../components/ads/adConfig.ts';
+import { useI18n } from '../i18n/IntlContext.tsx';
 
 interface HomePageProps {
   initialType?: ListingType;
@@ -52,6 +53,7 @@ interface TileProps {
 const CatalogTile: React.FC<TileProps> = ({ label, icon, imgSrc, tone, index, count, onOpen }) => {
   // Faqat shaffof fonli PNG ishlatiladi — e'lon fotolari (cover_image) o'z foni bilan
   // kelgani uchun endi ishlatilmaydi; PNG bo'lmasa toza ikonka ko'rsatiladi.
+  const { t, intlLocale } = useI18n();
   const [imgFailed, setImgFailed] = useState(false);
   const src = imgFailed ? '' : imgSrc;
   return (
@@ -66,7 +68,7 @@ const CatalogTile: React.FC<TileProps> = ({ label, icon, imgSrc, tone, index, co
         {label}
         {typeof count === 'number' && count > 0 && (
           <span className="mt-0.5 block text-[9px] font-medium text-[#5E6C84] sm:mt-1 sm:text-[11px]">
-            {count.toLocaleString('ru-RU')} ta e’lon
+            {t('home.tileCount', { n: count.toLocaleString(intlLocale) })}
           </span>
         )}
       </span>
@@ -164,6 +166,7 @@ export const HomePage: React.FC<HomePageProps> = ({
   const { user } = useAuth();
   const { coords } = useGeo();
   const { ads } = useAds();
+  const { t, localized, intlLocale } = useI18n();
   const inlineEvery = ads.inlineEvery > 0 ? ads.inlineEvery : INLINE_AD_EVERY;
 
   // Read URL params initially
@@ -234,7 +237,7 @@ export const HomePage: React.FC<HomePageProps> = ({
 
   // Helper: format number with space separators: 9000000 → "9 000 000"
   const formatUZS = (n: number): string =>
-    n.toLocaleString('ru-RU'); // ru-RU uses space as thousands separator
+    n.toLocaleString(intlLocale); // locale bo‘yicha minglik ajratgich
 
   // Mobile filters toggle
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
@@ -281,8 +284,8 @@ export const HomePage: React.FC<HomePageProps> = ({
         }
       },
       (err) => {
-        if (err.code === 1) setLocationError("GPS ruxsati rad etildi");
-        else setLocationError("GPS signal topilmadi");
+        if (err.code === 1) setLocationError(t('home.gpsDenied'));
+        else setLocationError(t('home.gpsNoSignal'));
         setIsDetectingLocation(false);
       },
       { timeout: 10000, enableHighAccuracy: true }
@@ -536,14 +539,14 @@ export const HomePage: React.FC<HomePageProps> = ({
 
   // Helper title based on type and catalog
   const getSectionTitle = () => {
-    const catSuffix = selectedCategory ? ` — ${selectedCategory.name_uz}` : '';
-    if (selectedType === 'JOB_OPENING') return `Vakansiyalar va bo‘sh ish o‘rinlari${catSuffix}`;
-    if (selectedType === 'SERVICE_OFFER') return `Xizmatlar va mutaxassis ustalar${catSuffix}`;
-    if (selectedType === 'SERVICE_REQUEST') return `Buyurtmalar va mijoz talablari${catSuffix}`;
-    if (selectedType === 'JOB_SEEKER') return `Mutaxassislar va rezyumelar${catSuffix}`;
-    if (selectedCatalogId === 'services') return `Barcha xizmatlar katalogi${catSuffix}`;
-    if (selectedCatalogId === 'jobs') return `Barcha ish e’lonlari katalogi${catSuffix}`;
-    return `Barcha e’lonlar${catSuffix}`;
+    const catSuffix = selectedCategory ? ` — ${localized(selectedCategory)}` : '';
+    if (selectedType === 'JOB_OPENING') return `${t('home.titleJobs')}${catSuffix}`;
+    if (selectedType === 'SERVICE_OFFER') return `${t('home.titleServices')}${catSuffix}`;
+    if (selectedType === 'SERVICE_REQUEST') return `${t('home.titleOrders')}${catSuffix}`;
+    if (selectedType === 'JOB_SEEKER') return `${t('home.titleResumes')}${catSuffix}`;
+    if (selectedCatalogId === 'services') return `${t('home.titleAllServices')}${catSuffix}`;
+    if (selectedCatalogId === 'jobs') return `${t('home.titleAllJobs')}${catSuffix}`;
+    return `${t('home.titleAllListings')}${catSuffix}`;
   };
 
   const selectedCategory = categories.find((c) => c.id === selectedCategoryId);
@@ -572,11 +575,11 @@ export const HomePage: React.FC<HomePageProps> = ({
   }
 
   const MAIN_TABS: MainTab[] = [
-    { id: 'all', label: 'Barchasi', catalogId: undefined, type: undefined },
-    { id: 'services', label: 'Xizmatlar', catalogId: 'services', type: 'SERVICE_OFFER' },
-    { id: 'jobs', label: 'Ish e’lonlari', catalogId: 'jobs', type: 'JOB_OPENING' },
-    { id: 'orders', label: 'Buyurtmalar', catalogId: 'services', type: 'SERVICE_REQUEST' },
-    { id: 'resumes', label: 'Rezyumelar', catalogId: 'jobs', type: 'JOB_SEEKER' },
+    { id: 'all', label: t('home.tabAll'), catalogId: undefined, type: undefined },
+    { id: 'services', label: t('home.tabServices'), catalogId: 'services', type: 'SERVICE_OFFER' },
+    { id: 'jobs', label: t('home.tabJobs'), catalogId: 'jobs', type: 'JOB_OPENING' },
+    { id: 'orders', label: t('home.tabOrders'), catalogId: 'services', type: 'SERVICE_REQUEST' },
+    { id: 'resumes', label: t('home.tabResumes'), catalogId: 'jobs', type: 'JOB_SEEKER' },
   ];
 
   const isMainTabActive = (tab: MainTab) => {
@@ -638,14 +641,15 @@ export const HomePage: React.FC<HomePageProps> = ({
   const isCatalogLanding = Boolean(selectedCatalogId) && !otherFiltersActive;
   // Ikkalasi ham soddalashtirilgan (yon panel/sarlavhasiz) "toza" ko'rinish.
   const isClean = isLanding || isCatalogLanding;
-  const selectedCatalogName = catalogs.find((c) => c.id === selectedCatalogId)?.name_uz || '';
+  const selectedCatalog = catalogs.find((c) => c.id === selectedCatalogId);
+  const selectedCatalogName = selectedCatalog ? localized(selectedCatalog) : '';
 
   // Landing'dagi 4 ta asosiy kategoriya (turi) kartochkasi
   const TYPE_CARDS: { type: ListingType; catalogId: string; label: string; hint: string; Icon: any }[] = [
-    { type: 'SERVICE_OFFER', catalogId: 'services', label: 'Xizmatlar', hint: 'Ustalar va xizmat takliflari', Icon: Wrench },
-    { type: 'JOB_OPENING', catalogId: 'jobs', label: "Ish o'rinlari", hint: 'Vakansiyalar va bo\u2018sh ish o\u2018rinlari', Icon: Briefcase },
-    { type: 'SERVICE_REQUEST', catalogId: 'services', label: 'Buyurtmalar', hint: 'Xizmat qidirayotgan mijozlar', Icon: ClipboardList },
-    { type: 'JOB_SEEKER', catalogId: 'jobs', label: 'Rezumelar', hint: 'Mutaxassislar va rezyumelar', Icon: UserRound },
+    { type: 'SERVICE_OFFER', catalogId: 'services', label: t('home.tcServiceLabel'), hint: t('home.tcServiceHint'), Icon: Wrench },
+    { type: 'JOB_OPENING', catalogId: 'jobs', label: t('home.tcJobLabel'), hint: t('home.tcJobHint'), Icon: Briefcase },
+    { type: 'SERVICE_REQUEST', catalogId: 'services', label: t('home.tcOrderLabel'), hint: t('home.tcOrderHint'), Icon: ClipboardList },
+    { type: 'JOB_SEEKER', catalogId: 'jobs', label: t('home.tcResumeLabel'), hint: t('home.tcResumeHint'), Icon: UserRound },
   ];
 
   const openTypeCard = (catalogId: string, type: ListingType) => {
@@ -796,24 +800,24 @@ export const HomePage: React.FC<HomePageProps> = ({
             <button
               onClick={() => setOnlyFollowed(false)}
               className="p-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-500 hover:text-gray-900 transition-colors cursor-pointer"
-              title="Barcha e'lonlarga qaytish"
+              title={t('home.backAllTitle')}
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
             <div>
               <h1 className="text-xl sm:text-2xl font-extrabold text-gray-900 flex items-center gap-2 tracking-tight">
                 <Users className="w-5 h-5 text-blue-600" />
-                <span>Obunalarim</span>
+                <span>{t('home.myFollows')}</span>
               </h1>
               <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
-                Obuna bo'lgan mutaxassislar va tashkilotlarning e'lonlari
+                {t('home.followsSubtitle')}
               </p>
             </div>
           </div>
 
           {totalCount > 0 && (
             <span className="text-xs font-bold text-gray-700 bg-gray-100 px-3 py-1.5 rounded-full">
-              {totalCount.toLocaleString()} ta e'lon
+              {t('home.countListings', { n: totalCount.toLocaleString(intlLocale) })}
             </span>
           )}
         </div>
@@ -836,15 +840,15 @@ export const HomePage: React.FC<HomePageProps> = ({
             <div className="w-14 h-14 rounded-2xl bg-gray-50 text-gray-400 flex items-center justify-center mx-auto mb-3">
               <Users className="w-7 h-7" />
             </div>
-            <h3 className="font-bold text-base text-gray-900">Hozircha obunalar bo'yicha e'lon yo'q</h3>
+            <h3 className="font-bold text-base text-gray-900">{t('home.followEmptyTitle')}</h3>
             <p className="text-xs text-gray-500 mt-1.5 mb-6 leading-relaxed">
-              Siz obuna bo'lgan usta, mutaxassis yoki tashkilotlar e'lon joylaganda ular shu yerda jamlanadi.
+              {t('home.followEmptyBody')}
             </p>
             <button
               onClick={() => setOnlyFollowed(false)}
               className="px-6 py-2.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm transition-colors shadow-xs cursor-pointer inline-flex items-center gap-2"
             >
-              <span>E'lonlarni ko'rish</span>
+              <span>{t('home.viewListings')}</span>
             </button>
           </div>
         ) : (
@@ -874,7 +878,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                   disabled={isLoadingMore}
                   className="bg-transparent border border-[#EBECF0] hover:border-[#1673E6] hover:bg-blue-50/20 px-8 py-3 rounded-xl text-[#1673E6] font-bold text-xs sm:text-sm transition-colors cursor-pointer flex items-center gap-2"
                 >
-                  <span>{isLoadingMore ? 'Yuklanmoqda...' : 'Yana yuklash'}</span>
+                  <span>{isLoadingMore ? t('home.loading') : t('home.loadMore')}</span>
                   <ChevronDown className="w-4 h-4" />
                 </button>
               </div>
@@ -903,7 +907,7 @@ export const HomePage: React.FC<HomePageProps> = ({
           className="flex items-center gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 border border-[#EBECF0] rounded-xl text-xs font-semibold text-[#172B4D] hover:bg-gray-50 shadow-2xs"
         >
           <SlidersHorizontal className="w-4 h-4 text-[#1673E6]" />
-          <span>Filtrlar</span>
+          <span>{t('home.filters')}</span>
           {activeFiltersCount > 0 && (
             <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] flex items-center justify-center font-bold">
               {activeFiltersCount}
@@ -911,7 +915,7 @@ export const HomePage: React.FC<HomePageProps> = ({
           )}
         </button>
         <span className="text-xs text-[#5E6C84] font-medium">
-          {totalCount} ta e’lon topildi
+          {t('home.foundCount', { n: totalCount.toLocaleString(intlLocale) })}
         </span>
       </div>
 
@@ -938,12 +942,12 @@ export const HomePage: React.FC<HomePageProps> = ({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <SlidersHorizontal className="w-4 h-4 text-[#1673E6]" />
-              <span className="font-bold text-base text-[#172B4D]">Filtrlar</span>
+              <span className="font-bold text-base text-[#172B4D]">{t('home.filters')}</span>
             </div>
             <button
               onClick={() => setIsMobileFiltersOpen(false)}
               className="p-2 -mr-2 rounded-lg text-gray-500 hover:bg-gray-100 cursor-pointer"
-              aria-label="Yopish"
+              aria-label={t('common.close')}
             >
               <X className="w-5 h-5" />
             </button>
@@ -953,7 +957,7 @@ export const HomePage: React.FC<HomePageProps> = ({
         {/* Section: Hudud va Tuman (Region and District) */}
         <div className="mb-6">
           <span className="font-mono text-[11px] uppercase tracking-wider text-[#5E6C84] font-semibold mb-2.5 block">
-            Hudud va Tuman
+            {t('home.regionSection')}
           </span>
 
           {/* GPS detect + map button */}
@@ -966,14 +970,14 @@ export const HomePage: React.FC<HomePageProps> = ({
             {isDetectingLocation ? (
               <>
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                Aniqlanmoqda...
+                {t('home.detecting')}
               </>
             ) : (
               <>
                 <Navigation className="w-3.5 h-3.5" />
                 {detectedLocation
-                  ? `📍 ${detectedLocation.district_name} · Xaritada ko'rish`
-                  : 'GPS orqali aniqlash'}
+                  ? `📍 ${detectedLocation.district_name} · ${t('home.viewOnMap')}`
+                  : t('home.detectGps')}
               </>
             )}
           </button>
@@ -991,10 +995,10 @@ export const HomePage: React.FC<HomePageProps> = ({
                 }}
                 className="w-full bg-white border border-[#EBECF0] rounded-xl px-3 py-2 text-xs font-medium text-[#172B4D] focus:outline-hidden focus:border-[#1673E6] appearance-none pr-8 cursor-pointer"
               >
-                <option value="">Barcha viloyatlar</option>
+                <option value="">{t('home.allRegions')}</option>
                 {regions.map((r) => (
                   <option key={r.id} value={r.id}>
-                    {r.name_uz}
+                    {localized(r)}
                   </option>
                 ))}
               </select>
@@ -1008,10 +1012,10 @@ export const HomePage: React.FC<HomePageProps> = ({
                   onChange={(e) => setSelectedDistrictId(e.target.value || undefined)}
                   className="w-full bg-white border border-[#1673E6]/40 rounded-xl px-3 py-2 text-xs font-medium text-[#172B4D] focus:outline-hidden focus:border-[#1673E6] appearance-none pr-8 cursor-pointer"
                 >
-                  <option value="">Barcha tumanlar</option>
+                  <option value="">{t('home.allDistricts')}</option>
                   {districts.map((d) => (
                     <option key={d.id} value={d.id}>
-                      {d.name_uz}
+                      {localized(d)}
                     </option>
                   ))}
                 </select>
@@ -1026,10 +1030,10 @@ export const HomePage: React.FC<HomePageProps> = ({
         <div className="mb-6">
           <span className="font-mono text-[11px] uppercase tracking-wider text-[#5E6C84] font-semibold mb-2.5 block">
             {selectedCatalogId === 'jobs'
-              ? 'Ish sohalari'
+              ? t('home.jobFields')
               : selectedCatalogId === 'services'
-              ? 'Xizmat kategoriyalari'
-              : 'Barcha kategoriyalar'}
+              ? t('home.serviceCategories')
+              : t('home.allCategories')}
           </span>
           <CategoryFilter
             categories={categories}
@@ -1044,7 +1048,7 @@ export const HomePage: React.FC<HomePageProps> = ({
         {attrSchema.length > 0 && (
           <div className="mb-6">
             <span className="font-mono text-[11px] uppercase tracking-wider text-[#5E6C84] font-semibold mb-2.5 block">
-              Qo'shimcha parametrlar
+              {t('home.extraParams')}
             </span>
             <div className="flex flex-col gap-2.5">
               {attrSchema.map((attr) => {
@@ -1066,7 +1070,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                         onChange={(e) => setVal(e.target.value)}
                         className="w-full bg-white border border-[#EBECF0] rounded-xl px-3 py-2 text-xs font-medium text-[#172B4D] focus:outline-hidden focus:border-[#1673E6] cursor-pointer"
                       >
-                        <option value="">Belgilanmagan</option>
+                        <option value="">{t('home.notSet')}</option>
                         {(attr.options || []).map((o) => (
                           <option key={o} value={o}>{o}</option>
                         ))}
@@ -1083,9 +1087,9 @@ export const HomePage: React.FC<HomePageProps> = ({
                         onChange={(e) => setVal(e.target.value)}
                         className="w-full bg-white border border-[#EBECF0] rounded-xl px-3 py-2 text-xs font-medium text-[#172B4D] focus:outline-hidden focus:border-[#1673E6] cursor-pointer"
                       >
-                        <option value="">Farq qilmaydi</option>
-                        <option value="true">Ha</option>
-                        <option value="false">Yo'q</option>
+                        <option value="">{t('home.anyMatters')}</option>
+                        <option value="true">{t('common.yes')}</option>
+                        <option value="false">{t('common.no')}</option>
                       </select>
                     </label>
                   );
@@ -1099,7 +1103,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                         inputMode="numeric"
                         value={String(val)}
                         onChange={(e) => setVal(e.target.value.replace(/\D/g, ''))}
-                        placeholder="Masalan: 50000"
+                        placeholder={t('home.exampleNumber')}
                         className="w-full bg-white border border-[#EBECF0] rounded-xl px-3 py-2 text-xs font-medium text-[#172B4D] focus:outline-hidden focus:border-[#1673E6] placeholder-gray-400"
                       />
                     </label>
@@ -1126,13 +1130,13 @@ export const HomePage: React.FC<HomePageProps> = ({
         {/* Section: Ish formati (Work Format) */}
         <div className="mb-6">
           <span className="font-mono text-[11px] uppercase tracking-wider text-[#5E6C84] font-semibold mb-2.5 block">
-            Ish / Xizmat formati
+            {t('home.workFormatSection')}
           </span>
           <div className="flex flex-col gap-2">
             {[
-              { id: 'ONSITE', label: 'Joyida (Ofis / Xonadon)' },
-              { id: 'REMOTE', label: 'Masofaviy (Online)' },
-              { id: 'HYBRID', label: 'Gibrid (Aralash)' },
+              { id: 'ONSITE', label: t('detail.workFormats.ONSITE') },
+              { id: 'REMOTE', label: t('detail.workFormats.REMOTE') },
+              { id: 'HYBRID', label: t('detail.workFormats.HYBRID') },
             ].map((item) => {
               const isChecked = selectedWorkSchedule.includes(item.id);
               return (
@@ -1156,7 +1160,7 @@ export const HomePage: React.FC<HomePageProps> = ({
         {/* Section: Narx va Maosh (UZS) */}
         <div className="mb-6">
           <span className="font-mono text-[11px] uppercase tracking-wider text-[#5E6C84] font-semibold mb-2.5 block">
-            Narx / Maosh oralig'i (UZS)
+            {t('home.priceRangeSection')}
           </span>
 
           {/* Active price display */}
@@ -1164,7 +1168,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             <div className="mb-2 flex items-center justify-between bg-blue-50 border border-blue-200 rounded-xl px-3 py-1.5">
               <span className="text-[11px] font-bold text-blue-700">
                 {priceMin !== undefined ? formatUZS(priceMin) : '0'} —{' '}
-                {priceMax !== undefined ? formatUZS(priceMax) : '∞'} so'm
+                {priceMax !== undefined ? formatUZS(priceMax) : '∞'} {t('wallet.som')}
               </span>
               <button
                 type="button"
@@ -1175,7 +1179,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                   setPriceMaxInput('');
                 }}
                 className="text-blue-400 hover:text-blue-700"
-                title="Narx filtrini tozalash"
+                title={t('home.clearPriceFilter')}
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -1185,7 +1189,7 @@ export const HomePage: React.FC<HomePageProps> = ({
           {/* Quick price chips */}
           <div className="flex flex-wrap gap-1.5 mb-3">
             {[
-              { label: '< 500 ming', min: undefined, max: 500000 },
+              { label: t('home.chipUnder500k'), min: undefined, max: 500000 },
               { label: '500k – 2M', min: 500000, max: 2000000 },
               { label: '2M – 5M', min: 2000000, max: 5000000 },
               { label: '5M – 10M', min: 5000000, max: 10000000 },
@@ -1227,7 +1231,7 @@ export const HomePage: React.FC<HomePageProps> = ({
               <input
                 type="text"
                 inputMode="numeric"
-                placeholder="Dan"
+                placeholder={t('home.priceFromPh')}
                 value={priceMinInput}
                 onChange={(e) => {
                   // Allow only digits
@@ -1249,7 +1253,7 @@ export const HomePage: React.FC<HomePageProps> = ({
               />
               {priceMinInput && (
                 <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 pointer-events-none">
-                  {Number(priceMinInput).toLocaleString('ru-RU')}
+                  {Number(priceMinInput).toLocaleString(intlLocale)}
                 </span>
               )}
             </div>
@@ -1260,7 +1264,7 @@ export const HomePage: React.FC<HomePageProps> = ({
               <input
                 type="text"
                 inputMode="numeric"
-                placeholder="Gacha"
+                placeholder={t('home.priceToPh')}
                 value={priceMaxInput}
                 onChange={(e) => {
                   const raw = e.target.value.replace(/\D/g, '');
@@ -1281,13 +1285,13 @@ export const HomePage: React.FC<HomePageProps> = ({
               />
               {priceMaxInput && (
                 <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 pointer-events-none">
-                  {Number(priceMaxInput).toLocaleString('ru-RU')}
+                  {Number(priceMaxInput).toLocaleString(intlLocale)}
                 </span>
               )}
             </div>
           </div>
           <p className="text-[10px] text-gray-400 mt-1.5">
-            Raqam yozing yoki yuqoridagi tezkor tugmalardan birini bosing
+            {t('home.priceHint')}
           </p>
         </div>
 
@@ -1295,14 +1299,14 @@ export const HomePage: React.FC<HomePageProps> = ({
         {/* Section: Tajriba (Experience) */}
         <div className="mb-6">
           <span className="font-mono text-[11px] uppercase tracking-wider text-[#5E6C84] font-semibold mb-2.5 block">
-            Tajriba darajasi
+            {t('home.experienceSection')}
           </span>
           <div className="flex flex-col gap-2">
             {[
-              { id: 'none', label: 'Tajribasiz / Yangi boshlovchi' },
-              { id: '1-3', label: '1–3 yil' },
-              { id: '3-5', label: '3–5 yil' },
-              { id: '5+', label: '5+ yil' },
+              { id: 'none', label: t('detail.experience.none') },
+              { id: '1-3', label: t('detail.experience.1-3') },
+              { id: '3-5', label: t('detail.experience.3-5') },
+              { id: '5+', label: t('detail.experience.5+') },
             ].map((exp) => {
               const isChecked = selectedExperience.includes(exp.id);
               return (
@@ -1334,7 +1338,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             className="w-full py-2.5 px-4 border border-rose-200 bg-rose-50/50 hover:bg-rose-100/60 rounded-xl text-xs font-semibold text-rose-700 transition-colors cursor-pointer flex items-center justify-center gap-1.5"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            <span>Filtrlarni tozalash ({activeFiltersCount})</span>
+            <span>{t('home.clearFilters')} ({activeFiltersCount})</span>
           </button>
         )}
 
@@ -1349,7 +1353,7 @@ export const HomePage: React.FC<HomePageProps> = ({
               onClick={handleResetFilters}
               className="shrink-0 px-4 py-3 rounded-xl border border-[#EBECF0] text-[#5E6C84] font-semibold text-sm active:bg-gray-50"
             >
-              Tozalash
+              {t('common.clear')}
             </button>
           )}
           <button
@@ -1357,7 +1361,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             onClick={() => setIsMobileFiltersOpen(false)}
             className="flex-1 py-3 rounded-xl bg-[#1673E6] text-white font-bold text-sm active:scale-[.99] shadow-sm"
           >
-            {totalCount.toLocaleString()} ta e’lonni ko‘rish
+            {t('home.viewCountListings', { n: totalCount.toLocaleString(intlLocale) })}
           </button>
         </div>
       </aside>
@@ -1390,7 +1394,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                 type="text"
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
-                placeholder="Mutaxassislik, xizmat, kasb yoki kalit so‘z..."
+                placeholder={t('home.searchPh')}
                 className="w-full bg-transparent h-8 sm:h-10 text-xs sm:text-sm text-[#172B4D] placeholder-[#5E6C84] focus:outline-hidden min-w-0"
               />
               {keyword && (
@@ -1401,7 +1405,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                     fetchListings(1, false);
                   }}
                   className="p-1 text-gray-400 hover:text-gray-600 rounded-full cursor-pointer shrink-0"
-                  title="Tozalash"
+                  title={t('common.clear')}
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -1422,7 +1426,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                     className={`w-4 h-4 shrink-0 ${selectedCategory ? 'text-[#1673E6]' : 'text-[#5E6C84]'}`}
                   />
                   <span className="truncate max-w-[130px] sm:max-w-[140px]">
-                    {selectedCategory ? selectedCategory.name_uz : (selectedCatalogId === 'jobs' ? 'Ish sohalari' : 'Kategoriyalar')}
+                    {selectedCategory ? localized(selectedCategory) : (selectedCatalogId === 'jobs' ? t('home.jobFields') : t('home.categories'))}
                   </span>
                 </div>
                 <ChevronDown className="w-3.5 h-3.5 text-gray-400 shrink-0 ml-1" />
@@ -1434,7 +1438,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                   <div className="flex items-center justify-between pb-2 mb-2 border-b border-gray-100">
                     <span className="font-bold text-xs text-gray-900 flex items-center gap-1.5">
                       <Layers className="w-3.5 h-3.5 text-blue-600" />
-                      {selectedCatalogId === 'jobs' ? 'Ish e’lonlari katalogi' : 'Xizmatlar katalogi'}
+                      {selectedCatalogId === 'jobs' ? t('home.jobsCatalog') : t('home.servicesCatalog')}
                     </span>
                     <button
                       type="button"
@@ -1469,10 +1473,10 @@ export const HomePage: React.FC<HomePageProps> = ({
                 }}
                 className="w-full bg-transparent h-8 sm:h-10 text-xs sm:text-sm text-[#172B4D] focus:outline-hidden cursor-pointer min-w-0"
               >
-                <option value="">Barcha viloyatlar</option>
+                <option value="">{t('home.allRegions')}</option>
                 {regions.map((r) => (
                   <option key={r.id} value={r.id}>
-                    {r.name_uz}
+                    {localized(r)}
                   </option>
                 ))}
               </select>
@@ -1486,10 +1490,10 @@ export const HomePage: React.FC<HomePageProps> = ({
                   onChange={(e) => setSelectedDistrictId(e.target.value || undefined)}
                   className="w-full bg-transparent h-8 sm:h-10 text-xs sm:text-sm text-[#172B4D] focus:outline-hidden cursor-pointer min-w-0"
                 >
-                  <option value="">Barcha tumanlar</option>
+                  <option value="">{t('home.allDistricts')}</option>
                   {districts.map((d) => (
                     <option key={d.id} value={d.id}>
-                      {d.name_uz}
+                      {localized(d)}
                     </option>
                   ))}
                 </select>
@@ -1502,7 +1506,7 @@ export const HomePage: React.FC<HomePageProps> = ({
               className="w-full sm:w-auto bg-[#1673E6] hover:bg-blue-700 active:bg-blue-800 text-white font-semibold text-xs sm:text-sm px-6 py-2.5 rounded-xl transition-colors shrink-0 cursor-pointer flex items-center justify-center gap-2 shadow-xs"
             >
               <Search className="w-4 h-4" />
-              <span>Topish</span>
+              <span>{t('home.searchBtn')}</span>
             </button>
 
             {/* Xarita Button */}
@@ -1510,10 +1514,10 @@ export const HomePage: React.FC<HomePageProps> = ({
               type="button"
               onClick={handleDetectAndOpenMap}
               className="w-full sm:w-auto bg-blue-50 hover:bg-blue-100 text-[#1673E6] font-semibold text-xs sm:text-sm px-4 py-2.5 rounded-xl border border-blue-200 transition-colors shrink-0 cursor-pointer flex items-center justify-center gap-1.5"
-              title="Barcha e'lonlarni xaritada ko'rish"
+              title={t('home.mapTitle')}
             >
               <Navigation className="w-4 h-4 text-blue-600" />
-              <span>Xarita</span>
+              <span>{t('nav.map')}</span>
             </button>
           </form>
           )}
@@ -1531,14 +1535,14 @@ export const HomePage: React.FC<HomePageProps> = ({
               />
               <section className="mb-6">
                 <h2 className="text-base sm:text-lg font-extrabold text-[#172B4D] tracking-tight mb-3">
-                  Kategoriyalar bo‘yicha
+                  {t('home.byCategories')}
                 </h2>
                 <TileGrid
                   items={[...catalogs].sort((a, b) => (a.id === 'handmade' ? -1 : b.id === 'handmade' ? 1 : 0))}
                   getKey={(cat) => cat.id}
                   renderItem={(cat, i) => (
                     <CatalogTile
-                      label={cat.name_uz}
+                      label={localized(cat)}
                       icon={cat.icon}
                       imgSrc={`/catalogs/${cat.id}.png`}
                       tone={CAT_TONE[cat.id]}
@@ -1575,19 +1579,19 @@ export const HomePage: React.FC<HomePageProps> = ({
                     <div className="relative z-10 flex flex-col justify-between p-5 sm:p-7 w-full sm:w-1/2">
                       <button type="button" onClick={() => onNavigate('/')}
                         className="self-start text-[10px] font-bold tracking-widest uppercase text-cyan-500/60 hover:text-cyan-300 transition-colors cursor-pointer">
-                        ← Bosh sahifa
+                        {t('home.backHomeArrow')}
                       </button>
                       <div>
                         <div className="flex items-center gap-2 mb-3">
                           <div className="w-6 h-0.5 bg-cyan-400" />
-                          <span className="text-cyan-400 text-[10px] font-black uppercase tracking-[0.2em]">TopHand Avto</span>
+                          <span className="text-cyan-400 text-[10px] font-black uppercase tracking-[0.2em]">{t('home.heroAvtoKicker')}</span>
                         </div>
                         <h2 className="text-3xl sm:text-4xl font-black text-white leading-none mb-2"
                             style={{ letterSpacing: '-0.03em', textShadow: '0 0 40px rgba(34,211,238,0.3)' }}>
-                          TRANSPORT<br/><span className="text-cyan-400">BOZORI</span>
+                          {t('home.heroAvtoTitle1')}<br/><span className="text-cyan-400">{t('home.heroAvtoTitle2')}</span>
                         </h2>
                         <p className="text-slate-400 text-xs leading-relaxed mt-1">
-                          Avtomobillar · Mototsikllar<br/>Servislar · Ijaraga
+                          {t('home.heroAvtoSub1')}<br/>{t('home.heroAvtoSub2')}
                         </p>
                       </div>
                     </div>
@@ -1615,14 +1619,14 @@ export const HomePage: React.FC<HomePageProps> = ({
                     {/* Breadcrumb top */}
                     <div className="absolute top-4 left-4 z-10">
                       <button type="button" onClick={() => onNavigate('/')} className="flex items-center gap-1 text-[11px] text-white/60 hover:text-white transition-colors cursor-pointer font-medium">
-                        <span>Bosh sahifa</span><span className="opacity-40 mx-1">/</span><span className="text-amber-300 font-bold">Ko'chmas mulk</span>
+                        <span>{t('home.backHome')}</span><span className="opacity-40 mx-1">/</span><span className="text-amber-300 font-bold">{t('home.heroRealtyCrumb')}</span>
                       </button>
                     </div>
                     {/* Bottom */}
                     <div className="absolute bottom-0 left-0 right-0 z-10 p-5 sm:p-6">
-                      <h2 className="text-2xl sm:text-3xl font-black text-white mb-3" style={{ textShadow: '0 2px 20px rgba(0,0,0,0.9)' }}>Ko'chmas mulk bozori</h2>
+                      <h2 className="text-2xl sm:text-3xl font-black text-white mb-3" style={{ textShadow: '0 2px 20px rgba(0,0,0,0.9)' }}>{t('home.heroRealtyTitle')}</h2>
                       <div className="flex items-center gap-2 flex-wrap">
-                        {[{icon:'🏢',label:'Kvartiralar'},{icon:'🏡',label:'Uylar'},{icon:'🏗️',label:'Yer uchastkalar'},{icon:'🔑',label:'Ijara'}].map(s => (
+                        {[{icon:'🏢',label:t('home.heroRealty1')},{icon:'🏡',label:t('home.heroRealty2')},{icon:'🏗️',label:t('home.heroRealty3')},{icon:'🔑',label:t('home.heroRealty4')}].map(s => (
                           <div key={s.label} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(8px)', border: '1px solid rgba(251,191,36,0.2)' }}>
                             <span>{s.icon}</span>{s.label}
                           </div>
@@ -1645,10 +1649,10 @@ export const HomePage: React.FC<HomePageProps> = ({
                     {/* Markazda kontent */}
                     <div className="relative z-10 flex flex-col items-center justify-center text-center h-full min-h-[200px] sm:min-h-[280px] p-5">
                       <div className="text-4xl mb-2">⚙️</div>
-                      <div className="text-orange-500 text-[10px] font-black uppercase tracking-[0.3em] mb-2">Ehtiyot qismlar markazi</div>
-                      <h2 className="text-2xl sm:text-3xl font-black text-white mb-2" style={{ letterSpacing: '-0.02em' }}>Avto Zapchastlar</h2>
-                      <p className="text-orange-300/60 text-sm">Original · Analog · Shinalar · Aksessuarlar</p>
-                      <button type="button" onClick={() => onNavigate('/')} className="mt-4 text-[10px] font-bold tracking-widest text-orange-500/50 hover:text-orange-300 transition-colors cursor-pointer uppercase">← Bosh sahifa</button>
+                      <div className="text-orange-500 text-[10px] font-black uppercase tracking-[0.3em] mb-2">{t('home.heroPartsKicker')}</div>
+                      <h2 className="text-2xl sm:text-3xl font-black text-white mb-2" style={{ letterSpacing: '-0.02em' }}>{t('home.heroPartsTitle')}</h2>
+                      <p className="text-orange-300/60 text-sm">{t('home.heroPartsSub')}</p>
+                      <button type="button" onClick={() => onNavigate('/')} className="mt-4 text-[10px] font-bold tracking-widest text-orange-500/50 hover:text-orange-300 transition-colors cursor-pointer uppercase">{t('home.backHomeArrow')}</button>
                     </div>
                   </div>
                 )}
@@ -1681,16 +1685,16 @@ export const HomePage: React.FC<HomePageProps> = ({
                         <div className="relative z-10">
                           <div className="h-0.5 w-full rounded-full mb-4" style={{ background: 'linear-gradient(90deg, #c2410c, #b45309)' }} />
                           <div className="text-3xl mb-2">🧵</div>
-                          <div className="text-[9px] font-black uppercase tracking-[0.25em] mb-2" style={{ color: '#fdba74' }}>Qo'l san'ati</div>
-                          <h2 className="text-2xl sm:text-[26px] font-black leading-tight mb-3" style={{ color: '#fff5eb', fontStyle: 'italic', textShadow: '0 2px 12px rgba(0,0,0,0.6)' }}>Milliy<br/>Hunarmandchilik</h2>
+                          <div className="text-[9px] font-black uppercase tracking-[0.25em] mb-2" style={{ color: '#fdba74' }}>{t('home.heroCraftKicker')}</div>
+                          <h2 className="text-2xl sm:text-[26px] font-black leading-tight mb-3" style={{ color: '#fff5eb', fontStyle: 'italic', textShadow: '0 2px 12px rgba(0,0,0,0.6)' }}>{t('home.heroCraftTitle1')}<br/>{t('home.heroCraftTitle2')}</h2>
                           <div className="space-y-1.5">
-                            {["Zardo'zlik","Kulolchilik","To'qimachilik","Yog'och o'ymakorligi"].map(c => (
+                            {[t('home.heroCraft1'), t('home.heroCraft2'), t('home.heroCraft3'), t('home.heroCraft4')].map(c => (
                               <div key={c} className="flex items-center gap-1.5 text-xs" style={{ color: '#fed7aa' }}>
                                 <span style={{ color: '#fb923c' }}>✦</span>{c}
                               </div>
                             ))}
                           </div>
-                          <button type="button" onClick={() => onNavigate('/')} className="mt-5 self-start text-[10px] font-bold uppercase tracking-wider cursor-pointer" style={{ color: '#fb923c' }}>← Bosh sahifa</button>
+                          <button type="button" onClick={() => onNavigate('/')} className="mt-5 self-start text-[10px] font-bold uppercase tracking-wider cursor-pointer" style={{ color: '#fb923c' }}>{t('home.backHomeArrow')}</button>
                         </div>
                       </div>
                     </div>
@@ -1701,11 +1705,11 @@ export const HomePage: React.FC<HomePageProps> = ({
                 {!isAvto && !isUylar && !isParts && !isHandmade && (
                   <div className="mb-3 flex items-center justify-between gap-2">
                     <h2 className="text-base sm:text-lg font-extrabold text-[#172B4D] tracking-tight">
-                      {selectedCatalogName} — kategoriyalar
+                      {selectedCatalogName} — {t('home.categoriesWord')}
                     </h2>
                     <button type="button" onClick={() => onNavigate('/')}
                       className="shrink-0 text-xs font-semibold text-[#1673E6] hover:underline cursor-pointer">
-                      Bosh sahifa
+                      {t('home.backHome')}
                     </button>
                   </div>
                 )}
@@ -1716,7 +1720,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                   getKey={(c) => c.id}
                   renderItem={(c, i) => (
                     <CatalogTile
-                      label={c.name_uz}
+                      label={localized(c)}
                       icon={c.icon}
                       imgSrc={`/categories/${selectedCatalogId}/${c.id}.png`}
                       tone={
@@ -1767,8 +1771,8 @@ export const HomePage: React.FC<HomePageProps> = ({
               </h1>
               <p className="text-xs sm:text-sm text-[#5E6C84] mt-1">
                 {totalCount > 0
-                  ? `O‘zbekiston bo‘ylab ${totalCount.toLocaleString()} ta dolzarb taklif topildi`
-                  : 'E’lonlar qidirilmoqda...'}
+                  ? t('home.resultsCount', { n: totalCount.toLocaleString(intlLocale) })
+                  : t('home.searching')}
               </p>
             </div>
 
@@ -1783,10 +1787,10 @@ export const HomePage: React.FC<HomePageProps> = ({
                       ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
                       : 'bg-white hover:bg-gray-50 text-[#172B4D] border-[#EBECF0]'
                   }`}
-                  title="Faqat o‘zingiz obuna bo‘lgan mutaxassislar va tashkilotlar e’lonlarini ko‘rish"
+                  title={t('home.onlyFollowedTitle')}
                 >
                   <Users className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
-                  <span className="hidden sm:inline">Obunalarim</span>
+                  <span className="hidden sm:inline">{t('home.myFollows')}</span>
                   {onlyFollowed && <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />}
                 </button>
               )}
@@ -1798,28 +1802,28 @@ export const HomePage: React.FC<HomePageProps> = ({
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
                   className="max-w-[128px] cursor-pointer appearance-none truncate bg-transparent text-xs font-medium text-[#172B4D] focus:outline-hidden"
-                  aria-label="Saralash"
+                  aria-label={t('home.sortLabel')}
                 >
-                  <option value="newest">Eng yangilari</option>
-                  <option value="price_asc">Narx: pastdan yuqoriga</option>
-                  <option value="price_desc">Narx: yuqoridan pastga</option>
-                  <option value="rating_desc">Reytingi yuqorilar</option>
+                  <option value="newest">{t('home.sortNewest')}</option>
+                  <option value="price_asc">{t('home.sortPriceAsc')}</option>
+                  <option value="price_desc">{t('home.sortPriceDesc')}</option>
+                  <option value="rating_desc">{t('home.sortRating')}</option>
                 </select>
               </div>
 
               {/* Saralash — planshet/desktop’da matnli select */}
               <span className="hidden font-mono text-[11px] uppercase tracking-wider text-[#5E6C84] font-semibold sm:inline">
-                Saralash:
+                {t('home.sortLabel')}:
               </span>
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
                 className="hidden cursor-pointer rounded-xl border border-[#EBECF0] bg-white px-3 py-1.5 text-xs font-medium text-[#172B4D] focus:outline-hidden focus:border-[#1673E6] sm:inline-block"
               >
-                <option value="newest">Eng yangilari</option>
-                <option value="price_asc">Narx / Maosh: pastdan yuqoriga</option>
-                <option value="price_desc">Narx / Maosh: yuqoridan pastga</option>
-                <option value="rating_desc">Reytingi yuqorilar</option>
+                <option value="newest">{t('home.sortNewest')}</option>
+                <option value="price_asc">{t('home.sortPriceAsc')}</option>
+                <option value="price_desc">{t('home.sortPriceDesc')}</option>
+                <option value="rating_desc">{t('home.sortRating')}</option>
               </select>
             </div>
           </div>
@@ -1854,15 +1858,15 @@ export const HomePage: React.FC<HomePageProps> = ({
               <div className="w-16 h-16 rounded-full bg-blue-50 text-[#1673E6] flex items-center justify-center text-2xl mx-auto mb-3">
                 🔍
               </div>
-              <h3 className="font-bold text-base text-[#172B4D]">Mos e’lonlar topilmadi</h3>
+              <h3 className="font-bold text-base text-[#172B4D]">{t('home.noResultsTitle')}</h3>
               <p className="text-xs text-[#5E6C84] mt-1 mb-5">
-                Tanlangan filtrlar bo‘yicha e’lon mavjud emas. Filtrlarni tozalab yoki qidiruv so‘zini o‘zgartirib ko‘ring.
+                {t('home.noResultsBody')}
               </p>
               <button
                 onClick={handleResetFilters}
                 className="px-5 py-2.5 rounded-xl bg-[#1673E6] hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
               >
-                Barcha filtrlarni tozalash
+                {t('home.clearAllFilters')}
               </button>
             </div>
           ) : (
@@ -1895,7 +1899,7 @@ export const HomePage: React.FC<HomePageProps> = ({
               disabled={isLoadingMore}
               className="bg-transparent border border-[#EBECF0] hover:border-[#1673E6] hover:bg-blue-50/20 px-8 py-3 rounded-xl text-[#1673E6] font-bold text-xs sm:text-sm transition-colors cursor-pointer flex items-center gap-2"
             >
-              <span>{isLoadingMore ? 'Yuklanmoqda...' : 'Yana yuklash'}</span>
+              <span>{isLoadingMore ? t('home.loading') : t('home.loadMore')}</span>
               <ChevronDown className="w-4 h-4" />
             </button>
           </div>

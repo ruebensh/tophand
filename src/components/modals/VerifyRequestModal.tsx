@@ -3,6 +3,7 @@ import { ShieldCheck, Upload, Loader2, Check, Image as ImageIcon, Lock } from 'l
 import { Modal } from '../common/Modal.tsx';
 import { apiRequest, uploadImageFile } from '../../lib/api.ts';
 import { useAuth } from '../../context/AuthContext.tsx';
+import { useI18n } from '../../i18n/IntlContext.tsx';
 
 interface VerifyRequestModalProps {
   isOpen: boolean;
@@ -15,6 +16,7 @@ interface VerifyRequestModalProps {
  * Mobil qurilmalarda Modal avtomatik pastdan ochiluvchi (bottom-sheet) ko'rinishda bo'ladi.
  */
 export const VerifyRequestModal: React.FC<VerifyRequestModalProps> = ({ isOpen, onClose, onSubmitted }) => {
+  const { t } = useI18n();
   const { user, refreshUser } = useAuth();
 
   const [fullName, setFullName] = useState('');
@@ -57,7 +59,7 @@ export const VerifyRequestModal: React.FC<VerifyRequestModalProps> = ({ isOpen, 
       const url = await uploadImageFile(file, 'verifications');
       setPhotoUrl(url);
     } catch (err: any) {
-      setError(err.message || 'Rasm yuklashda xatolik');
+      setError(err.message || t('profile.errPhoto'));
     } finally {
       setIsUploading(false);
       e.target.value = '';
@@ -69,19 +71,19 @@ export const VerifyRequestModal: React.FC<VerifyRequestModalProps> = ({ isOpen, 
     setError('');
 
     if (fullName.trim().split(/\s+/).length < 2) {
-      setError("To'liq ism familiya kamida 2 ta so'zdan iborat bo'lsin");
+      setError(t('profile.vrErrName'));
       return;
     }
     if (!/^\d{14}$/.test(pinfl.trim())) {
-      setError('PINFL 14 ta raqamdan iborat bo’lishi kerak');
+      setError(t('profile.vrErrPinfl'));
       return;
     }
     if (!series.trim() || !number.trim()) {
-      setError('Pasport seriyasi va raqamini to’ldiring');
+      setError(t('profile.vrErrPassport'));
       return;
     }
     if (!photoUrl) {
-      setError('Pasport yuzasi yoki selfie rasmini yuklang');
+      setError(t('profile.vrErrPhoto'));
       return;
     }
 
@@ -104,7 +106,7 @@ export const VerifyRequestModal: React.FC<VerifyRequestModalProps> = ({ isOpen, 
       setIsSuccess(true);
       onSubmitted?.();
     } catch (err: any) {
-      setError(err.message || 'Arizani yuborishda xatolik yuz berdi');
+      setError(err.message || t('profile.vrErrSubmit'));
     } finally {
       setIsSubmitting(false);
     }
@@ -115,22 +117,22 @@ export const VerifyRequestModal: React.FC<VerifyRequestModalProps> = ({ isOpen, 
   const labelCls = 'block text-xs font-semibold text-gray-700 mb-1.5';
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={isSuccess ? undefined : 'Tasdiq nishonini olish'} size="md">
+    <Modal isOpen={isOpen} onClose={onClose} title={isSuccess ? undefined : t('profile.vUnverifiedTitle')} size="md">
       {isSuccess ? (
         <div className="py-6 text-center">
           <div className="mx-auto w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mb-4">
             <Check className="w-8 h-8" strokeWidth={3} />
           </div>
-          <p className="font-bold text-base text-gray-950">Arizangiz yuborildi</p>
+          <p className="font-bold text-base text-gray-950">{t('profile.vrSubmittedTitle')}</p>
           <p className="text-sm text-gray-500 mt-2 max-w-xs mx-auto leading-relaxed">
-            Ma’muriyat (moderatorlar) pasport ma’lumotlaringizni tekshirib, tez orada natija haqida xabar beradi.
+            {t('profile.vrSubmittedBody')}
           </p>
           <button
             type="button"
             onClick={onClose}
             className="mt-6 h-11 px-8 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-bold transition-colors cursor-pointer"
           >
-            Yopish
+            {t('common.close')}
           </button>
         </div>
       ) : (
@@ -138,8 +140,7 @@ export const VerifyRequestModal: React.FC<VerifyRequestModalProps> = ({ isOpen, 
           <div className="flex items-start gap-3 p-3 rounded-xl bg-blue-50/60 border border-blue-100">
             <ShieldCheck className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
             <p className="text-xs text-blue-900 leading-relaxed">
-              Tasdiq nishoni profilingiz va e’lonlaringizga ishonchni oshiradi. Ma’lumotlaringiz faqat tekshiruv uchun
-              ishlatiladi va boshqa foydalanuvchilarga ko’rsatilmaydi.
+              {t('profile.vrIntro')}
             </p>
           </div>
 
@@ -148,12 +149,12 @@ export const VerifyRequestModal: React.FC<VerifyRequestModalProps> = ({ isOpen, 
           )}
 
           <div>
-            <label className={labelCls}>To’liq ism familiya (pasportdagi kabi)</label>
+            <label className={labelCls}>{t('profile.vrNameLabel')}</label>
             <input
               type="text"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
-              placeholder="Masalan: Aliyev Valiyev Valiy"
+              placeholder={t('profile.vrNamePh')}
               className={inputCls}
               autoComplete="name"
             />
@@ -161,7 +162,7 @@ export const VerifyRequestModal: React.FC<VerifyRequestModalProps> = ({ isOpen, 
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className={labelCls}>Tavallud sanasi</label>
+              <label className={labelCls}>{t('profile.vrBirthLabel')}</label>
               <input
                 type="date"
                 value={birthDate}
@@ -170,7 +171,7 @@ export const VerifyRequestModal: React.FC<VerifyRequestModalProps> = ({ isOpen, 
               />
             </div>
             <div>
-              <label className={labelCls}>PINFL (14 raqam)</label>
+              <label className={labelCls}>{t('profile.vrPinflLabel')}</label>
               <input
                 type="text"
                 inputMode="numeric"
@@ -185,7 +186,7 @@ export const VerifyRequestModal: React.FC<VerifyRequestModalProps> = ({ isOpen, 
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className={labelCls}>Pasport seriyasi</label>
+              <label className={labelCls}>{t('profile.vrSeriesLabel')}</label>
               <input
                 type="text"
                 maxLength={4}
@@ -196,7 +197,7 @@ export const VerifyRequestModal: React.FC<VerifyRequestModalProps> = ({ isOpen, 
               />
             </div>
             <div>
-              <label className={labelCls}>Pasport raqami</label>
+              <label className={labelCls}>{t('profile.vrNumberLabel')}</label>
               <input
                 type="text"
                 inputMode="numeric"
@@ -212,7 +213,7 @@ export const VerifyRequestModal: React.FC<VerifyRequestModalProps> = ({ isOpen, 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>
-                Kim tomonidan berilgan <span className="text-gray-400 font-normal">(ixtiyoriy)</span>
+                {t('profile.vrIssuedByLabel')} <span className="text-gray-400 font-normal">({t('common.optional')})</span>
               </label>
               <input
                 type="text"
@@ -224,7 +225,7 @@ export const VerifyRequestModal: React.FC<VerifyRequestModalProps> = ({ isOpen, 
             </div>
             <div>
               <label className={labelCls}>
-                Berilgan sana <span className="text-gray-400 font-normal">(ixtiyoriy)</span>
+                {t('profile.vrIssuedDateLabel')} <span className="text-gray-400 font-normal">({t('common.optional')})</span>
               </label>
               <input
                 type="date"
@@ -237,16 +238,16 @@ export const VerifyRequestModal: React.FC<VerifyRequestModalProps> = ({ isOpen, 
 
           {/* Rasm yuklash */}
           <div>
-            <label className={labelCls}>Pasport yuzasi yoki selfie rasmi</label>
+            <label className={labelCls}>{t('profile.vrPhotoLabel')}</label>
             {photoUrl ? (
               <div className="relative rounded-xl overflow-hidden border border-gray-200 bg-gray-50">
-                <img src={photoUrl} alt="Yuklangan hujjat" className="w-full max-h-56 object-contain" />
+                <img src={photoUrl} alt={t('profile.vrPhotoAlt')} className="w-full max-h-56 object-contain" />
                 <button
                   type="button"
                   onClick={() => setPhotoUrl('')}
                   className="absolute top-2 right-2 h-8 px-3 rounded-lg bg-white/90 text-rose-600 text-xs font-bold shadow-sm active:bg-white"
                 >
-                  O‘chirish
+                  {t('common.delete')}
                 </button>
               </div>
             ) : (
@@ -259,7 +260,7 @@ export const VerifyRequestModal: React.FC<VerifyRequestModalProps> = ({ isOpen, 
                       <ImageIcon className="w-5 h-5" />
                       <Upload className="w-5 h-5" />
                     </div>
-                    <span className="text-xs font-semibold">Rasm tanlash yoki yuklash</span>
+                    <span className="text-xs font-semibold">{t('profile.vrChoosePhoto')}</span>
                   </>
                 )}
                 <input type="file" accept="image/*" className="hidden" onChange={handlePhoto} disabled={isUploading} />
@@ -269,7 +270,7 @@ export const VerifyRequestModal: React.FC<VerifyRequestModalProps> = ({ isOpen, 
 
           <div className="flex items-center gap-1.5 text-[11px] text-gray-400 pt-1">
             <Lock className="w-3.5 h-3.5" />
-            <span>Ma’lumotlar shifrlangan holda saqlanadi va faqat ma’muriyat ko’radi.</span>
+            <span>{t('profile.vrEncryptionNote')}</span>
           </div>
 
           <button
@@ -280,10 +281,10 @@ export const VerifyRequestModal: React.FC<VerifyRequestModalProps> = ({ isOpen, 
             {isSubmitting ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Yuborilmoqda...</span>
+                <span>{t('common.sending')}</span>
               </>
             ) : (
-              <span>Arizani yuborish</span>
+              <span>{t('profile.vrSubmitBtn')}</span>
             )}
           </button>
         </form>

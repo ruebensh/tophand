@@ -1,17 +1,19 @@
 import React, { useState } from 'react';
 import { exportEntityToExcel, importEntityFromExcel, type ImportReport } from '../../lib/api.ts';
 import { Download, Upload, Loader2, Table2, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { useI18n } from '../../i18n/IntlContext.tsx';
 
-const ENTITIES: { id: string; label: string; importable: boolean }[] = [
-  { id: 'users', label: 'Foydalanuvchilar', importable: true },
-  { id: 'listings', label: "E'lonlar", importable: true },
-  { id: 'organizations', label: 'Tashkilotlar', importable: true },
-  { id: 'categories', label: 'Kategoriyalar', importable: true },
-  { id: 'regions', label: 'Viloyatlar', importable: true },
-  { id: 'districts', label: 'Tumanlar', importable: true },
+const ENTITIES: { id: string; labelKey: string; importable: boolean }[] = [
+  { id: 'users', labelKey: 'admin.entUsers', importable: true },
+  { id: 'listings', labelKey: 'admin.entListings', importable: true },
+  { id: 'organizations', labelKey: 'admin.entOrgs', importable: true },
+  { id: 'categories', labelKey: 'admin.entCategories', importable: true },
+  { id: 'regions', labelKey: 'admin.entRegions', importable: true },
+  { id: 'districts', labelKey: 'admin.entDistricts', importable: true },
 ];
 
 export const DataIOSection: React.FC = () => {
+  const { t } = useI18n();
   const [entity, setEntity] = useState('users');
   const [busy, setBusy] = useState<'export' | 'import' | null>(null);
   const [report, setReport] = useState<ImportReport | null>(null);
@@ -24,7 +26,7 @@ export const DataIOSection: React.FC = () => {
     try {
       await exportEntityToExcel(entity);
     } catch (err: any) {
-      setError(err.message || 'Eksportda xatolik');
+      setError(err.message || t('admin.dioExportErr'));
     } finally {
       setBusy(null);
     }
@@ -38,7 +40,7 @@ export const DataIOSection: React.FC = () => {
       const r = await importEntityFromExcel(entity, file);
       setReport(r);
     } catch (err: any) {
-      setError(err.message || 'Importda xatolik');
+      setError(err.message || t('admin.dioImportErr'));
     } finally {
       setBusy(null);
       if (fileRef.current) fileRef.current.value = '';
@@ -49,13 +51,13 @@ export const DataIOSection: React.FC = () => {
     <div className="bg-white rounded-3xl border border-gray-100 shadow-xs overflow-hidden">
       <div className="p-4 border-b border-gray-100 flex items-center gap-2">
         <Table2 className="w-5 h-5 text-blue-600" />
-        <h3 className="font-black text-sm text-gray-900">Excel import / eksport</h3>
+        <h3 className="font-black text-sm text-gray-900">{t('admin.dioTitle')}</h3>
       </div>
 
       <div className="p-4 sm:p-6 space-y-5">
         {/* Entity picker */}
         <div>
-          <label className="block text-xs font-bold text-gray-800 mb-1.5">Jadval</label>
+          <label className="block text-xs font-bold text-gray-800 mb-1.5">{t('admin.dioTableLabel')}</label>
           <select
             value={entity}
             onChange={(e) => setEntity(e.target.value)}
@@ -63,7 +65,7 @@ export const DataIOSection: React.FC = () => {
           >
             {ENTITIES.map((en) => (
               <option key={en.id} value={en.id}>
-                {en.label}
+                {t(en.labelKey)}
               </option>
             ))}
           </select>
@@ -78,7 +80,7 @@ export const DataIOSection: React.FC = () => {
             className="px-5 py-2.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
           >
             {busy === 'export' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-            <span>.xlsx yuklab olish</span>
+            <span>{t('admin.dioDownload')}</span>
           </button>
 
           <button
@@ -88,7 +90,7 @@ export const DataIOSection: React.FC = () => {
             className="px-5 py-2.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
           >
             {busy === 'import' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-            <span>.xlsx import qilish</span>
+            <span>{t('admin.dioImport')}</span>
           </button>
           <input
             ref={fileRef}
@@ -103,8 +105,7 @@ export const DataIOSection: React.FC = () => {
         </div>
 
         <p className="text-[11px] text-gray-400 leading-relaxed">
-          Import: birinchi varaqning birinchi qatorida ustun nomlari (masalan <code>id</code>,{' '}
-          <code>name</code>) bo‘lishi kerak. <code>id</code> asosida yangilanadi yoki qo‘shiladi (upsert).
+          {t('admin.dioHint')}
         </p>
 
         {error && (
@@ -116,21 +117,21 @@ export const DataIOSection: React.FC = () => {
         {report && (
           <div className="p-4 rounded-2xl bg-gray-50 border border-gray-100 text-xs space-y-2">
             <div className="flex items-center gap-2 font-bold text-gray-800">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Import yakunlandi
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" /> {t('admin.dioReportDone')}
             </div>
             <div className="flex flex-wrap gap-4 text-gray-600">
-              <span>Jami: <b>{report.total}</b></span>
-              <span className="text-emerald-700">Qo‘shildi: <b>{report.inserted}</b></span>
-              <span className="text-blue-700">Yangilandi: <b>{report.updated}</b></span>
+              <span>{t('admin.dioTotal')} <b>{report.total}</b></span>
+              <span className="text-emerald-700">{t('admin.dioInserted')} <b>{report.inserted}</b></span>
+              <span className="text-blue-700">{t('admin.dioUpdated')} <b>{report.updated}</b></span>
               <span className={report.errors.length ? 'text-rose-700' : 'text-gray-500'}>
-                Xatolar: <b>{report.errors.length}</b>
+                {t('admin.dioErrors')} <b>{report.errors.length}</b>
               </span>
             </div>
             {report.errors.length > 0 && (
               <div className="max-h-40 overflow-y-auto mt-2 space-y-1 border-t border-gray-200 pt-2">
                 {report.errors.slice(0, 50).map((e, i) => (
                   <div key={i} className="text-rose-600 text-[11px]">
-                    Qator {e.row}: {e.message}
+                    {t('admin.dioRow', { n: e.row })}: {e.message}
                   </div>
                 ))}
               </div>

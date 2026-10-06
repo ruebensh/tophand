@@ -19,6 +19,8 @@ import { processAndStoreLogo } from '../services/storageService.ts';
 import { getMonetizationConfig, setSetting } from '../services/monetizationService.ts';
 import { listAllAds, createAd, updateAd, deleteAd, validateAd, getAdById, type AdInput } from '../services/adService.ts';
 import { isSupportedEntity, exportToXlsx, importFromXlsx } from '../services/exportService.ts';
+import { backfillTaxonomyTranslations } from '../services/taxonomyI18nService.ts';
+import { isTranslateConfigured } from '../services/translateService.ts';
 
 const router = Router();
 
@@ -48,6 +50,22 @@ router.get('/overview', async (_req, res) => {
   try {
     const stats = await getAdminOverview();
     res.json(stats);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// i18n: mashina-tarjimasi holati (admin Sozlamalar paneli uchun).
+router.get('/i18n/status', (_req, res) => {
+  res.json({ configured: isTranslateConfigured(), engine: 'google', targets: ['ru', 'en'] });
+});
+
+// i18n: taksonomiya nomlarini ru/en ga backfill qilish (admin harakati).
+router.post('/i18n/backfill-taxonomy', async (req, res) => {
+  try {
+    const force = req.body?.force === true;
+    const result = await backfillTaxonomyTranslations(force);
+    res.json(result);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { useI18n } from '../../i18n/IntlContext.tsx';
 
 interface MiniMapProps {
   lat: number;
@@ -12,6 +13,7 @@ interface MiniMapProps {
  * Uses dynamic import so it never breaks SSR.
  */
 export const MiniMap: React.FC<MiniMapProps> = ({ lat, lon, label, height = 200 }) => {
+  const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
 
@@ -61,7 +63,7 @@ export const MiniMap: React.FC<MiniMapProps> = ({ lat, lon, label, height = 200 
 
       L.marker([lat, lon], { icon: pin })
         .addTo(map)
-        .bindPopup(label || 'Joylashuv')
+        .bindPopup(label || t('detail.location'))
         .openPopup();
 
       mapRef.current = map;

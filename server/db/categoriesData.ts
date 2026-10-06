@@ -16,6 +16,8 @@ export interface CategorySeedItem {
 export interface CatalogSpec {
   id: string;
   name_uz: string;
+  name_ru?: string;
+  name_en?: string;
   slug: string;
   icon: string;
   description: string;
@@ -64,20 +66,23 @@ function parent(
 }
 
 // ─── Catalogs (13) ─────────────────────────────────────────────────────
+// name_ru / name_en — qo'lda tanlangan tarjimalar (taksonomiyaning yuqori
+// darajasi). Kategoriyalar/tumanlar soni ko'p bo'lgani uchun ular Faza E'da
+// admin MT harakati orqali backfill qilinadi; bu yerda faqat 13 katalog.
 export const CATALOGS_LIST: CatalogSpec[] = [
-  { id: 'transport', name_uz: 'Transport', slug: 'transport', icon: 'Car', description: 'Avtomobillar, moto, yuk va maxsus texnika, suv transporti', listing_types: 'SELL,RENT_OUT', sort_order: 1 },
-  { id: 'realty', name_uz: 'Ko’chmas mulk', slug: 'kochmas-mulk', icon: 'Building2', description: 'Uy-joy, ijara va tijorat ko’chmas mulki', listing_types: 'SELL,RENT_OUT', sort_order: 2 },
-  { id: 'jobs', name_uz: 'Ish e’lonlari', slug: 'ish-elonlari', icon: 'Briefcase', description: 'Vakansiyalar va mutaxassis rezyumelari', listing_types: 'JOB_OPENING,JOB_SEEKER', sort_order: 3 },
-  { id: 'services', name_uz: 'Xizmatlar', slug: 'xizmatlar', icon: 'Wrench', description: 'Ustalar, xizmat ko’rsatuvchilar va maishiy xizmatlar', listing_types: 'SERVICE_OFFER,SERVICE_REQUEST', sort_order: 4 },
-  { id: 'personal', name_uz: 'Shaxsiy buyumlar', slug: 'shaxsiy-buyumlar', icon: 'Shirt', description: 'Kiyim, poyabzal, bolalar tovarlari, ziynat', listing_types: 'SELL,WANTED', sort_order: 5 },
-  { id: 'home-dacha', name_uz: 'Uy va dacha', slug: 'uy-va-dacha', icon: 'Home', description: 'Mebel, maishiy texnika, oziq-ovqat, o’simliklar', listing_types: 'SELL,WANTED', sort_order: 6 },
-  { id: 'parts', name_uz: 'Ehtiyot qismlar va aksessuarlar', slug: 'ehtiyot-qismlar', icon: 'Cog', description: 'Zapchast, shina, moy, jihoz va GPS', listing_types: 'SELL,WANTED', sort_order: 7 },
-  { id: 'electronics', name_uz: 'Elektronika', slug: 'elektronika', icon: 'Smartphone', description: 'Telefon, kompyuter, audio-video, foto texnika', listing_types: 'SELL,WANTED', sort_order: 8 },
-  { id: 'hobby', name_uz: 'Hobbi va dam olish', slug: 'hobbi-va-dam-olish', icon: 'Bike', description: 'Velosiped, kitob, kolleksiya, sport, musiqa asboblari', listing_types: 'SELL,WANTED', sort_order: 9 },
-  { id: 'animals', name_uz: 'Hayvonlar', slug: 'hayvonlar', icon: 'PawPrint', description: 'It, mushuk, qush, akvarium va hayvonlar tovarlari', listing_types: 'SELL,WANTED', sort_order: 10 },
-  { id: 'business', name_uz: 'Biznes va uskunalar', slug: 'biznes-va-uskunalar', icon: 'Factory', description: 'Biznes uskunalar, franshiza, tayyor biznes va PO', listing_types: 'SELL,SERVICE_OFFER', sort_order: 11 },
-  { id: 'business360', name_uz: 'Biznes 360', slug: 'biznes-360', icon: 'Landmark', description: 'B2B hub: uskunalar, transport, xizmat va tovarlar', listing_types: 'SELL,SERVICE_OFFER', sort_order: 12 },
-  { id: 'handmade', name_uz: 'Hunarmandlar / Qo’llanma mehnat', slug: 'hunarmandlar', icon: 'Gem', description: 'Qo’lda yasalgan milliy buyumlar va sovg’alar (faqat sotish)', listing_types: 'SELL', sort_order: 13 },
+  { id: 'transport', name_uz: 'Transport', name_ru: 'Транспорт', name_en: 'Transport', slug: 'transport', icon: 'Car', description: 'Avtomobillar, moto, yuk va maxsus texnika, suv transporti', listing_types: 'SELL,RENT_OUT', sort_order: 1 },
+  { id: 'realty', name_uz: 'Ko’chmas mulk', name_ru: 'Недвижимость', name_en: 'Real estate', slug: 'kochmas-mulk', icon: 'Building2', description: 'Uy-joy, ijara va tijorat ko’chmas mulki', listing_types: 'SELL,RENT_OUT', sort_order: 2 },
+  { id: 'jobs', name_uz: 'Ish e’lonlari', name_ru: 'Объявления о работе', name_en: 'Jobs', slug: 'ish-elonlari', icon: 'Briefcase', description: 'Vakansiyalar va mutaxassis rezyumelari', listing_types: 'JOB_OPENING,JOB_SEEKER', sort_order: 3 },
+  { id: 'services', name_uz: 'Xizmatlar', name_ru: 'Услуги', name_en: 'Services', slug: 'xizmatlar', icon: 'Wrench', description: 'Ustalar, xizmat ko’rsatuvchilar va maishiy xizmatlar', listing_types: 'SERVICE_OFFER,SERVICE_REQUEST', sort_order: 4 },
+  { id: 'personal', name_uz: 'Shaxsiy buyumlar', name_ru: 'Личные вещи', name_en: 'Personal items', slug: 'shaxsiy-buyumlar', icon: 'Shirt', description: 'Kiyim, poyabzal, bolalar tovarlari, ziynat', listing_types: 'SELL,WANTED', sort_order: 5 },
+  { id: 'home-dacha', name_uz: 'Uy va dacha', name_ru: 'Дом и дача', name_en: 'Home & dacha', slug: 'uy-va-dacha', icon: 'Home', description: 'Mebel, maishiy texnika, oziq-ovqat, o’simliklar', listing_types: 'SELL,WANTED', sort_order: 6 },
+  { id: 'parts', name_uz: 'Ehtiyot qismlar va aksessuarlar', name_ru: 'Запчасти и аксессуары', name_en: 'Parts & accessories', slug: 'ehtiyot-qismlar', icon: 'Cog', description: 'Zapchast, shina, moy, jihoz va GPS', listing_types: 'SELL,WANTED', sort_order: 7 },
+  { id: 'electronics', name_uz: 'Elektronika', name_ru: 'Электроника', name_en: 'Electronics', slug: 'elektronika', icon: 'Smartphone', description: 'Telefon, kompyuter, audio-video, foto texnika', listing_types: 'SELL,WANTED', sort_order: 8 },
+  { id: 'hobby', name_uz: 'Hobbi va dam olish', name_ru: 'Хобби и отдых', name_en: 'Hobby & leisure', slug: 'hobbi-va-dam-olish', icon: 'Bike', description: 'Velosiped, kitob, kolleksiya, sport, musiqa asboblari', listing_types: 'SELL,WANTED', sort_order: 9 },
+  { id: 'animals', name_uz: 'Hayvonlar', name_ru: 'Животные', name_en: 'Animals', slug: 'hayvonlar', icon: 'PawPrint', description: 'It, mushuk, qush, akvarium va hayvonlar tovarlari', listing_types: 'SELL,WANTED', sort_order: 10 },
+  { id: 'business', name_uz: 'Biznes va uskunalar', name_ru: 'Бизнес и оборудование', name_en: 'Business & equipment', slug: 'biznes-va-uskunalar', icon: 'Factory', description: 'Biznes uskunalar, franshiza, tayyor biznes va PO', listing_types: 'SELL,SERVICE_OFFER', sort_order: 11 },
+  { id: 'business360', name_uz: 'Biznes 360', name_ru: 'Бизнес 360', name_en: 'Business 360', slug: 'biznes-360', icon: 'Landmark', description: 'B2B hub: uskunalar, transport, xizmat va tovarlar', listing_types: 'SELL,SERVICE_OFFER', sort_order: 12 },
+  { id: 'handmade', name_uz: 'Hunarmandlar / Qo’llanma mehnat', name_ru: 'Мастера / Ручная работа', name_en: 'Handmade', slug: 'hunarmandlar', icon: 'Gem', description: 'Qo’lda yasalgan milliy buyumlar va sovg’alar (faqat sotish)', listing_types: 'SELL', sort_order: 13 },
 ];
 
 // ─── SERVICES (Xizmatlar) — 34 categories ──────────────────────────────

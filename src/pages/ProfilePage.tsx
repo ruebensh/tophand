@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { User, Listing, Region, District } from '../types/index.ts';
 import { apiRequest, uploadImageFile, getPublicMonetization, type PublicMonetization } from '../lib/api.ts';
 import { useAuth } from '../context/AuthContext.tsx';
+import { useI18n } from '../i18n/IntlContext.tsx';
+import { useTranslate } from '../i18n/useTranslate.ts';
 import { ListingCard } from '../components/listings/ListingCard.tsx';
 import { AccountLinkingCard } from '../components/modals/AccountLinkingCard.tsx';
 import { PushNotificationsCard } from '../components/profile/PushNotificationsCard.tsx';
@@ -103,13 +105,14 @@ const VerifyStatusCard: React.FC<{
   rejectionReason?: string | null;
   onRequest: () => void;
 }> = ({ status, rejectionReason, onRequest }) => {
+  const { t } = useI18n();
   if (status === 'VERIFIED') {
     return (
       <div className="flex items-center gap-3 p-3.5 sm:p-4 rounded-2xl bg-emerald-50/80 border-2 border-emerald-200">
         <VerifiedBadge size="md" />
         <div className="min-w-0">
-          <p className="font-bold text-sm text-emerald-900">Tasdiqlangan profil</p>
-          <p className="text-xs text-emerald-700 mt-0.5">Shaxsingiz pasport orqali rasman tekshirilgan.</p>
+          <p className="font-bold text-sm text-emerald-900">{t('profile.vVerifiedTitle')}</p>
+          <p className="text-xs text-emerald-700 mt-0.5">{t('profile.vVerifiedBody')}</p>
         </div>
       </div>
     );
@@ -122,8 +125,8 @@ const VerifyStatusCard: React.FC<{
           <Clock className="w-5 h-5" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="font-bold text-sm text-amber-900">Arizangiz ko‘rib chiqilmoqda</p>
-          <p className="text-xs text-amber-700 mt-0.5">Ma’muriyat ma’lumotlaringizni tekshirmoqda. Natija haqida xabar beramiz.</p>
+          <p className="font-bold text-sm text-amber-900">{t('profile.vPendingTitle')}</p>
+          <p className="text-xs text-amber-700 mt-0.5">{t('profile.vPendingBody')}</p>
         </div>
       </div>
     );
@@ -136,16 +139,16 @@ const VerifyStatusCard: React.FC<{
           <AlertTriangle className="w-5 h-5" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="font-bold text-sm text-rose-900">Arizangiz rad etildi</p>
+          <p className="font-bold text-sm text-rose-900">{t('profile.vRejectedTitle')}</p>
           <p className="text-xs text-rose-700 mt-0.5">
-            Sabab: {rejectionReason || 'Hujjatlarda noaniqliklar mavjud'}
+            {t('profile.vReason')} {rejectionReason || t('profile.vRejectedDefault')}
           </p>
           <button
             type="button"
             onClick={onRequest}
             className="mt-2.5 h-9 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-colors cursor-pointer"
           >
-            Qayta yuborish
+            {t('profile.vResubmit')}
           </button>
         </div>
       </div>
@@ -158,9 +161,9 @@ const VerifyStatusCard: React.FC<{
         <ShieldQuestion className="w-5 h-5" />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="font-bold text-sm text-gray-900">Tasdiq nishonini oling</p>
+        <p className="font-bold text-sm text-gray-900">{t('profile.vUnverifiedTitle')}</p>
         <p className="text-xs text-gray-600 mt-0.5">
-          Pasportingizni tasdiqlab, profil va e’lonlaringizga ishonchni oshiring.
+          {t('profile.vUnverifiedBody')}
         </p>
       </div>
       <button
@@ -169,7 +172,7 @@ const VerifyStatusCard: React.FC<{
         className="shrink-0 h-9 px-4 rounded-xl bg-[#1673E6] hover:bg-[#125FD0] text-white text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5"
       >
         <CheckCircle2 className="w-4 h-4" />
-        <span>Tasdiqlash</span>
+        <span>{t('profile.vBtn')}</span>
       </button>
     </div>
   );
@@ -181,6 +184,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   onOpenListing,
 }) => {
   const { user: currentUser, logout, openLoginModal, refreshUser } = useAuth();
+  const { t, localized } = useI18n();
   const [profileUser, setProfileUser] = useState<User | null>(null);
   const [listings, setListings] = useState<Listing[]>([]);
   const [archivedListings, setArchivedListings] = useState<Listing[]>([]);
@@ -217,6 +221,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   const isOwner = currentUser?.id === userId;
+
+  // Bio — foydalanuvchi kontenti: ru/en da mashina tarjimasi
+  const { value: bioTranslated } = useTranslate(profileUser?.bio);
 
   const fetchProfile = async () => {
     setIsLoading(true);
@@ -284,7 +291,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       fetchProfile();
       refreshUser().catch(() => {});
     } catch (err: any) {
-      alert(err.message || 'Rasm yuklashda xatolik');
+      alert(err.message || t('profile.errPhoto'));
     } finally {
       setIsUploadingPhoto(false);
       if (photoInputRef.current) photoInputRef.current.value = '';
@@ -306,7 +313,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       fetchProfile();
       refreshUser().catch(() => {});
     } catch (err: any) {
-      alert(err.message || 'Muqova rasmini yuklashda xatolik');
+      alert(err.message || t('profile.errCoverUpload'));
     } finally {
       setIsUploadingCover(false);
       if (coverInputRef.current) coverInputRef.current.value = '';
@@ -326,7 +333,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       }
       setIsThemePickerOpen(false);
     } catch (err: any) {
-      alert(err.message || 'Muqova rangini saqlashda xatolik');
+      alert(err.message || t('profile.errCoverSave'));
     }
   };
 
@@ -344,7 +351,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       }
       refreshUser().catch(() => {});
     } catch (err: any) {
-      alert(err.message || 'Rasmni o\'chirishda xatolik');
+      alert(err.message || t('profile.errCoverRemove'));
     } finally {
       setIsUploadingCover(false);
     }
@@ -372,7 +379,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       }
     } catch (err: any) {
       setIsFollowed(!next);
-      alert(err.message || 'Obuna bo‘lishda xatolik');
+      alert(err.message || t('profile.errFollow'));
     } finally {
       setIsFollowLoading(false);
     }
@@ -381,10 +388,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const handleRenewListing = async (listingId: string) => {
     try {
       await apiRequest(`/api/listings/${listingId}/renew`, { method: 'POST' });
-      alert('E’lon muvaffaqiyatli uzaytirildi!');
+      alert(t('profile.renewOk'));
       fetchProfile();
     } catch (err: any) {
-      alert(err.message || 'Uzaytirishda xatolik');
+      alert(err.message || t('profile.errRenew'));
     }
   };
 
@@ -404,11 +411,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           district_id: editDistrictId || undefined,
         }),
       });
-      alert('Profil ma’lumotlari muvaffaqiyatli saqlandi');
+      alert(t('profile.saveOk'));
       fetchProfile();
       refreshUser().catch(() => {});
     } catch (err: any) {
-      alert(err.message || 'Saqlashda xatolik');
+      alert(err.message || t('profile.errSave'));
     } finally {
       setIsSavingProfile(false);
     }
@@ -417,11 +424,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newPassword !== confirmPassword) {
-      alert('Yangi parollar mos kelmadi');
+      alert(t('profile.errPassMismatch'));
       return;
     }
     if (newPassword.length < 6) {
-      alert('Parol kamida 6 belgidan iborat bo‘lishi kerak');
+      alert(t('profile.errPassLen'));
       return;
     }
     setIsChangingPassword(true);
@@ -430,12 +437,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         method: 'POST',
         body: JSON.stringify({ currentPassword, newPassword }),
       });
-      alert('Parol muvaffaqiyatli o‘zgartirildi');
+      alert(t('profile.passOk'));
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
     } catch (err: any) {
-      alert(err.message || 'Parolni o‘zgartirishda xatolik');
+      alert(err.message || t('profile.errPassChange'));
     } finally {
       setIsChangingPassword(false);
     }
@@ -458,12 +465,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     return (
       <div className="max-w-sm mx-auto my-20 px-4 text-center">
         <p className="text-5xl mb-3">👤</p>
-        <h3 className="font-bold text-gray-900 text-lg mb-2">Foydalanuvchi topilmadi</h3>
+        <h3 className="font-bold text-gray-900 text-lg mb-2">{t('profile.notFoundTitle')}</h3>
         <button
           onClick={() => onNavigate('/')}
           className="px-6 py-2.5 rounded-2xl bg-[#1673E6] text-white font-bold text-sm cursor-pointer shadow-sm hover:bg-[#125FD0] transition"
         >
-          Bosh sahifaga qaytish
+          {t('profile.backHome')}
         </button>
       </div>
     );
@@ -505,7 +512,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           {!mobileActiveCoverBg.startsWith('linear-gradient') && (
             <img
               src={mobileActiveCoverBg}
-              alt="Muqova"
+              alt={t('profile.coverAlt')}
               className="w-full h-full object-cover opacity-85"
             />
           )}
@@ -518,14 +525,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               onClick={() => coverInputRef.current?.click()}
               disabled={isUploadingCover}
               className="absolute top-3 right-3 sm:top-4 sm:right-4 z-10 px-3.5 py-1.5 rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-md text-white text-xs font-bold flex items-center gap-1.5 transition border border-white/20 shadow-md cursor-pointer"
-              title="Muqova rasmini yuklash"
+              title={t('profile.uploadCover')}
             >
               {isUploadingCover ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
               ) : (
                 <Camera className="w-3.5 h-3.5" />
               )}
-              <span>{isUploadingCover ? 'Yuklanmoqda...' : 'Muqova rasmi'}</span>
+              <span>{isUploadingCover ? t('profile.uploading') : t('profile.coverImage')}</span>
             </button>
           )}
         </div>
@@ -554,7 +561,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 onClick={() => photoInputRef.current?.click()}
                 disabled={isUploadingPhoto}
                 className="absolute bottom-1 right-1 z-20 w-8 h-8 rounded-full bg-white border border-gray-200 shadow-md text-[#1673E6] flex items-center justify-center hover:bg-blue-50 transition cursor-pointer"
-                title="Profil rasmini almashtirish"
+                title={t('profile.changeAvatar')}
               >
                 {isUploadingPhoto ? (
                   <Loader2 className="w-4 h-4 animate-spin text-[#1673E6]" />
@@ -571,15 +578,15 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           <h1 className="text-xl sm:text-2xl font-black text-gray-900 flex items-center justify-center gap-1.5 flex-wrap">
             <span>{profileUser.name}</span>
             {isOfficialAccount(profileUser) ? (
-              <VerifiedBadge size="md" variant="official" tooltip="TopHand rasmiy hisobi" />
+              <VerifiedBadge size="md" variant="official" tooltip={t('badge.officialTooltip')} />
             ) : isStaffAccount(profileUser) ? (
-              <VerifiedBadge size="md" variant="staff" tooltip="TopHand moderatori" />
+              <VerifiedBadge size="md" variant="staff" tooltip={t('badge.staffTooltip')} />
             ) : profileUser.verification_status === 'VERIFIED' ? (
-              <VerifiedBadge size="md" tooltip="Pasport orqali tasdiqlangan" />
+              <VerifiedBadge size="md" tooltip={t('badge.verifiedTooltip')} />
             ) : null}
             {isOfficialAccount(profileUser) && (
               <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
-                👑 Rasmiy
+                {t('profile.officialPill')}
               </span>
             )}
           </h1>
@@ -587,11 +594,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           {/* Bio */}
           {profileUser.bio ? (
             <p className="text-sm font-semibold text-gray-700 mt-1.5 max-w-md mx-auto leading-relaxed">
-              {profileUser.bio}
+              {bioTranslated}
             </p>
           ) : (
             <p className="text-sm font-medium text-gray-400 mt-1">
-              {profileUser.telegram_username ? `@${profileUser.telegram_username}` : "TopHand a'zosi"}
+              {profileUser.telegram_username ? `@${profileUser.telegram_username}` : t('profile.memberFallback')}
             </p>
           )}
 
@@ -616,7 +623,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             </span>
             <span className="flex items-center gap-1">
               <Calendar className="w-3.5 h-3.5" />
-              A'zo: {formatDateAgo(profileUser.created_at)}
+              {t('profile.memberSince', { date: formatDateAgo(profileUser.created_at) })}
             </span>
           </div>
         </div>
@@ -631,7 +638,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 className="px-7 py-2.5 rounded-2xl bg-[#1673E6] hover:bg-[#125FD0] text-white font-bold text-sm shadow-sm flex items-center justify-center gap-2 transition cursor-pointer min-w-[130px]"
               >
                 <Settings className="w-4 h-4" />
-                <span>Sozlamalar</span>
+                <span>{t('profile.settings')}</span>
               </button>
               <button
                 type="button"
@@ -639,7 +646,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 className="px-7 py-2.5 rounded-2xl bg-[#F1F5F9] hover:bg-rose-50 text-gray-700 hover:text-rose-600 font-bold text-sm flex items-center justify-center gap-2 transition cursor-pointer min-w-[130px]"
               >
                 <LogOut className="w-4 h-4" />
-                <span>Chiqish</span>
+                <span>{t('profile.logout')}</span>
               </button>
             </>
           ) : (
@@ -655,7 +662,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 }`}
               >
                 {isFollowed ? <UserCheck className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
-                <span>{isFollowed ? "Obunadasiz" : "Obuna bo'lish"}</span>
+                <span>{isFollowed ? t('profile.following') : t('profile.follow')}</span>
               </button>
               <button
                 type="button"
@@ -663,13 +670,13 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 className="px-7 py-2.5 rounded-2xl bg-[#EAF2FE] hover:bg-[#D3E5FD] text-[#1673E6] font-bold text-sm flex items-center justify-center gap-2 transition cursor-pointer min-w-[130px]"
               >
                 <MessageSquare className="w-4 h-4" />
-                <span>Xabar</span>
+                <span>{t('profile.message')}</span>
               </button>
               {profileUser.phone && (
                 <a
                   href={`tel:${profileUser.phone}`}
                   className="w-10 h-10 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white flex items-center justify-center transition shadow-sm"
-                  title="Qo'ng'iroq qilish"
+                  title={t('profile.call')}
                 >
                   <Phone className="w-4 h-4" />
                 </a>
@@ -688,7 +695,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             <div className="text-xl sm:text-2xl font-black text-gray-900">
               {profileUser.active_listing_count || listings.length}
             </div>
-            <div className="text-xs font-semibold text-gray-500 mt-1">E'lonlar</div>
+            <div className="text-xs font-semibold text-gray-500 mt-1">{t('profile.statListings')}</div>
           </button>
 
           <button
@@ -702,7 +709,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             <div className="text-xl sm:text-2xl font-black text-gray-900">
               {profileUser.follower_count || 0}
             </div>
-            <div className="text-xs font-semibold text-gray-500 mt-1">Obunachilar</div>
+            <div className="text-xs font-semibold text-gray-500 mt-1">{t('profile.statFollowers')}</div>
           </button>
 
           <button
@@ -716,7 +723,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             <div className="text-xl sm:text-2xl font-black text-gray-900">
               {profileUser.following_count || 0}
             </div>
-            <div className="text-xs font-semibold text-gray-500 mt-1">Obunalar</div>
+            <div className="text-xs font-semibold text-gray-500 mt-1">{t('profile.statFollowing')}</div>
           </button>
         </div>
 
@@ -731,7 +738,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 : 'text-gray-500 hover:text-gray-900'
             }`}
           >
-            E'lonlar ({listings.length})
+            {t('profile.tabFeed')} ({listings.length})
           </button>
 
           {isOwner && (
@@ -745,7 +752,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                     : 'text-gray-500 hover:text-gray-900'
                 }`}
               >
-                Arxiv ({archivedListings.length})
+                {t('profile.tabArchive')} ({archivedListings.length})
               </button>
               <button
                 type="button"
@@ -756,7 +763,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                     : 'text-gray-500 hover:text-gray-900'
                 }`}
               >
-                Sozlamalar
+                {t('profile.tabSettings')}
               </button>
             </>
           )}
@@ -768,14 +775,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             {listings.length === 0 ? (
               <div className="p-8 text-center bg-white rounded-3xl border-2 border-[#D3E5FD] shadow-xs">
                 <List className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                <p className="font-bold text-gray-800 text-sm">Hozircha faol e'lonlar mavjud emas</p>
+                <p className="font-bold text-gray-800 text-sm">{t('profile.emptyFeedTitle')}</p>
                 {isOwner && (
                   <button
                     type="button"
                     onClick={() => onNavigate('/create')}
                     className="mt-4 px-6 py-2.5 rounded-2xl bg-[#1673E6] hover:bg-[#125FD0] text-white text-xs font-bold transition shadow-sm cursor-pointer"
                   >
-                    Yangi e'lon berish
+                    {t('profile.newListing')}
                   </button>
                 )}
               </div>
@@ -798,7 +805,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             {archivedListings.length === 0 ? (
               <div className="p-8 text-center bg-white rounded-3xl border-2 border-[#D3E5FD] shadow-xs">
                 <Archive className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                <p className="font-bold text-gray-800 text-sm">Arxivda e'lonlar yo'q</p>
+                <p className="font-bold text-gray-800 text-sm">{t('profile.archiveEmpty')}</p>
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3 sm:gap-4">
@@ -814,14 +821,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                       statusBadge={
                         isCompleted ? undefined : (
                           <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 font-bold text-[10px] border border-amber-300">
-                            Arxivda
+                            {t('profile.inArchive')}
                           </span>
                         )
                       }
                       footer={
                         isCompleted ? (
                           <p className="text-[10px] text-gray-400 text-center">
-                            Yakunlangan e'lon
+                            {t('profile.completedListing')}
                           </p>
                         ) : (
                           <button
@@ -833,7 +840,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                             className="w-full py-1.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-black font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
                           >
                             <RefreshCw className="w-3.5 h-3.5" />
-                            <span>Qayta faollashtirish</span>
+                            <span>{t('profile.reactivate')}</span>
                           </button>
                         )
                       }
@@ -851,16 +858,16 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             <div className="bg-white rounded-3xl border-2 border-[#D3E5FD] p-4 sm:p-5 shadow-xs">
               <h3 className="font-bold text-gray-900 text-sm mb-3 flex items-center gap-2">
                 <Palette className="w-4 h-4 text-[#1673E6]" />
-                <span>Muqova (rasm yoki rang)</span>
+                <span>{t('profile.coverSection')}</span>
               </h3>
 
               {/* Cover image section */}
               <div className="mb-3.5">
-                <p className="text-[11px] font-semibold text-gray-500 mb-2">📸 Muqova rasmi (1-darajali)</p>
+                <p className="text-[11px] font-semibold text-gray-500 mb-2">{t('profile.coverImagePrimary')}</p>
                 {profileUser.cover_photo_url ? (
                   <div className="flex items-center gap-3">
                     <div className="relative w-24 h-14 rounded-xl overflow-hidden border-2 border-[#1673E6] shrink-0">
-                      <img src={profileUser.cover_photo_url} alt="Muqova" className="w-full h-full object-cover" />
+                      <img src={profileUser.cover_photo_url} alt={t('profile.coverAlt')} className="w-full h-full object-cover" />
                     </div>
                     <div className="flex flex-col gap-2">
                       <button
@@ -870,7 +877,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                         className="h-8 px-3 rounded-xl bg-[#EAF2FE] hover:bg-[#D3E5FD] text-[#1673E6] text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
                       >
                         <Camera className="w-3.5 h-3.5" />
-                        <span>Almashtirish</span>
+                        <span>{t('profile.change')}</span>
                       </button>
                       <button
                         type="button"
@@ -879,7 +886,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                         className="h-8 px-3 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
                       >
                         {isUploadingCover ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImageOff className="w-3.5 h-3.5" />}
-                        <span>Rasmni o'chirish</span>
+                        <span>{t('profile.removeImage')}</span>
                       </button>
                     </div>
                   </div>
@@ -891,9 +898,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                     className="w-full h-11 rounded-2xl border-2 border-dashed border-[#D3E5FD] hover:border-[#1673E6] bg-[#F8FBFF] hover:bg-[#EAF2FE] text-[#1673E6] text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer"
                   >
                     {isUploadingCover ? (
-                      <><Loader2 className="w-4 h-4 animate-spin" /><span>Yuklanmoqda...</span></>
+                      <><Loader2 className="w-4 h-4 animate-spin" /><span>{t('profile.uploading')}</span></>
                     ) : (
-                      <><Camera className="w-4 h-4" /><span>Muqova rasmi yuklash</span></>
+                      <><Camera className="w-4 h-4" /><span>{t('profile.uploadCoverImage')}</span></>
                     )}
                   </button>
                 )}
@@ -902,7 +909,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               {/* Gradient divider */}
               <div className="flex items-center gap-2 mb-3">
                 <div className="flex-1 h-px bg-[#D3E5FD]" />
-                <span className="text-[11px] font-semibold text-gray-400">🎨 Fon rangi (2-darajali)</span>
+                <span className="text-[11px] font-semibold text-gray-400">{t('profile.coverBgSecondary')}</span>
                 <div className="flex-1 h-px bg-[#D3E5FD]" />
               </div>
 
@@ -932,7 +939,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               {/* Helper hint */}
               {profileUser.cover_photo_url && (
                 <p className="text-[11px] text-gray-400 mt-2.5 text-center">
-                  💡 Rasm mavjud — fon rangi yashirilgan. Rasmni o'chirsangiz rang ko'rinadi.
+                  {t('profile.coverHint')}
                 </p>
               )}
             </div>
@@ -942,16 +949,16 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-amber-50/80 border-2 border-amber-200">
                 <VerifiedBadge size="md" variant="official" />
                 <div>
-                  <p className="font-bold text-sm text-amber-900">TopHand rasmiy (premium) hisobi</p>
-                  <p className="text-xs text-amber-700 mt-0.5">Avtomatik rasmiy tasdiq nishoni bilan ta'minlangan.</p>
+                  <p className="font-bold text-sm text-amber-900">{t('profile.officialTitle')}</p>
+                  <p className="text-xs text-amber-700 mt-0.5">{t('profile.officialBody')}</p>
                 </div>
               </div>
             ) : isStaffAccount(profileUser) ? (
               <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-purple-50/80 border-2 border-purple-200">
                 <VerifiedBadge size="md" variant="staff" />
                 <div>
-                  <p className="font-bold text-sm text-purple-900">TopHand moderatori hisobi</p>
-                  <p className="text-xs text-purple-700 mt-0.5">Siz moderatortsiz. Alohida tasdiq so'rashingiz shart emas.</p>
+                  <p className="font-bold text-sm text-purple-900">{t('profile.staffTitle')}</p>
+                  <p className="text-xs text-purple-700 mt-0.5">{t('profile.staffBody')}</p>
                 </div>
               </div>
             ) : (
@@ -966,7 +973,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             <div className="bg-white rounded-3xl border-2 border-[#D3E5FD] p-4 sm:p-5 shadow-xs">
               <h3 className="font-bold text-gray-900 text-sm mb-4 flex items-center gap-2">
                 <Edit3 className="w-4 h-4 text-[#1673E6]" />
-                <span>Profil ma'lumotlarini to'liq tahrirlash</span>
+                <span>{t('profile.editFullTitle')}</span>
               </h3>
 
               <form onSubmit={handleSaveProfile} className="space-y-4">
@@ -985,7 +992,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                       disabled={isUploadingPhoto}
                       className="text-xs text-[#1673E6] font-bold hover:underline cursor-pointer"
                     >
-                      {isUploadingPhoto ? 'Yuklanmoqda...' : 'Profil rasmi'}
+                      {isUploadingPhoto ? t('profile.uploading') : t('profile.avatarLabel')}
                     </button>
                   </div>
 
@@ -1008,13 +1015,13 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                       disabled={isUploadingCover}
                       className="text-xs text-[#1673E6] font-bold hover:underline cursor-pointer"
                     >
-                      {isUploadingCover ? 'Yuklanmoqda...' : 'Muqova rasmi'}
+                      {isUploadingCover ? t('profile.uploading') : t('profile.coverImage')}
                     </button>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Ismingiz</label>
+                  <label className="block text-xs font-bold text-gray-600 mb-1">{t('profile.nameLabel')}</label>
                   <input
                     type="text"
                     required
@@ -1025,18 +1032,18 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Kasbingiz / Bio (Tavsif)</label>
+                  <label className="block text-xs font-bold text-gray-600 mb-1">{t('profile.bioLabel')}</label>
                   <textarea
                     rows={2}
                     value={editBio}
                     onChange={(e) => setEditBio(e.target.value)}
-                    placeholder="Masalan: Professional usta elektrik, santexnik yoki fotograf"
+                    placeholder={t('profile.bioPh')}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-gray-200 text-sm font-medium focus:border-[#1673E6] focus:bg-white outline-none transition resize-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Telefon raqam</label>
+                  <label className="block text-xs font-bold text-gray-600 mb-1">{t('profile.phoneLabel')}</label>
                   <input
                     type="tel"
                     value={editPhone}
@@ -1048,7 +1055,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-bold text-gray-600 mb-1">Viloyat</label>
+                    <label className="block text-xs font-bold text-gray-600 mb-1">{t('profile.regionLabel')}</label>
                     <select
                       value={editRegionId}
                       onChange={(e) => {
@@ -1057,27 +1064,27 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                       }}
                       className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-gray-200 text-xs sm:text-sm font-medium focus:border-[#1673E6] focus:bg-white outline-none transition"
                     >
-                      <option value="">Tanlang...</option>
+                  <option value="">{t('profile.selectPh')}</option>
                       {regions.map((r) => (
                         <option key={r.id} value={r.id}>
-                          {r.name_uz}
+                          {localized(r)}
                         </option>
                       ))}
                     </select>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-gray-600 mb-1">Tuman</label>
+                    <label className="block text-xs font-bold text-gray-600 mb-1">{t('profile.districtLabel')}</label>
                     <select
                       disabled={!editRegionId}
                       value={editDistrictId}
                       onChange={(e) => setEditDistrictId(e.target.value)}
                       className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-gray-200 text-xs sm:text-sm font-medium focus:border-[#1673E6] focus:bg-white outline-none transition disabled:opacity-50"
                     >
-                      <option value="">Tanlang...</option>
+                  <option value="">{t('profile.selectPh')}</option>
                       {districts.map((d) => (
                         <option key={d.id} value={d.id}>
-                          {d.name_uz}
+                          {localized(d)}
                         </option>
                       ))}
                     </select>
@@ -1089,7 +1096,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                   disabled={isSavingProfile}
                   className="w-full mt-2 py-2.5 rounded-xl bg-[#1673E6] hover:bg-[#125FD0] text-white font-bold text-xs sm:text-sm shadow-sm transition cursor-pointer"
                 >
-                  {isSavingProfile ? 'Saqlanmoqda...' : 'O‘zgarishlarni saqlash'}
+                  {isSavingProfile ? t('profile.saving') : t('profile.saveChanges')}
                 </button>
               </form>
             </div>
@@ -1100,12 +1107,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             <div className="bg-white rounded-3xl border-2 border-[#D3E5FD] p-4 sm:p-5 shadow-xs">
               <h3 className="font-bold text-gray-900 text-sm mb-3 flex items-center gap-2">
                 <Lock className="w-4 h-4 text-[#1673E6]" />
-                <span>Parolni o'zgartirish</span>
+                <span>{t('profile.passTitle')}</span>
               </h3>
 
               <form onSubmit={handleChangePassword} className="space-y-3">
                 <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Joriy parol</label>
+                  <label className="block text-xs font-bold text-gray-600 mb-1">{t('profile.currentPass')}</label>
                   <input
                     type="password"
                     required
@@ -1117,7 +1124,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-bold text-gray-600 mb-1">Yangi parol</label>
+                    <label className="block text-xs font-bold text-gray-600 mb-1">{t('profile.newPass')}</label>
                     <input
                       type="password"
                       required
@@ -1127,7 +1134,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-gray-600 mb-1">Qayta kiriting</label>
+                    <label className="block text-xs font-bold text-gray-600 mb-1">{t('profile.confirmPass')}</label>
                     <input
                       type="password"
                       required
@@ -1143,7 +1150,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                   disabled={isChangingPassword}
                   className="w-full py-2.5 rounded-xl bg-gray-900 hover:bg-black text-white font-bold text-xs sm:text-sm shadow-sm transition cursor-pointer"
                 >
-                  {isChangingPassword ? 'O‘zgartirilmoqda...' : 'Parolni yangilash'}
+                  {isChangingPassword ? t('profile.changing') : t('profile.updatePass')}
                 </button>
               </form>
             </div>
@@ -1168,10 +1175,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               type="button"
               onClick={() => setIsThemePickerOpen(!isThemePickerOpen)}
               className="absolute top-5 right-5 z-10 px-4 py-2 rounded-2xl bg-white/75 hover:bg-white text-slate-800 text-xs font-bold flex items-center gap-2 transition border border-white/50 shadow-xs backdrop-blur-md cursor-pointer"
-              title="Muqova rangini tanlash"
+              title={t('profile.coverColorPick')}
             >
               <Palette className="w-4 h-4 text-[#1673E6]" />
-              <span>Muqova rangi</span>
+              <span>{t('profile.coverColor')}</span>
             </button>
           )}
 
@@ -1179,7 +1186,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           {isOwner && isThemePickerOpen && (
             <div className="absolute top-16 right-5 z-30 p-3 bg-white/95 backdrop-blur-xl rounded-2xl shadow-xl border border-slate-200/80 w-72 animate-in fade-in zoom-in duration-150">
               <div className="flex items-center justify-between mb-2.5 px-1">
-                <span className="text-xs font-bold text-slate-800">Muqova rangini tanlang</span>
+                <span className="text-xs font-bold text-slate-800">{t('profile.pickColorHeading')}</span>
                 <button
                   type="button"
                   onClick={() => setIsThemePickerOpen(false)}
@@ -1237,7 +1244,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 onClick={() => photoInputRef.current?.click()}
                 disabled={isUploadingPhoto}
                 className="absolute bottom-2 right-2 z-20 w-9 h-9 rounded-2xl bg-white border border-slate-200 shadow-md text-[#1673E6] flex items-center justify-center hover:bg-blue-50 transition cursor-pointer"
-                title="Profil rasmini almashtirish"
+                title={t('profile.changeAvatar')}
               >
                 {isUploadingPhoto ? <Loader2 className="w-4 h-4 animate-spin" /> : <Edit3 className="w-4 h-4" />}
               </button>
@@ -1252,29 +1259,29 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               </h1>
 
               {isOfficialAccount(profileUser) ? (
-                <VerifiedBadge size="md" variant="official" tooltip="TopHand rasmiy hisobi" />
+                <VerifiedBadge size="md" variant="official" tooltip={t('badge.officialTooltip')} />
               ) : isStaffAccount(profileUser) ? (
-                <VerifiedBadge size="md" variant="staff" tooltip="TopHand moderatori" />
+                <VerifiedBadge size="md" variant="staff" tooltip={t('badge.staffTooltip')} />
               ) : profileUser.verification_status === 'VERIFIED' ? (
-                <VerifiedBadge size="md" tooltip="Pasport orqali tasdiqlangan" />
+                <VerifiedBadge size="md" tooltip={t('badge.verifiedTooltip')} />
               ) : null}
 
               {isOfficialAccount(profileUser) && (
                 <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
-                  👑 Rasmiy
+                  {t('profile.officialPill')}
                 </span>
               )}
 
               {isStaffAccount(profileUser) && (
                 <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-900 border border-purple-300">
-                  Staff
+                  {t('badge.staff')}
                 </span>
               )}
             </div>
 
             {/* Subtitle / Bio */}
             <p className="text-sm lg:text-base text-slate-600 font-medium mt-1 line-clamp-2 max-w-xl">
-              {profileUser.bio || (profileUser.telegram_username ? `@${profileUser.telegram_username}` : "TopHand platformasi a'zosi")}
+              {bioTranslated || (profileUser.telegram_username ? `@${profileUser.telegram_username}` : t('profile.memberFallback'))}
             </p>
 
             {/* Location & Phone & Join Date */}
@@ -1286,7 +1293,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               <span>•</span>
               <span className="flex items-center gap-1 text-slate-500">
                 <Calendar className="w-3.5 h-3.5" />
-                A'zo: {formatDateAgo(profileUser.created_at)}
+                {t('profile.memberSince', { date: formatDateAgo(profileUser.created_at) })}
               </span>
               {profileUser.phone && (
                 <>
@@ -1312,7 +1319,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                     className="px-6 py-2.5 rounded-2xl bg-slate-900 hover:bg-black text-white font-bold text-sm shadow-sm flex items-center gap-2 transition cursor-pointer"
                   >
                     <Settings className="w-4 h-4" />
-                    <span>Sozlamalar</span>
+                    <span>{t('profile.settings')}</span>
                   </button>
                   <button
                     type="button"
@@ -1320,7 +1327,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                     className="px-6 py-2.5 rounded-2xl bg-[#1673E6] hover:bg-[#125FD0] text-white font-bold text-sm shadow-sm flex items-center gap-2 transition cursor-pointer"
                   >
                     <List className="w-4 h-4" />
-                    <span>Yangi e'lon berish</span>
+                    <span>{t('profile.newListing')}</span>
                   </button>
                   <button
                     type="button"
@@ -1328,7 +1335,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                     className="px-5 py-2.5 rounded-2xl bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-600 border border-slate-200 font-bold text-sm flex items-center gap-2 transition cursor-pointer"
                   >
                     <LogOut className="w-4 h-4" />
-                    <span>Chiqish</span>
+                    <span>{t('profile.logout')}</span>
                   </button>
                 </>
               ) : (
@@ -1344,7 +1351,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                     }`}
                   >
                     {isFollowed ? <UserCheck className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
-                    <span>{isFollowed ? "Obunadasiz" : "Follow"}</span>
+                    <span>{isFollowed ? t('profile.following') : t('profile.follow')}</span>
                   </button>
                   <button
                     type="button"
@@ -1352,7 +1359,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                     className="px-6 py-2.5 rounded-2xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 font-bold text-sm flex items-center gap-2 transition cursor-pointer shadow-xs"
                   >
                     <MessageSquare className="w-4 h-4 text-[#1673E6]" />
-                    <span>Get in touch</span>
+                    <span>{t('profile.message')}</span>
                   </button>
                   {profileUser.phone && (
                     <a
@@ -1360,7 +1367,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                       className="px-5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm flex items-center gap-2 transition shadow-xs"
                     >
                       <Phone className="w-4 h-4" />
-                      <span>Qo'ng'iroq</span>
+                      <span>{t('profile.call')}</span>
                     </a>
                   )}
                 </>
@@ -1379,7 +1386,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               className="text-left group cursor-pointer"
             >
               <p className="text-xs font-bold text-slate-400 uppercase tracking-wider group-hover:text-[#1673E6] transition">
-                Followers
+                {t('profile.statFollowers')}
               </p>
               <p className="text-2xl lg:text-3xl font-black text-slate-900 mt-0.5 group-hover:text-[#1673E6] transition">
                 {profileUser.follower_count || 0}
@@ -1395,7 +1402,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               className="text-left group cursor-pointer"
             >
               <p className="text-xs font-bold text-slate-400 uppercase tracking-wider group-hover:text-[#1673E6] transition">
-                Following
+                {t('profile.statFollowing')}
               </p>
               <p className="text-2xl lg:text-3xl font-black text-slate-900 mt-0.5 group-hover:text-[#1673E6] transition">
                 {profileUser.following_count || 0}
@@ -1408,7 +1415,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               className="text-left group cursor-pointer"
             >
               <p className="text-xs font-bold text-slate-400 uppercase tracking-wider group-hover:text-[#1673E6] transition">
-                E'lonlar
+                {t('profile.statListings')}
               </p>
               <p className="text-2xl lg:text-3xl font-black text-slate-900 mt-0.5 group-hover:text-[#1673E6] transition">
                 {profileUser.active_listing_count || listings.length}
@@ -1429,7 +1436,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                   : 'text-slate-400 hover:text-slate-700'
               }`}
             >
-              <span>E'lonlar</span>
+              <span>{t('profile.tabFeed')}</span>
               <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
                 activeTab === 'feed' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'
               }`}>
@@ -1451,7 +1458,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                       : 'text-slate-400 hover:text-slate-700'
                   }`}
                 >
-                  <span>Arxiv</span>
+                  <span>{t('profile.tabArchive')}</span>
                   <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
                     activeTab === 'archive' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'
                   }`}>
@@ -1472,7 +1479,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                   }`}
                 >
                   <Settings className="w-4 h-4" />
-                  <span>Sozlamalar va Tahrirlash</span>
+                  <span>{t('profile.settingsEdit')}</span>
                   {activeTab === 'settings' && (
                     <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-slate-900 rounded-full" />
                   )}
@@ -1492,15 +1499,15 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             {listings.length === 0 ? (
               <div className="p-16 text-center bg-white rounded-3xl border border-slate-200/80 shadow-xs max-w-lg mx-auto">
                 <List className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-                <h3 className="font-extrabold text-slate-800 text-lg">Faol e'lonlar mavjud emas</h3>
-                <p className="text-slate-500 text-sm mt-1">Ushbu foydalanuvchi hozircha e'lon joylashtirmagan.</p>
+                <h3 className="font-extrabold text-slate-800 text-lg">{t('profile.feedEmptyDesktop')}</h3>
+                <p className="text-slate-500 text-sm mt-1">{t('profile.feedEmptyBody')}</p>
                 {isOwner && (
                   <button
                     type="button"
                     onClick={() => onNavigate('/create')}
                     className="mt-6 px-7 py-3 rounded-2xl bg-[#1673E6] hover:bg-[#125FD0] text-white text-sm font-bold transition shadow-sm cursor-pointer"
                   >
-                    Yangi e'lon berish
+                    {t('profile.newListing')}
                   </button>
                 )}
               </div>
@@ -1523,8 +1530,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             {archivedListings.length === 0 ? (
               <div className="p-16 text-center bg-white rounded-3xl border border-slate-200/80 shadow-xs max-w-lg mx-auto">
                 <Archive className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-                <h3 className="font-extrabold text-slate-800 text-lg">Arxivda e'lonlar yo'q</h3>
-                <p className="text-slate-500 text-sm mt-1">Muddati tugagan yoki yakunlangan e'lonlar shu yerda saqlanadi.</p>
+                <h3 className="font-extrabold text-slate-800 text-lg">{t('profile.archiveEmpty')}</h3>
+                <p className="text-slate-500 text-sm mt-1">{t('profile.archiveEmptyBody')}</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1540,14 +1547,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                       statusBadge={
                         isCompleted ? undefined : (
                           <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 font-bold text-xs border border-amber-300">
-                            Arxivda
+                            {t('profile.inArchive')}
                           </span>
                         )
                       }
                       footer={
                         isCompleted ? (
                           <p className="text-xs text-slate-400 text-center">
-                            Yakunlangan e'lon
+                            {t('profile.completedListing')}
                           </p>
                         ) : (
                           <button
@@ -1559,7 +1566,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                             className="w-full py-2 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-black font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
                           >
                             <RefreshCw className="w-4 h-4" />
-                            <span>Qayta faollashtirish</span>
+                            <span>{t('profile.reactivate')}</span>
                           </button>
                         )
                       }
@@ -1578,7 +1585,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs">
                 <h3 className="font-bold text-slate-900 text-base mb-3 flex items-center gap-2">
                   <Palette className="w-5 h-5 text-[#1673E6]" />
-                  <span>Muqova rangi (10 xil mavzuli variant)</span>
+                  <span>{t('profile.coverColorVariants')}</span>
                 </h3>
               <div className="grid grid-cols-5 gap-3">
                   {COVER_GRADIENTS.map((g) => (
@@ -1608,16 +1615,16 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 <div className="flex items-center gap-4 p-4 rounded-3xl bg-amber-50/90 border border-amber-200">
                   <VerifiedBadge size="md" variant="official" />
                   <div>
-                    <p className="font-bold text-sm text-amber-900">TopHand rasmiy (premium) hisobi</p>
-                    <p className="text-xs text-amber-700 mt-0.5">Avtomatik rasmiy tasdiq nishoni bilan ta'minlangan.</p>
+                    <p className="font-bold text-sm text-amber-900">{t('profile.officialTitle')}</p>
+                    <p className="text-xs text-amber-700 mt-0.5">{t('profile.officialBody')}</p>
                   </div>
                 </div>
               ) : isStaffAccount(profileUser) ? (
                 <div className="flex items-center gap-4 p-4 rounded-3xl bg-purple-50/90 border border-purple-200">
                   <VerifiedBadge size="md" variant="staff" />
                   <div>
-                    <p className="font-bold text-sm text-purple-900">TopHand moderatori hisobi</p>
-                    <p className="text-xs text-purple-700 mt-0.5">Siz moderatortsiz. Alohida tasdiq so'rashingiz shart emas.</p>
+                    <p className="font-bold text-sm text-purple-900">{t('profile.staffTitle')}</p>
+                    <p className="text-xs text-purple-700 mt-0.5">{t('profile.staffBody')}</p>
                   </div>
                 </div>
               ) : (
@@ -1632,7 +1639,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs">
                 <h3 className="font-bold text-slate-900 text-base mb-5 flex items-center gap-2">
                   <Edit3 className="w-5 h-5 text-[#1673E6]" />
-                  <span>Profil ma'lumotlarini tahrirlash</span>
+                  <span>{t('profile.editTitle')}</span>
                 </h3>
 
                 <form onSubmit={handleSaveProfile} className="space-y-4">
@@ -1645,21 +1652,21 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                       />
                     </div>
                     <div>
-                      <p className="text-xs font-bold text-slate-800">Profil rasmi</p>
+                      <p className="text-xs font-bold text-slate-800">{t('profile.avatarLabel')}</p>
                       <button
                         type="button"
                         onClick={() => photoInputRef.current?.click()}
                         disabled={isUploadingPhoto}
                         className="text-xs text-[#1673E6] font-bold hover:underline cursor-pointer mt-0.5"
                       >
-                        {isUploadingPhoto ? 'Yuklanmoqda...' : 'Rasmni almashtirish'}
+                        {isUploadingPhoto ? t('profile.uploading') : t('profile.changePhoto')}
                       </button>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-slate-600 mb-1.5">Ismingiz</label>
+                      <label className="block text-xs font-bold text-slate-600 mb-1.5">{t('profile.nameLabel')}</label>
                       <input
                         type="text"
                         required
@@ -1669,7 +1676,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-600 mb-1.5">Telefon raqam</label>
+                      <label className="block text-xs font-bold text-slate-600 mb-1.5">{t('profile.phoneLabel')}</label>
                       <input
                         type="tel"
                         value={editPhone}
@@ -1681,19 +1688,19 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-600 mb-1.5">Kasbingiz / Bio (Tavsif)</label>
+                    <label className="block text-xs font-bold text-slate-600 mb-1.5">{t('profile.bioLabel')}</label>
                     <textarea
                       rows={3}
                       value={editBio}
                       onChange={(e) => setEditBio(e.target.value)}
-                      placeholder="Masalan: Professional usta elektrik, santexnik yoki fotograf"
+                      placeholder={t('profile.bioPh')}
                       className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium focus:border-[#1673E6] focus:bg-white outline-none transition resize-none"
                     />
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-slate-600 mb-1.5">Viloyat</label>
+                      <label className="block text-xs font-bold text-slate-600 mb-1.5">{t('profile.regionLabel')}</label>
                       <select
                         value={editRegionId}
                         onChange={(e) => {
@@ -1702,27 +1709,27 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                         }}
                         className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium focus:border-[#1673E6] focus:bg-white outline-none transition"
                       >
-                        <option value="">Tanlang...</option>
+                    <option value="">{t('profile.selectPh')}</option>
                         {regions.map((r) => (
                           <option key={r.id} value={r.id}>
-                            {r.name_uz}
+                            {localized(r)}
                           </option>
                         ))}
                       </select>
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-slate-600 mb-1.5">Tuman</label>
+                      <label className="block text-xs font-bold text-slate-600 mb-1.5">{t('profile.districtLabel')}</label>
                       <select
                         disabled={!editRegionId}
                         value={editDistrictId}
                         onChange={(e) => setEditDistrictId(e.target.value)}
                         className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium focus:border-[#1673E6] focus:bg-white outline-none transition disabled:opacity-50"
                       >
-                        <option value="">Tanlang...</option>
+                    <option value="">{t('profile.selectPh')}</option>
                         {districts.map((d) => (
                           <option key={d.id} value={d.id}>
-                            {d.name_uz}
+                            {localized(d)}
                           </option>
                         ))}
                       </select>
@@ -1734,7 +1741,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                     disabled={isSavingProfile}
                     className="w-full mt-2 py-3 rounded-2xl bg-[#1673E6] hover:bg-[#125FD0] text-white font-bold text-sm shadow-sm transition cursor-pointer"
                   >
-                    {isSavingProfile ? 'Saqlanmoqda...' : 'O‘zgarishlarni saqlash'}
+                    {isSavingProfile ? t('profile.saving') : t('profile.saveChanges')}
                   </button>
                 </form>
               </div>
@@ -1747,12 +1754,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs">
                 <h3 className="font-bold text-slate-900 text-base mb-4 flex items-center gap-2">
                   <Lock className="w-5 h-5 text-[#1673E6]" />
-                  <span>Parolni o'zgartirish</span>
+                  <span>{t('profile.passTitle')}</span>
                 </h3>
 
                 <form onSubmit={handleChangePassword} className="space-y-3.5">
                   <div>
-                    <label className="block text-xs font-bold text-slate-600 mb-1">Joriy parol</label>
+                    <label className="block text-xs font-bold text-slate-600 mb-1">{t('profile.currentPass')}</label>
                     <input
                       type="password"
                       required
@@ -1763,7 +1770,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-600 mb-1">Yangi parol</label>
+                    <label className="block text-xs font-bold text-slate-600 mb-1">{t('profile.newPass')}</label>
                     <input
                       type="password"
                       required
@@ -1774,7 +1781,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-600 mb-1">Qayta kiriting</label>
+                    <label className="block text-xs font-bold text-slate-600 mb-1">{t('profile.confirmPass')}</label>
                     <input
                       type="password"
                       required
@@ -1789,7 +1796,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                     disabled={isChangingPassword}
                     className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white font-bold text-sm shadow-sm transition cursor-pointer mt-2"
                   >
-                    {isChangingPassword ? 'O‘zgartirilmoqda...' : 'Parolni yangilash'}
+                    {isChangingPassword ? t('profile.changing') : t('profile.updatePass')}
                   </button>
                 </form>
               </div>

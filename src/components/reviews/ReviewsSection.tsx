@@ -4,6 +4,8 @@ import { apiRequest } from '../../lib/api.ts';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { formatDateAgo } from '../../lib/utils.ts';
 import { Modal } from '../common/Modal.tsx';
+import { Translated } from '../common/Translated.tsx';
+import { useI18n } from '../../i18n/IntlContext.tsx';
 import {
   Star,
   MessageSquare,
@@ -33,6 +35,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
   onRatingUpdated,
 }) => {
   const { user, openLoginModal } = useAuth();
+  const { t } = useI18n();
 
   const [reviews, setReviews] = useState<Review[]>([]);
   const [summary, setSummary] = useState<RatingSummary>({
@@ -81,7 +84,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
         onRatingUpdated(data.summary.average_rating, data.summary.total_reviews);
       }
     } catch (err: any) {
-      setError(err.message || 'Sharhlarni yuklashda xatolik yuz berdi');
+      setError(err.message || t('reviews.loadError'));
     } finally {
       setIsLoading(false);
     }
@@ -103,7 +106,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
       return;
     }
     if (isOwner) {
-      alert('O‘zingizning profilingizga sharh qoldira olmaysiz');
+      alert(t('reviews.ownerError'));
       return;
     }
     setEditingReviewId(null);
@@ -129,11 +132,11 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
     if (!user) return;
 
     if (formComment.trim().length < 3) {
-      setFormError('Sharh matni kamida 3 ta belgidan iborat bo‘lishi kerak');
+      setFormError(t('reviews.minLen'));
       return;
     }
     if (formComment.trim().length > 1000) {
-      setFormError('Sharh matni 1000 ta belgidan oshmasligi kerak');
+      setFormError(t('reviews.maxLen'));
       return;
     }
 
@@ -166,7 +169,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
       setIsModalOpen(false);
       await fetchReviews();
     } catch (err: any) {
-      setFormError(err.message || 'Sharhni saqlashda xatolik yuz berdi');
+      setFormError(err.message || t('reviews.saveError'));
     } finally {
       setIsSubmitting(false);
     }
@@ -183,7 +186,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
       setDeletingReviewId(null);
       await fetchReviews();
     } catch (err: any) {
-      alert(err.message || 'Sharhni o‘chirishda xatolik yuz berdi');
+      alert(err.message || t('reviews.deleteError'));
     } finally {
       setIsDeleting(false);
     }
@@ -204,7 +207,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
       setReplyText('');
       await fetchReviews();
     } catch (err: any) {
-      alert(err.message || 'Javob yuborishda xatolik yuz berdi');
+      alert(err.message || t('reviews.replyError'));
     } finally {
       setIsSubmittingReply(false);
     }
@@ -212,29 +215,29 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
 
   // Delete employer reply
   const handleDeleteReply = async (reviewId: string) => {
-    if (!confirm('Javobingizni o‘chirmoqchimisiz?')) return;
+    if (!confirm(t('reviews.deleteReplyConfirm'))) return;
     try {
       await apiRequest(`/api/reviews/${reviewId}/reply`, {
         method: 'DELETE',
       });
       await fetchReviews();
     } catch (err: any) {
-      alert(err.message || 'Javobni o‘chirishda xatolik yuz berdi');
+      alert(err.message || t('reviews.deleteReplyError'));
     }
   };
 
   const getRatingLabel = (stars: number) => {
     switch (stars) {
       case 1:
-        return 'Juda yomon';
+        return t('reviews.star1');
       case 2:
-        return 'Qoniqarsiz';
+        return t('reviews.star2');
       case 3:
-        return 'O‘rtacha';
+        return t('reviews.star3');
       case 4:
-        return 'Yaxshi';
+        return t('reviews.star4');
       case 5:
-        return 'A’lo darajada';
+        return t('reviews.star5');
       default:
         return '';
     }
@@ -246,10 +249,10 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-[#EBECF0]">
         <div>
           <h3 className="text-xl font-extrabold text-[#172B4D] tracking-tight">
-            Foydalanuvchilar sharhlari
+            {t('reviews.title')}
           </h3>
           <p className="text-xs sm:text-sm text-[#5E6C84] mt-1">
-            Ushbu ish beruvchi yoki mutaxassis bilan ishlash bo‘yicha haqiqiy fikrlar
+            {t('reviews.sub')}
           </p>
         </div>
 
@@ -259,7 +262,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
             className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#1673E6] hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm transition-all shadow-xs cursor-pointer active:scale-95 shrink-0"
           >
             <Star className="w-4 h-4 fill-white" />
-            <span>Sharh qoldirish</span>
+            <span>{t('reviews.leave')}</span>
           </button>
         )}
       </div>
@@ -293,8 +296,8 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
 
             <p className="text-xs font-medium text-[#5E6C84]">
               {summary.total_reviews > 0
-                ? `${summary.total_reviews} ta haqiqiy sharh asosida`
-                : 'Hali baholanmagan'}
+                ? t('reviews.basedOn', { n: summary.total_reviews })
+                : t('detail.notRated')}
             </p>
           </div>
 
@@ -319,7 +322,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
                   </div>
 
                   <span className="w-12 text-right text-[11px] font-medium text-[#5E6C84] shrink-0">
-                    {count} ta
+                    {t('reviews.countTa', { n: count })}
                   </span>
                 </div>
               );
@@ -356,16 +359,16 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
             <div className="w-12 h-12 rounded-full bg-blue-50 text-[#1673E6] flex items-center justify-center text-xl mx-auto mb-3">
               <MessageSquare className="w-6 h-6" />
             </div>
-            <h4 className="font-bold text-sm text-[#172B4D]">Hali sharhlar mavjud emas</h4>
+            <h4 className="font-bold text-sm text-[#172B4D]">{t('reviews.emptyTitle')}</h4>
             <p className="text-xs text-[#5E6C84] mt-1 max-w-sm mx-auto">
-              Ushbu ish beruvchi haqida birinchi bo‘lib sharh qoldiring va boshqalarga yordam bering.
+              {t('reviews.emptyBody')}
             </p>
             {!isOwner && (
               <button
                 onClick={handleOpenAddReview}
                 className="mt-4 px-4 py-2 rounded-xl bg-[#1673E6] hover:bg-blue-700 text-white font-semibold text-xs transition-colors cursor-pointer"
               >
-                Birinchi sharhni yozish
+                {t('reviews.writeFirst')}
               </button>
             )}
           </div>
@@ -408,7 +411,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
                         </div>
                         <span className="text-[10px] text-[#5E6C84]">
                           {formatDateAgo(rev.created_at)}
-                          {rev.updated_at !== rev.created_at && ' (tahrirlangan)'}
+                          {rev.updated_at !== rev.created_at && ` (${t('reviews.edited')})`}
                         </span>
                       </div>
                     </div>
@@ -433,7 +436,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
 
                   {/* Review Text */}
                   <div className="mt-3.5 text-xs sm:text-sm text-[#172B4D] leading-relaxed whitespace-pre-wrap font-normal">
-                    {rev.comment}
+                    <Translated text={rev.comment} />
                   </div>
 
                   {/* Review Author / Moderator Actions */}
@@ -445,7 +448,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
                           className="text-[#1673E6] hover:text-blue-800 font-semibold flex items-center gap-1 cursor-pointer transition-colors"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
-                          <span>Tahrirlash</span>
+                          <span>{t('common.edit')}</span>
                         </button>
                       )}
 
@@ -455,7 +458,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
                           className="text-rose-600 hover:text-rose-700 font-semibold flex items-center gap-1 cursor-pointer transition-colors"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
-                          <span>{isStaff && !isAuthor ? 'O‘chirish (Moderatsiya)' : 'O‘chirish'}</span>
+                          <span>{isStaff && !isAuthor ? t('reviews.deleteMod') : t('common.delete')}</span>
                         </button>
                       )}
                     </div>
@@ -470,7 +473,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
                         className="text-[#1673E6] hover:underline font-semibold flex items-center gap-1 cursor-pointer"
                       >
                         <Reply className="w-3.5 h-3.5" />
-                        <span>{isReplying ? 'Bekor qilish' : 'Javob berish'}</span>
+                        <span>{isReplying ? t('common.cancel') : t('reviews.reply')}</span>
                       </button>
                     )}
                   </div>
@@ -481,7 +484,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1.5 font-bold text-[#1673E6]">
                           <Building2 className="w-4 h-4" />
-                          <span>Ish beruvchi javobi</span>
+                          <span>{t('reviews.employerReply')}</span>
                           <span className="text-[10px] text-gray-400 font-normal">
                             ({rev.employer_name})
                           </span>
@@ -494,7 +497,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
                             <button
                               onClick={() => handleDeleteReply(rev.id)}
                               className="text-rose-500 hover:text-rose-700 p-0.5 rounded cursor-pointer"
-                              title="Javobni o'chirish"
+                              title={t('reviews.deleteReplyTitle')}
                             >
                               <X className="w-3.5 h-3.5" />
                             </button>
@@ -502,7 +505,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
                         </div>
                       </div>
                       <p className="text-[#172B4D] leading-relaxed whitespace-pre-wrap">
-                        {rev.employer_reply}
+                        <Translated text={rev.employer_reply} />
                       </p>
                     </div>
                   )}
@@ -511,13 +514,13 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
                   {isReplying && (
                     <div className="mt-3 p-3 bg-gray-50 rounded-xl border border-[#EBECF0] space-y-2">
                       <label className="block text-[11px] font-bold text-[#172B4D]">
-                        Sharhga rasmiy javobingiz:
+                        {t('reviews.replyLabel')}
                       </label>
                       <textarea
                         rows={2}
                         value={replyText}
                         onChange={(e) => setReplyText(e.target.value)}
-                        placeholder="Mijoz yoki nomzodga muloyim va professional javob yozing..."
+                        placeholder={t('reviews.replyPh')}
                         className="w-full p-2.5 text-xs bg-white border border-[#EBECF0] rounded-lg focus:outline-hidden focus:border-[#1673E6]"
                       />
                       <div className="flex justify-end gap-2">
@@ -526,7 +529,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
                           onClick={() => setReplyingReviewId(null)}
                           className="px-3 py-1.5 rounded-lg border border-[#EBECF0] text-xs font-medium text-gray-600 hover:bg-gray-100"
                         >
-                          Bekor qilish
+                          {t('common.cancel')}
                         </button>
                         <button
                           type="button"
@@ -534,7 +537,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
                           onClick={() => handleSubmitReply(rev.id)}
                           className="px-3.5 py-1.5 rounded-lg bg-[#1673E6] hover:bg-blue-700 text-white font-semibold text-xs flex items-center gap-1 disabled:opacity-50"
                         >
-                          {isSubmittingReply ? 'Yuborilmoqda...' : 'Javobni yuborish'}
+                          {isSubmittingReply ? t('reviews.sending') : t('reviews.sendReply')}
                         </button>
                       </div>
                     </div>
@@ -556,10 +559,10 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
           <div className="flex items-start justify-between gap-4 px-6 sm:px-8 pt-6 pb-4 border-b border-gray-100">
             <div>
               <h3 className="font-bold text-lg text-gray-950">
-                {editingReviewId ? 'Sharhni tahrirlash' : 'Sharh qoldirish'}
+                {editingReviewId ? t('reviews.editTitle') : t('reviews.leave')}
               </h3>
               <p className="text-xs text-gray-500 mt-0.5">
-                Ish beruvchi: <span className="font-semibold text-gray-800">{employerName}</span>
+                {t('reviews.employerLabel')} <span className="font-semibold text-gray-800">{employerName}</span>
               </p>
             </div>
             <button
@@ -584,7 +587,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
               {/* Interactive 5-Star Selection */}
               <div>
                 <label className="block text-xs font-bold text-[#172B4D] mb-1.5">
-                  Bahoni tanlang (1 dan 5 gacha)
+                  {t('reviews.chooseRating')}
                 </label>
                 <div className="flex items-center gap-2">
                   <div className="flex items-center gap-1">
@@ -598,7 +601,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
                           onMouseLeave={() => setHoverRating(0)}
                           onClick={() => setFormRating(star)}
                           className="p-1 focus:outline-hidden focus:ring-2 focus:ring-[#1673E6] rounded-md transition-transform hover:scale-115 active:scale-95 cursor-pointer"
-                          aria-label={`${star} yulduz`}
+                          aria-label={t('reviews.starAria', { n: star })}
                         >
                           <Star
                             className={`w-7 h-7 transition-colors ${
@@ -620,7 +623,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
               {/* Comment Textarea */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-bold text-[#172B4D]">Sharhingiz</label>
+                  <label className="text-xs font-bold text-[#172B4D]">{t('reviews.yourReview')}</label>
                   <span
                     className={`text-[11px] font-mono ${
                       formComment.length > 900 ? 'text-amber-600 font-bold' : 'text-[#5E6C84]'
@@ -634,7 +637,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
                   required
                   value={formComment}
                   onChange={(e) => setFormComment(e.target.value)}
-                  placeholder="Ushbu ish beruvchi haqidagi fikringizni yozing..."
+                  placeholder={t('reviews.commentPh')}
                   className="w-full p-3.5 text-xs sm:text-sm bg-white border border-[#EBECF0] rounded-xl focus:outline-hidden focus:border-[#1673E6] focus:ring-2 focus:ring-blue-100 transition-all placeholder:text-gray-400"
                 />
               </div>
@@ -647,7 +650,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
                   disabled={isSubmitting}
                   className="px-4 py-2.5 rounded-xl border border-[#EBECF0] text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
                 >
-                  Bekor qilish
+                  {t('common.cancel')}
                 </button>
                 <button
                   type="submit"
@@ -655,11 +658,11 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
                   className="px-5 py-2.5 rounded-xl bg-[#1673E6] hover:bg-blue-700 text-white font-semibold text-xs shadow-xs transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
                 >
                   {isSubmitting ? (
-                    <span>Yuborilmoqda...</span>
+                    <span>{t('reviews.sending')}</span>
                   ) : (
                     <>
                       <Send className="w-3.5 h-3.5" />
-                      <span>{editingReviewId ? 'O‘zgarishlarni saqlash' : 'Sharhni yuborish'}</span>
+                      <span>{editingReviewId ? t('reviews.saveChanges') : t('reviews.sendReview')}</span>
                     </>
                   )}
                 </button>
@@ -680,10 +683,9 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
             <Trash2 className="w-6 h-6" />
           </div>
           <div>
-            <h4 className="font-bold text-base text-gray-950">Sharhni o‘chirmoqchimisiz?</h4>
+            <h4 className="font-bold text-base text-gray-950">{t('reviews.deleteConfirmTitle')}</h4>
             <p className="text-xs text-gray-500 mt-1">
-              Ushbu amalni ortga qaytarib bo‘lmaydi. Sharh butunlay o‘chiriladi va reyting qayta
-              hisoblanadi.
+              {t('reviews.deleteConfirmBody')}
             </p>
           </div>
           <div className="flex gap-2 justify-center pt-2">
@@ -693,7 +695,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
               disabled={isDeleting}
               className="flex-1 py-2.5 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 cursor-pointer"
             >
-              Bekor qilish
+              {t('common.cancel')}
             </button>
             <button
               type="button"
@@ -701,7 +703,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
               disabled={isDeleting}
               className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs transition-colors cursor-pointer"
             >
-              {isDeleting ? 'O‘chirilmoqda...' : 'O‘chirish'}
+              {isDeleting ? t('reviews.deleting') : t('common.delete')}
             </button>
           </div>
         </div>

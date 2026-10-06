@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { useNotifications } from '../../context/NotificationContext.tsx';
 import { Home, Heart, Plus, MessageSquare, User } from 'lucide-react';
+import { useI18n } from '../../i18n/IntlContext.tsx';
 
 interface MobileNavProps {
   currentRoute: string;
@@ -12,6 +13,7 @@ interface MobileNavProps {
 export const MobileNav: React.FC<MobileNavProps> = ({ currentRoute, onNavigate }) => {
   const { user, openLoginModal } = useAuth();
   const { unreadCount } = useNotifications();
+  const { t } = useI18n();
   const navRef = useRef<HTMLDivElement>(null);
   const [bubbleLeft, setBubbleLeft] = useState(0);
   const [ready, setReady] = useState(false);
@@ -33,11 +35,11 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentRoute, onNavigate }
   };
 
   const items = [
-    { icon: Home, label: 'Asosiy', route: '/', auth: false, match: currentRoute === '/' },
-    { icon: Heart, label: 'Yoqtirilganlar', route: '/saved', auth: true, match: currentRoute === '/saved' },
-    { icon: Plus, label: "E'lon", route: '/create', auth: true, match: currentRoute === '/create' },
-    { icon: MessageSquare, label: 'Suhbatlar', route: '/chat', auth: true, match: currentRoute === '/chat' },
-    { icon: User, label: user ? 'Profil' : 'Kirish', route: '/profile', auth: false, match: currentRoute.startsWith('/profile') },
+    { icon: Home, label: t('nav.homeShort'), route: '/', auth: false, match: currentRoute === '/' },
+    { icon: Heart, label: t('nav.saved'), route: '/saved', auth: true, match: currentRoute === '/saved' },
+    { icon: Plus, label: t('nav.createShort'), route: '/create', auth: true, match: currentRoute === '/create' },
+    { icon: MessageSquare, label: t('nav.chat'), route: '/chat', auth: true, match: currentRoute === '/chat' },
+    { icon: User, label: user ? t('nav.profile') : t('nav.login'), route: '/profile', auth: false, match: currentRoute.startsWith('/profile') },
   ];
 
   const activeIndex = items.findIndex((i) => i.match);

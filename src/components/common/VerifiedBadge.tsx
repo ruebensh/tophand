@@ -1,4 +1,5 @@
 import React from 'react';
+import { useI18n } from '../../i18n/IntlContext.tsx';
 
 interface VerifiedBadgeProps {
   size?: 'xs' | 'sm' | 'md' | 'lg';
@@ -28,11 +29,14 @@ const GoldenSparkle: React.FC<{ className?: string; style?: React.CSSProperties 
 export const VerifiedBadge: React.FC<VerifiedBadgeProps> = ({
   size = 'sm',
   showLabel = false,
-  labelText = 'Tasdiqlangan',
+  labelText,
   className = '',
-  tooltip = 'TopHand tomonidan to‘liq tasdiqlangan profil',
+  tooltip,
   variant = 'blue',
 }) => {
+  const { t } = useI18n();
+  const label = labelText ?? t('badge.verified');
+  const tip = tooltip ?? t('badge.fullVerifiedTooltip');
   const sizeMap = {
     xs: { icon: 'w-4 h-4', p1: 'w-2 h-2', p2: 'w-1.5 h-1.5', text: 'text-[10px]' },
     sm: { icon: 'w-4.5 h-4.5', p1: 'w-2.5 h-2.5', p2: 'w-2 h-2', text: 'text-[11px]' },
@@ -43,7 +47,7 @@ export const VerifiedBadge: React.FC<VerifiedBadgeProps> = ({
   const badgeIcon = (
     <span
       className={`relative inline-flex items-center justify-center shrink-0 select-none overflow-visible ${sizeMap.icon}`}
-      title={tooltip}
+      title={tip}
     >
       {/* Tillarang zarchalar: 4 golden floating sparkles rising out from around the badge */}
       <span className="absolute inset-0 pointer-events-none overflow-visible" aria-hidden="true">
@@ -163,7 +167,7 @@ export const VerifiedBadge: React.FC<VerifiedBadgeProps> = ({
 
   return (
     <span
-      title={tooltip}
+      title={tip}
       className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-bold transition-all shadow-xs overflow-visible ${
         variant === 'emerald'
           ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs'
@@ -175,7 +179,7 @@ export const VerifiedBadge: React.FC<VerifiedBadgeProps> = ({
       } ${sizeMap.text} ${className}`}
     >
       {badgeIcon}
-      <span>{labelText}</span>
+      <span>{label}</span>
     </span>
   );
 };

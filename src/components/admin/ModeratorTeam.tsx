@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { apiRequest } from '../../lib/api.ts';
 import { Users2, RefreshCw, Save, MessageSquare, CheckCircle2, XCircle } from 'lucide-react';
+import { useI18n } from '../../i18n/IntlContext.tsx';
 
 interface ModeratorRow {
   id: string;
@@ -20,6 +21,7 @@ interface ModeratorRow {
 const LEVELS = ['INTERN_MOD', 'MODERATOR', 'LEAD_MOD'];
 
 export const ModeratorTeam: React.FC = () => {
+  const { t } = useI18n();
   const [rows, setRows] = useState<ModeratorRow[]>([]);
   const [stats, setStats] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -61,9 +63,9 @@ export const ModeratorTeam: React.FC = () => {
           is_active: !!row.is_active,
         }),
       });
-      alert('Saqlandi');
+      alert(t('admin.teamSaved'));
     } catch (err: any) {
-      alert(err.message || 'Saqlashda xatolik');
+      alert(err.message || t('admin.teamSaveErr'));
     }
   };
 
@@ -75,12 +77,12 @@ export const ModeratorTeam: React.FC = () => {
         <div className="flex items-center gap-2">
           <Users2 className="w-5 h-5 text-blue-600" />
           <div>
-            <h3 className="font-bold text-sm text-gray-900">Jamoa va moderatsiya taqsimoti</h3>
-            <p className="text-[11px] text-gray-500">Moderator darajalari, ish hajmi (capacity), ixtisoslik va xabar yuborish ruxsati</p>
+            <h3 className="font-bold text-sm text-gray-900">{t('admin.teamTitle')}</h3>
+            <p className="text-[11px] text-gray-500">{t('admin.teamSub')}</p>
           </div>
         </div>
         <button onClick={fetchAll} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-gray-200 text-xs font-bold text-gray-600 hover:bg-gray-50 cursor-pointer">
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Yangilash
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> {t('admin.teamRefresh')}
         </button>
       </div>
 
@@ -89,21 +91,21 @@ export const ModeratorTeam: React.FC = () => {
           <table className="w-full text-left text-xs text-gray-700">
             <thead className="bg-gray-50 border-b border-gray-100 text-[11px] font-bold text-gray-500 uppercase">
               <tr>
-                <th className="p-3">Moderator</th>
-                <th className="p-3">Daraja</th>
-                <th className="p-3">Max ochiq</th>
-                <th className="p-3">Hozirgi</th>
-                <th className="p-3">Ixtisoslik (catalog)</th>
-                <th className="p-3">Hududlar</th>
-                <th className="p-3">Xabar</th>
-                <th className="p-3">Faol</th>
-                <th className="p-3">Hal qilingan</th>
-                <th className="p-3 text-right">Saqlash</th>
+                <th className="p-3">{t('admin.thModerator')}</th>
+                <th className="p-3">{t('admin.thLevel')}</th>
+                <th className="p-3">{t('admin.thMaxOpen')}</th>
+                <th className="p-3">{t('admin.thCurrent')}</th>
+                <th className="p-3">{t('admin.thSpecialty')}</th>
+                <th className="p-3">{t('admin.thRegionsCol')}</th>
+                <th className="p-3">{t('admin.thMsg')}</th>
+                <th className="p-3">{t('admin.thActiveCol')}</th>
+                <th className="p-3">{t('admin.thResolved')}</th>
+                <th className="p-3 text-right">{t('admin.thSave')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {rows.length === 0 && (
-                <tr><td colSpan={10} className="p-8 text-center text-gray-400">{loading ? 'Yuklanmoqda...' : 'Moderatorlar yoq. Avval rol bering.'}</td></tr>
+                <tr><td colSpan={10} className="p-8 text-center text-gray-400">{loading ? t('admin.teamLoading') : t('admin.teamEmpty')}</td></tr>
               )}
               {rows.map((row) => (
                 <tr key={row.id} className="hover:bg-gray-50/60">
@@ -139,7 +141,7 @@ export const ModeratorTeam: React.FC = () => {
                   <td className="p-3 font-bold text-gray-700">{statFor(row.id)?.tasks_resolved || 0}</td>
                   <td className="p-3 text-right">
                     <button onClick={() => save(row)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] cursor-pointer">
-                      <Save className="w-3.5 h-3.5" /> Saqlash
+                      <Save className="w-3.5 h-3.5" /> {t('admin.thSave')}
                     </button>
                   </td>
                 </tr>

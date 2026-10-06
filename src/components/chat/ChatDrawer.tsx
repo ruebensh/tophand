@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { formatDateAgo } from '../../lib/utils.ts';
 import { ReportModal } from '../modals/ReportModal.tsx';
+import { useI18n } from '../../i18n/IntlContext.tsx';
 
 interface ChatDrawerProps {
   isOpen: boolean;
@@ -30,6 +31,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({
   listingId,
 }) => {
   const { user } = useAuth();
+  const { t } = useI18n();
 
   const [activeConvId, setActiveConvId] = useState<string | undefined>(initialConvId);
   const [conversationData, setConversationData] = useState<any>(null);
@@ -114,7 +116,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({
       });
       setMessages((prev) => [...prev, msg]);
     } catch (err: any) {
-      alert(err.message || 'Xabar yuborishda xatolik');
+      alert(err.message || t('chat.sendError'));
       setText(sendingText);
     } finally {
       setIsSending(false);
@@ -134,7 +136,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({
       });
       setMessages((prev) => [...prev, msg]);
     } catch (err: any) {
-      alert(err.message || 'Rasm yuklashda xatolik');
+      alert(err.message || t('chat.imageError'));
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -143,18 +145,18 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({
 
   const handleBlockUser = async () => {
     if (!partner) return;
-    if (!confirm(`${partner.name}ni bloklamoqchimisiz?`)) return;
+    if (!confirm(t('chat.blockConfirm', { name: partner.name }))) return;
 
     try {
       await apiRequest('/api/chat/block', {
         method: 'POST',
         body: JSON.stringify({ blocked_user_id: partner.id }),
       });
-      alert('Foydalanuvchi bloklandi');
+      alert(t('chat.blocked'));
       setShowMenu(false);
       onClose();
     } catch (err: any) {
-      alert(err.message || 'Xatolik yuz berdi');
+      alert(err.message || t('chat.genericError'));
     }
   };
 
@@ -173,10 +175,10 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({
             )}
             <div className="min-w-0">
               <h3 className="font-bold text-sm text-gray-900 truncate">
-                {partner?.name || 'TopHand Suhbat'}
+                {partner?.name || t('chat.titleFallback')}
               </h3>
               <p className="text-[11px] text-gray-400 truncate">
-                {partner?.telegram_username ? `@${partner.telegram_username}` : 'TopHand muloqot'}
+                {partner?.telegram_username ? `@${partner.telegram_username}` : t('chat.subtitleFallback')}
               </p>
             </div>
           </div>
@@ -188,8 +190,8 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({
                 type="button"
                 onClick={() => setShowMenu(!showMenu)}
                 className="p-2 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-                title="Amallar"
-                aria-label="Amallar menyusi"
+                title={t('chat.actions')}
+                aria-label={t('chat.actionsAria')}
               >
                 <MoreVertical className="w-4 h-4" />
               </button>
@@ -200,20 +202,20 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({
                     onClick={() => {
                       setShowMenu(false);
                       if (activeConvId) {
-                        setReportTarget({ id: activeConvId, title: 'Ushbu suhbat bo‘yicha shikoyat' });
+                        setReportTarget({ id: activeConvId, title: t('chat.reportConversationTitle') });
                       }
                     }}
                     className="w-full px-3.5 py-2 text-xs text-left font-medium text-amber-700 hover:bg-amber-50 flex items-center gap-2"
                   >
                     <AlertTriangle className="w-3.5 h-3.5" />
-                    Shikoyat qilish
+                    {t('chat.report')}
                   </button>
                   <button
                     onClick={handleBlockUser}
                     className="w-full px-3.5 py-2 text-xs text-left font-medium text-rose-600 hover:bg-rose-50 flex items-center gap-2"
                   >
                     <Ban className="w-3.5 h-3.5" />
-                    Foydalanuvchini bloklash
+                    {t('chat.blockUserBtn')}
                   </button>
                 </div>
               )}
@@ -232,7 +234,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({
         {conversationData && (
           <div className="px-4 py-2 bg-blue-50/70 border-b border-blue-100 text-xs text-blue-900 flex items-center justify-between shrink-0">
             <span className="truncate">
-              Siz <strong className="font-semibold">"{conversationData.listing_title}"</strong> e’loni bo‘yicha yozmoqdasiz.
+              {t('chat.contextBanner', { title: conversationData.listing_title })}
             </span>
             <span className="shrink-0 text-[10px] px-2 py-0.5 rounded-full bg-blue-200/60 font-bold ml-2">
               TopHand Chat
@@ -243,7 +245,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({
         {/* Safety Disclaimer Header (Section 71) */}
         <div className="px-4 py-1.5 bg-gray-50 border-b border-gray-100 text-[11px] text-gray-500 flex items-center justify-center gap-1 shrink-0 text-center">
           <ShieldAlert className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-          <span>TopHand orqali yozish — xavfsizroq aloqa usuli.</span>
+          <span>{t('chat.safetyNote')}</span>
         </div>
 
         {/* Messages timeline */}
@@ -251,9 +253,9 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({
           {messages.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-gray-400 text-center p-6">
               <span className="text-3xl mb-2">💬</span>
-              <p className="text-xs font-semibold text-gray-700">Hozircha xabarlar yo‘q</p>
+              <p className="text-xs font-semibold text-gray-700">{t('chat.emptyTitle')}</p>
               <p className="text-[11px] text-gray-400 mt-1 max-w-xs">
-                Ushbu e’lon bo‘yicha birinchi xabarni yozing va kelishuv shartlarini muhokama qiling.
+                {t('chat.emptyBody')}
               </p>
             </div>
           ) : (
@@ -328,8 +330,8 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({
             disabled={isUploading}
             onClick={() => fileInputRef.current?.click()}
             className="p-2 rounded-full text-gray-500 hover:text-blue-600 hover:bg-gray-100 transition-colors disabled:opacity-50"
-            title="Rasm yuborish"
-            aria-label="Rasm biriktirish"
+            title={t('chat.attachTitle')}
+            aria-label={t('chat.attachAria')}
           >
             <ImageIcon className={`w-5 h-5 ${isUploading ? 'animate-pulse text-blue-600' : ''}`} />
           </button>
@@ -338,7 +340,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({
             type="text"
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Xabar yozing..."
+            placeholder={t('chat.inputPlaceholder')}
             className="flex-1 bg-gray-50 border border-gray-200 rounded-full px-4 py-2 text-xs sm:text-sm text-gray-900 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
           />
 
@@ -346,8 +348,8 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({
             type="submit"
             disabled={!text.trim() || isSending}
             className="p-2.5 rounded-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white transition-colors disabled:opacity-40 disabled:pointer-events-none"
-            title="Yuborish"
-            aria-label="Xabarni yuborish"
+            title={t('common.submit')}
+            aria-label={t('chat.sendAria')}
           >
             <Send className="w-4 h-4" />
           </button>

@@ -16,6 +16,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
+import { useI18n } from '../../i18n/IntlContext.tsx';
 import {
   AD_PLACEHOLDER_LABEL,
   AD_NETWORK,
@@ -119,6 +120,7 @@ export function AdSlot({
   autoRotate?: boolean;
   rotateInterval?: number;
 }) {
+  const { t } = useI18n();
   const effectiveInterval = rotateInterval ?? (AD_ROTATION_INTERVALS[placement] || 15000);
   const { ads, campaigns } = useAds();
   const [hidden, setHidden] = useState(false);
@@ -140,15 +142,34 @@ export function AdSlot({
   // Ushbu joylashuvga mos barcha aktiv kampaniyalar
   const rawList: AdCampaign[] = placementOn ? campaigns[placement] || [] : [];
 
-  // Boshlang'ich indeks: sahifadagi slot o'rniga qarab (slotIndex) taqsimlanadi
-  const initialIndex = rawList.length > 0 ? (slotIndex % rawList.length) : 0;
+  // Sahifaga har kirish/reload uchun random boshlang'ich offset (session davomida bir xil)
+  // Bu sessionStorage da saqlanadi — sahifa yangilansa yangi random, tab yopilsa tozalanadi
+  const pageOffset = (() => {
+    try {
+      const key = 'th_ad_offset';
+      let v = sessionStorage.getItem(key);
+      if (!v) {
+        v = String(Math.floor(Math.random() * 97)); // 0-96 orasida random (tub son)
+        sessionStorage.setItem(key, v);
+      }
+      return parseInt(v, 10);
+    } catch {
+      return Math.floor(Math.random() * 97);
+    }
+  })();
+
+  // Boshlang'ich indeks: random offset + slot pozitsiyasi (har bir slot boshqasidan farqli)
+  const initialIndex = rawList.length > 0
+    ? (pageOffset + slotIndex) % rawList.length
+    : 0;
   const [activeIdx, setActiveIdx] = useState(initialIndex);
 
   // SlotIndex yoki kampaniyalar ro'yxati o'zgarsa indeksni yangilash
   useEffect(() => {
     if (rawList.length > 0) {
-      setActiveIdx(slotIndex % rawList.length);
+      setActiveIdx((pageOffset + slotIndex) % rawList.length);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slotIndex, rawList.length]);
 
   // Bir nechta kampaniya bo'lsa avtomatik rotatsiya (almashib turish)
@@ -195,7 +216,7 @@ export function AdSlot({
     <button
       type="button"
       onClick={close}
-      aria-label="Reklamani yopish"
+      aria-label={t('ads.close')}
       className="absolute top-1.5 right-1.5 z-20 flex h-6 w-6 items-center justify-center rounded-full bg-white/80 border border-[#DDE7F7] text-[#5E6C84] hover:text-[#172B4D] hover:bg-white cursor-pointer"
     >
       <X className="w-3.5 h-3.5" />
@@ -217,7 +238,7 @@ export function AdSlot({
         onClick={onClick}
         className="inline-flex items-center gap-1 rounded-full bg-[#1673E6] px-3.5 py-1.5 text-[11px] sm:text-xs font-bold text-white shadow-xs hover:bg-blue-700 transition-colors whitespace-nowrap"
       >
-        {camp.cta_label || 'Batafsil'}
+        {camp.cta_label || t('ads.ctaDefault')}
         <span aria-hidden>→</span>
       </a>
     );
@@ -294,7 +315,7 @@ export function AdSlot({
               onClick={onClick}
               className="inline-flex items-center gap-1 text-[11px] font-bold text-[#1673E6] hover:underline"
             >
-              {camp.cta_label || 'Batafsil'} <span aria-hidden>→</span>
+              {camp.cta_label || t('ads.ctaDefault')} <span aria-hidden>→</span>
             </a>
           </div>
         </div>
@@ -359,7 +380,7 @@ export function AdSlot({
         {closeBtn}
         <div className="flex min-h-[64px] items-center justify-center px-12 py-3 text-center">
           <p className="text-sm font-extrabold text-[#172B4D]">
-            {title || 'Bu yerga reklama joylashtiriladi'}
+            {title || t('ads.placeholderHere')}
           </p>
         </div>
       </div>
@@ -376,7 +397,7 @@ export function AdSlot({
         <div className="p-3">
           <div className="h-3.5 w-3/4 rounded bg-gray-100" />
           <div className="mt-2 h-3 w-1/2 rounded bg-gray-100" />
-          <p className="mt-2 text-[11px] font-medium text-[#5E6C84]">Reklama uchun joy</p>
+          <p className="mt-2 text-[11px] font-medium text-[#5E6C84]">{t('ads.slotForAd')}</p>
         </div>
       </div>
     );
@@ -389,8 +410,8 @@ export function AdSlot({
       {closeBtn}
       <div className="flex min-h-[130px] flex-col items-center justify-center gap-2 px-4 py-6 text-center">
         <span className="text-2xl">📣</span>
-        <p className="text-xs font-bold text-[#172B4D]">{title || 'Reklama uchun joy'}</p>
-        <p className="text-[11px] text-[#5E6C84]">Mahsulotingizni shu yerga joylashtiring</p>
+        <p className="text-xs font-bold text-[#172B4D]">{title || t('ads.slotForAd')}</p>
+        <p className="text-[11px] text-[#5E6C84]">{t('ads.promoteHere')}</p>
       </div>
     </div>
   );

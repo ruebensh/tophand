@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import { generateToken, requireAuth, verifyTelegramAuth, AuthRequest } from '../auth/telegram.ts';
 import { queryOne, runQuery, queryAll } from '../db/database.ts';
 import { sendVerificationCodeEmail } from '../services/emailService.ts';
+import { reqLang, type MsgLocale } from '../i18n/messages.ts';
 import { notifyWelcome } from '../services/notificationService.ts';
 
 const router = Router();
@@ -31,7 +32,7 @@ function randomGradient(): string {
 const EMAIL_CODE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
 /** Generate a 6-digit code, persist it and email it to the address. */
-async function issueEmailCode(email: string, type: string, subject: string) {
+async function issueEmailCode(email: string, type: string, subject: string, lang: MsgLocale = 'uz') {
   const code = Math.floor(100000 + Math.random() * 900000).toString();
   const codeId = `otp_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
   const now = new Date();
@@ -44,7 +45,7 @@ async function issueEmailCode(email: string, type: string, subject: string) {
     [codeId, email, code, type, expiresAt, now.toISOString()]
   );
 
-  const emailRes = await sendVerificationCodeEmail(email, code, subject);
+  const emailRes = await sendVerificationCodeEmail(email, code, subject, lang);
   return { code, simulated: Boolean(emailRes.simulated) };
 }
 
@@ -205,7 +206,8 @@ router.post('/register/send-code', async (req, res) => {
     const { code, simulated } = await issueEmailCode(
       cleanEmail,
       'EMAIL_VERIFICATION',
-      "TopHand - Ro'yxatdan o'tish tasdiqlash kodi"
+      "TopHand - Ro'yxatdan o'tish tasdiqlash kodi",
+      reqLang(req)
     );
 
     res.json({
@@ -310,7 +312,7 @@ router.post('/forgot-password', async (req, res) => {
     );
 
     // Send code to email
-    const emailRes = await sendVerificationCodeEmail(cleanEmail, code, 'TopHand - Parolni tiklash kodi');
+    const emailRes = await sendVerificationCodeEmail(cleanEmail, code, 'TopHand - Parolni tiklash kodi', reqLang(req));
 
     res.json({
       success: true,
@@ -565,7 +567,7 @@ router.post('/email/send-code', requireAuth, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Ushbu email boshqa hisobga biriktirilgan' });
     }
 
-    const { code, simulated } = await issueEmailCode(cleanEmail, 'EMAIL_VERIFICATION', 'TopHand - Email tasdiqlash kodi');
+    const { code, simulated } = await issueEmailCode(cleanEmail, 'EMAIL_VERIFICATION', 'TopHand - Email tasdiqlash kodi', reqLang(req));
     res.json({ success: true, message: 'Tasdiqlash kodi emailingizga yuborildi', simulated, demo_code: simulated ? code : undefined });
   } catch (err: any) {
     console.error('Link email send-code error:', err);

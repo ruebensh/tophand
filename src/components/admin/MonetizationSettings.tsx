@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiRequest } from '../../lib/api.ts';
 import { DollarSign, Save, Loader2, CheckCircle2, Rocket, RefreshCw, Megaphone } from 'lucide-react';
+import { useI18n } from '../../i18n/IntlContext.tsx';
 
 /** Shape returned by GET /api/admin/monetization (MonetizationConfig). */
 interface AdminMonetizationConfig {
@@ -63,6 +64,7 @@ const AdToggle: React.FC<{
 );
 
 export const MonetizationSettings: React.FC = () => {
+  const { t } = useI18n();
   const [cfg, setCfg] = useState<AdminMonetizationConfig | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -74,7 +76,7 @@ export const MonetizationSettings: React.FC = () => {
       const data = await apiRequest<AdminMonetizationConfig>('/api/admin/monetization');
       setCfg(data);
     } catch (err: any) {
-      setMsg({ type: 'err', text: err.message || 'Yuklashda xatolik' });
+      setMsg({ type: 'err', text: err.message || t('admin.mnsLoadErr') });
     } finally {
       setIsLoading(false);
     }
@@ -118,9 +120,9 @@ export const MonetizationSettings: React.FC = () => {
         method: 'PUT',
         body: JSON.stringify(body),
       });
-      setMsg({ type: 'ok', text: res?.message || 'Saqlandi' });
+      setMsg({ type: 'ok', text: res?.message || t('admin.mnsSaved') });
     } catch (err: any) {
-      setMsg({ type: 'err', text: err.message || 'Saqlashda xatolik' });
+      setMsg({ type: 'err', text: err.message || t('admin.mnsSaveErr') });
     } finally {
       setIsSaving(false);
     }
@@ -129,7 +131,7 @@ export const MonetizationSettings: React.FC = () => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-16 text-gray-400 text-xs gap-2">
-        <Loader2 className="w-4 h-4 animate-spin" /> Monetizatsiya sozlamalari yuklanmoqda...
+        <Loader2 className="w-4 h-4 animate-spin" /> {t('admin.mnsLoading')}
       </div>
     );
   }
@@ -137,9 +139,9 @@ export const MonetizationSettings: React.FC = () => {
   if (!cfg) {
     return (
       <div className="p-6 text-center text-xs text-rose-600">
-        Sozlamalarni yuklab bo‘lmadi.{' '}
+        {t('admin.mnsLoadFail')}{' '}
         <button onClick={fetchCfg} className="underline font-bold cursor-pointer">
-          Qayta urinish
+          {t('admin.mnsRetry')}
         </button>
       </div>
     );
@@ -151,14 +153,14 @@ export const MonetizationSettings: React.FC = () => {
     <div className="bg-white rounded-3xl border border-gray-100 shadow-xs overflow-hidden">
       <div className="p-4 border-b border-gray-100 flex items-center gap-2">
         <DollarSign className="w-5 h-5 text-blue-600" />
-        <h3 className="font-black text-sm text-gray-900">Monetizatsiya boshqaruvi</h3>
+        <h3 className="font-black text-sm text-gray-900">{t('admin.mnsTitle')}</h3>
       </div>
 
       <div className="p-4 sm:p-6 space-y-6">
         {/* Mode + test end date */}
         <section className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-bold text-gray-800 mb-1.5">Rejim</label>
+            <label className="block text-xs font-bold text-gray-800 mb-1.5">{t('admin.mnsModeLabel')}</label>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
@@ -169,7 +171,7 @@ export const MonetizationSettings: React.FC = () => {
                     : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'
                 }`}
               >
-                Bepul test
+                {t('admin.mnsFreeTest')}
               </button>
               <button
                 type="button"
@@ -180,15 +182,15 @@ export const MonetizationSettings: React.FC = () => {
                     : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'
                 }`}
               >
-                Pullik
+                {t('admin.mnsPaid')}
               </button>
             </div>
             <p className="text-[11px] text-gray-400 mt-1.5">
-              Test tugash sanasi kelgach platforma avtomatik pullik rejimga o‘tadi.
+              {t('admin.mnsModeHint')}
             </p>
           </div>
           <div>
-            <label className="block text-xs font-bold text-gray-800 mb-1.5">Test tugash sanasi</label>
+            <label className="block text-xs font-bold text-gray-800 mb-1.5">{t('admin.mnsTestEndDate')}</label>
             <input
               type="date"
               value={fmtDateForInput(cfg.free_test_end_date)}
@@ -203,10 +205,10 @@ export const MonetizationSettings: React.FC = () => {
 
         {/* Active days */}
         <section>
-          <h4 className="text-xs font-bold text-gray-800 mb-2">Faol kunlar</h4>
+          <h4 className="text-xs font-bold text-gray-800 mb-2">{t('admin.mnsActiveDays')}</h4>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="block text-[11px] font-semibold text-gray-500 mb-1">Test (bepul) davri</label>
+              <label className="block text-[11px] font-semibold text-gray-500 mb-1">{t('admin.mnsFreePeriod')}</label>
               <input
                 type="number"
                 min={0}
@@ -216,7 +218,7 @@ export const MonetizationSettings: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-gray-500 mb-1">Pullik davr</label>
+              <label className="block text-[11px] font-semibold text-gray-500 mb-1">{t('admin.mnsPaidPeriod')}</label>
               <input
                 type="number"
                 min={0}
@@ -226,7 +228,7 @@ export const MonetizationSettings: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-gray-500 mb-1">Muddat ogohlantirishi (kun)</label>
+              <label className="block text-[11px] font-semibold text-gray-500 mb-1">{t('admin.mnsExpiryWarn')}</label>
               <input
                 type="number"
                 min={0}
@@ -241,19 +243,19 @@ export const MonetizationSettings: React.FC = () => {
         {/* Prices */}
         <section>
           <h4 className="text-xs font-bold text-gray-800 mb-2 flex items-center gap-1.5">
-            <DollarSign className="w-3.5 h-3.5 text-blue-600" /> Narxlar (so‘m, kategoriya bo‘yicha)
+            <DollarSign className="w-3.5 h-3.5 text-blue-600" /> {t('admin.mnsPrices')}
           </h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="p-3 rounded-2xl bg-gray-50/70 border border-gray-100 space-y-2.5">
-              <span className="text-[11px] font-bold text-gray-700 block">Xizmatlar</span>
+              <span className="text-[11px] font-bold text-gray-700 block">{t('admin.mnsServices')}</span>
               <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <label className="block text-[10px] text-gray-500 mb-0.5">E'lon</label>
+                  <label className="block text-[10px] text-gray-500 mb-0.5">{t('admin.mnsListing')}</label>
                   <input type="number" min={0} value={cfg.listing_price_services}
                     onChange={(e) => patch({ listing_price_services: Number(e.target.value) })} className={inputCls} />
                 </div>
                 <div>
-                  <label className="block text-[10px] text-gray-500 mb-0.5">Uzatish</label>
+                  <label className="block text-[10px] text-gray-500 mb-0.5">{t('admin.mnsRenew')}</label>
                   <input type="number" min={0} value={cfg.renew_price_services}
                     onChange={(e) => patch({ renew_price_services: Number(e.target.value) })} className={inputCls} />
                 </div>
@@ -265,15 +267,15 @@ export const MonetizationSettings: React.FC = () => {
               </div>
             </div>
             <div className="p-3 rounded-2xl bg-gray-50/70 border border-gray-100 space-y-2.5">
-              <span className="text-[11px] font-bold text-gray-700 block">Ish e'lonlari</span>
+              <span className="text-[11px] font-bold text-gray-700 block">{t('admin.mnsJobs')}</span>
               <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <label className="block text-[10px] text-gray-500 mb-0.5">E'lon</label>
+                  <label className="block text-[10px] text-gray-500 mb-0.5">{t('admin.mnsListing')}</label>
                   <input type="number" min={0} value={cfg.listing_price_jobs}
                     onChange={(e) => patch({ listing_price_jobs: Number(e.target.value) })} className={inputCls} />
                 </div>
                 <div>
-                  <label className="block text-[10px] text-gray-500 mb-0.5">Uzatish</label>
+                  <label className="block text-[10px] text-gray-500 mb-0.5">{t('admin.mnsRenew')}</label>
                   <input type="number" min={0} value={cfg.renew_price_jobs}
                     onChange={(e) => patch({ renew_price_jobs: Number(e.target.value) })} className={inputCls} />
                 </div>
@@ -291,7 +293,7 @@ export const MonetizationSettings: React.FC = () => {
         <section className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="flex items-center justify-between p-3 rounded-2xl bg-gray-50/70 border border-gray-100 cursor-pointer">
             <span className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
-              <RefreshCw className="w-3.5 h-3.5 text-gray-500" /> Uzatish pullik bo‘lsin
+              <RefreshCw className="w-3.5 h-3.5 text-gray-500" /> {t('admin.mnsRenewPaid')}
             </span>
             <input
               type="checkbox"
@@ -302,7 +304,7 @@ export const MonetizationSettings: React.FC = () => {
           </label>
           <label className="flex items-center justify-between p-3 rounded-2xl bg-gray-50/70 border border-gray-100 cursor-pointer">
             <span className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> AI avto-tasdiqlash
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> {t('admin.mnsAiAuto')}
             </span>
             <input
               type="checkbox"
@@ -317,7 +319,7 @@ export const MonetizationSettings: React.FC = () => {
         <section className="space-y-3">
           <div className="flex items-center gap-1.5">
             <Megaphone className="w-3.5 h-3.5 text-blue-600" />
-            <h4 className="text-xs font-bold text-gray-800">Reklama joylari</h4>
+            <h4 className="text-xs font-bold text-gray-800">{t('admin.mnsAdSlots')}</h4>
           </div>
 
           <label
@@ -326,7 +328,7 @@ export const MonetizationSettings: React.FC = () => {
             }`}
           >
             <span className={`text-xs font-bold ${cfg.ads_enabled ? 'text-white' : 'text-gray-800'}`}>
-              Reklimalarni umuman yoqish
+              {t('admin.mnsAdsEnableAll')}
             </span>
             <input
               type="checkbox"
@@ -338,29 +340,29 @@ export const MonetizationSettings: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             <AdToggle
-              label="Tepa banner"
-              hint="Header ostidagi, yopiladigan keng banner"
+              label={t('admin.mnsAdTop')}
+              hint={t('admin.mnsAdTopHint')}
               checked={cfg.ads_top_enabled}
               disabled={!cfg.ads_enabled}
               onChange={(v) => patch({ ads_top_enabled: v })}
             />
             <AdToggle
-              label="Mashxur qatori o'rni"
-              hint="Kategoriya toolbari ostidagi qator (mashxur bo'lmasa)"
+              label={t('admin.mnsAdPopular')}
+              hint={t('admin.mnsAdPopularHint')}
               checked={cfg.ads_popular_enabled}
               disabled={!cfg.ads_enabled}
               onChange={(v) => patch({ ads_popular_enabled: v })}
             />
             <AdToggle
-              label="E'lonlar orasida"
-              hint="Grid ichida, xuddi e'lon kartidek"
+              label={t('admin.mnsAdInline')}
+              hint={t('admin.mnsAdInlineHint')}
               checked={cfg.ads_inline_enabled}
               disabled={!cfg.ads_enabled}
               onChange={(v) => patch({ ads_inline_enabled: v })}
             />
             <AdToggle
-              label="Sidebar blok"
-              hint="Filtr paneli ostidagi tik to'rtburchak"
+              label={t('admin.mnsAdSidebar')}
+              hint={t('admin.mnsAdSidebarHint')}
               checked={cfg.ads_sidebar_enabled}
               disabled={!cfg.ads_enabled}
               onChange={(v) => patch({ ads_sidebar_enabled: v })}
@@ -369,7 +371,7 @@ export const MonetizationSettings: React.FC = () => {
 
           <div>
             <label className="block text-[11px] font-semibold text-gray-500 mb-1">
-              Har nechta e'londan keyin bitta reklama (grid uchun)
+              {t('admin.mnsAdEvery')}
             </label>
             <input
               type="number"
@@ -382,8 +384,7 @@ export const MonetizationSettings: React.FC = () => {
           </div>
 
           <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
-            E'tibor: tashqi reklama tarmog'i (masalan Google AdSense) hali ulanmagan. Slotlarni yoqsangiz,
-            foydalanuvchilarga ichki “Reklama” placeholder ko'rinadi — real reklama uchun tarmoq ID'sini ulang.
+            {t('admin.mnsAdNote')}
           </p>
         </section>
 
@@ -391,7 +392,7 @@ export const MonetizationSettings: React.FC = () => {
         <section>
           <div className="flex items-center gap-2 mb-2">
             <Rocket className="w-3.5 h-3.5 text-violet-600" />
-            <h4 className="text-xs font-bold text-gray-800">Promo muddati (soat)</h4>
+            <h4 className="text-xs font-bold text-gray-800">{t('admin.mnsPromoDuration')}</h4>
           </div>
           <input
             type="number"
@@ -422,7 +423,7 @@ export const MonetizationSettings: React.FC = () => {
             className="px-5 py-2.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md flex items-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
           >
             {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            <span>Saqlash</span>
+            <span>{t('common.save')}</span>
           </button>
         </div>
       </div>

@@ -4,6 +4,8 @@ import { apiRequest } from '../lib/api.ts';
 import { ListingCard } from '../components/listings/ListingCard.tsx';
 import { Building2, ShieldCheck, Globe, Phone, MapPin, Plus } from 'lucide-react';
 import { VerifiedBadge } from '../components/common/VerifiedBadge.tsx';
+import { Translated } from '../components/common/Translated.tsx';
+import { useI18n } from '../i18n/IntlContext.tsx';
 
 interface OrganizationPageProps {
   orgId: string;
@@ -16,6 +18,7 @@ export const OrganizationPage: React.FC<OrganizationPageProps> = ({
   onNavigate,
   onOpenListing,
 }) => {
+  const { t } = useI18n();
   const [org, setOrg] = useState<Organization | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -37,12 +40,12 @@ export const OrganizationPage: React.FC<OrganizationPageProps> = ({
   if (!org) {
     return (
       <div className="max-w-md mx-auto px-4 py-16 text-center">
-        <h3 className="font-bold text-base text-gray-900">Tashkilot topilmadi</h3>
+        <h3 className="font-bold text-base text-gray-900">{t('org.notFound')}</h3>
         <button
           onClick={() => onNavigate('/')}
           className="mt-4 px-5 py-2 rounded-full bg-blue-600 text-white text-xs font-bold"
         >
-          Bosh sahifaga qaytish
+          {t('org.backHome')}
         </button>
       </div>
     );
@@ -77,12 +80,12 @@ export const OrganizationPage: React.FC<OrganizationPageProps> = ({
                     size="sm"
                     variant="emerald"
                     showLabel={true}
-                    labelText="Tasdiqlangan tashkilot"
-                    tooltip="TopHand tomonidan rasmiy tasdiqlangan yuridik tashkilot"
+                    labelText={t('org.verifiedLabel')}
+                    tooltip={t('org.verifiedTooltip')}
                   />
                 ) : (
                   <span className="text-[10px] px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 font-medium">
-                    Tasdiqlanmagan
+                    {t('org.unverified')}
                   </span>
                 )}
               </div>
@@ -127,14 +130,14 @@ export const OrganizationPage: React.FC<OrganizationPageProps> = ({
               className="flex items-center gap-1.5 px-4 py-2.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs"
             >
               <Plus className="w-4 h-4" />
-              <span>Yangi vakansiya berish</span>
+              <span>{t('org.newVacancy')}</span>
             </button>
           )}
         </div>
 
         {org.description && (
           <div className="mt-6 pt-6 border-t border-gray-100 text-xs sm:text-sm text-gray-700 leading-relaxed max-w-3xl">
-            {org.description}
+            <Translated text={org.description} as="p" />
           </div>
         )}
       </div>
@@ -142,13 +145,13 @@ export const OrganizationPage: React.FC<OrganizationPageProps> = ({
       {/* Active Listings Header */}
       <div className="mb-6">
         <h2 className="text-lg font-bold text-gray-900 tracking-tight">
-          Tashkilotning faol vakansiya va e’lonlari ({org.listings?.length || 0})
+          {t('org.activeListings')} ({org.listings?.length || 0})
         </h2>
       </div>
 
       {!org.listings || org.listings.length === 0 ? (
         <div className="bg-white rounded-3xl border border-gray-100 p-12 text-center text-xs text-gray-500 max-w-sm mx-auto">
-          Hozirda tashkilotda faol e’lonlar mavjud emas
+          {t('org.noActiveListings')}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">

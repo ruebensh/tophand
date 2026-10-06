@@ -18,6 +18,7 @@ import {
   Save,
 } from 'lucide-react';
 import { formatDateAgo } from '../../lib/utils.ts';
+import { useI18n } from '../../i18n/IntlContext.tsx';
 
 interface UserPassportModalProps {
   isOpen: boolean;
@@ -47,33 +48,36 @@ export const UserPassportModal: React.FC<UserPassportModalProps> = ({
   const [passportIssuedBy, setPassportIssuedBy] = useState(user?.passport_issued_by || '');
   const [passportIssuedDate, setPassportIssuedDate] = useState(user?.passport_issued_date || '');
 
+  const { t } = useI18n();
+
   if (!isOpen || !user) return null;
 
   const handleCopyIIVProtocol = () => {
+    const none = t('admin.upmNotAvailable');
     const text = `
-O'ZBEKISTON RESPUBLIKASI ICHKI ISHLAR VAZIRLIGI (IIV) SURISHTIRUV PROTOKOLI
+${t('admin.upmProtoTitle')}
 -------------------------------------------------------------------------
-Platforma: TopHand.uz (Elektron xizmatlar va bandlik portali)
-Foydalanuvchi ID: ${user.id}
-Telegram ID: ${user.telegram_id || 'Mavjud emas'}
-Telegram username: ${user.telegram_username ? '@' + user.telegram_username : 'Mavjud emas'}
-Telefon: ${user.phone || 'Kiritilmagan'}
+${t('admin.upmProtoPlatformLine')}
+${t('admin.upmProtoUserId')} ${user.id}
+${t('admin.upmProtoTelegramId')} ${user.telegram_id || none}
+${t('admin.upmProtoTelegramUser')} ${user.telegram_username ? '@' + user.telegram_username : none}
+${t('admin.upmProtoPhone')} ${user.phone || t('admin.passportNot')}
 
-SHAXSNI TASDIQLOVCHI HUJJAT MA'LUMOTLARI:
-To'liq F.I.SH: ${user.full_legal_name || user.name}
-JSHSHIR (PINFL): ${user.pinfl || 'Mavjud emas'}
-Pasport seriya va raqam: ${(user.passport_series || '') + ' ' + (user.passport_number || 'Mavjud emas')}
-Tug'ilgan sana: ${user.birth_date || 'Mavjud emas'}
-Kim tomonidan berilgan: ${user.passport_issued_by || 'Mavjud emas'}
-Berilgan sana: ${user.passport_issued_date || 'Mavjud emas'}
+${t('admin.upmProtoDocHeader')}
+${t('admin.upmProtoFullName')} ${user.full_legal_name || user.name}
+${t('admin.upmProtoPinfl')} ${user.pinfl || none}
+${t('admin.upmProtoSeriesNum')} ${(user.passport_series || '') + ' ' + (user.passport_number || none)}
+${t('admin.upmProtoBirth')} ${user.birth_date || none}
+${t('admin.upmProtoIssuedBy')} ${user.passport_issued_by || none}
+${t('admin.upmProtoIssuedDate')} ${user.passport_issued_date || none}
 
-PLATFORMA HOLATI:
-Tasdiq nishoni: ${user.verification_status || 'UNVERIFIED'}
-Tasdiqlangan vaqt: ${user.verified_at || 'Mavjud emas'}
-Ro'yxatdan o'tgan: ${user.created_at}
-Hudud: ${user.district_name || ''}, ${user.region_name || ''}
+${t('admin.upmProtoPlatformState')}
+${t('admin.upmProtoBadge')} ${user.verification_status || 'UNVERIFIED'}
+${t('admin.upmProtoVerifiedAt')} ${user.verified_at || none}
+${t('admin.upmProtoRegistered')} ${user.created_at}
+${t('admin.upmProtoRegion')} ${user.district_name || ''}, ${user.region_name || ''}
 -------------------------------------------------------------------------
-Ma'lumotlar platforma ma'muriyati server bazasidan olingan.
+${t('admin.upmProtoFooter')}
     `.trim();
 
     navigator.clipboard.writeText(text);
@@ -94,7 +98,7 @@ Ma'lumotlar platforma ma'muriyati server bazasidan olingan.
       onUserUpdated();
       setShowRejectInput(false);
     } catch (err: any) {
-      alert(err.message || 'Xatolik yuz berdi');
+      alert(err.message || t('common.errGeneric'));
     } finally {
       setIsProcessing(false);
     }
@@ -119,7 +123,7 @@ Ma'lumotlar platforma ma'muriyati server bazasidan olingan.
       setIsEditingPassport(false);
       onUserUpdated();
     } catch (err: any) {
-      alert(err.message || 'Pasport ma’lumotlarini saqlashda xatolik');
+      alert(err.message || t('admin.upmSavePassportErr'));
     } finally {
       setIsProcessing(false);
     }
@@ -145,7 +149,7 @@ Ma'lumotlar platforma ma'muriyati server bazasidan olingan.
                 {user.verification_status === 'VERIFIED' && <VerifiedBadge size="sm" />}
               </div>
               <p className="text-xs text-gray-400">
-                {user.telegram_username ? `@${user.telegram_username}` : 'Username yo‘q'} • ID: {user.id}
+                {user.telegram_username ? `@${user.telegram_username}` : t('admin.upmNoUsername')} • ID: {user.id}
               </p>
             </div>
           </div>
@@ -178,17 +182,17 @@ Ma'lumotlar platforma ma'muriyati server bazasidan olingan.
                   <ShieldAlert className="w-5 h-5 text-amber-600" />
                 )}
                 <span className="font-bold text-sm">
-                  Tasdiq holati:{' '}
+                  {t('admin.upmVerStatus')}{' '}
                   {user.verification_status === 'VERIFIED'
-                    ? 'Rasmiy tasdiqlangan (Verified)'
+                    ? t('admin.upmVerRasmiy')
                     : user.verification_status === 'PENDING'
-                    ? 'Ariza topshirilgan (Tekshirish kutilmoqda)'
-                    : 'Tasdiqlanmagan'}
+                    ? t('admin.upmVerPending')
+                    : t('admin.upmVerUnverified')}
                 </span>
               </div>
               {user.verified_at && (
                 <p className="text-xs opacity-75 mt-0.5">
-                  Tasdiqlangan sana: {formatDateAgo(user.verified_at)}
+                  {t('admin.upmVerifiedDate')} {formatDateAgo(user.verified_at)}
                 </p>
               )}
             </div>
@@ -202,7 +206,7 @@ Ma'lumotlar platforma ma'muriyati server bazasidan olingan.
                   onClick={() => handleUpdateVerification('VERIFIED')}
                   className="px-4 py-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs cursor-pointer"
                 >
-                  Tasdiq nishonini berish
+                  {t('admin.upmGiveBadge')}
                 </button>
               ) : (
                 <button
@@ -211,7 +215,7 @@ Ma'lumotlar platforma ma'muriyati server bazasidan olingan.
                   onClick={() => handleUpdateVerification('UNVERIFIED')}
                   className="px-4 py-2 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold text-xs cursor-pointer"
                 >
-                  Nishonni bekor qilish
+                  {t('admin.upmRevokeBadge')}
                 </button>
               )}
               {user.verification_status === 'PENDING' && (
@@ -220,7 +224,7 @@ Ma'lumotlar platforma ma'muriyati server bazasidan olingan.
                   onClick={() => setShowRejectInput(!showRejectInput)}
                   className="px-3.5 py-2 rounded-full bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold text-xs cursor-pointer"
                 >
-                  Rad etish
+                  {t('admin.upmReject')}
                 </button>
               )}
             </div>
@@ -230,13 +234,13 @@ Ma'lumotlar platforma ma'muriyati server bazasidan olingan.
           {showRejectInput && (
             <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 space-y-3">
               <label className="text-xs font-bold text-rose-900 block">
-                Rad etish sababini kiriting (foydalanuvchiga xabar yuboriladi):
+                {t('admin.upmRejectReasonLabel')}
               </label>
               <input
                 type="text"
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="Masalan: Pasport fotosurati xira yoki JSHSHIR mos kelmadi..."
+                placeholder={t('admin.upmRejectReasonPh')}
                 className="w-full p-2.5 bg-white border border-rose-300 rounded-xl text-xs text-gray-900 focus:outline-hidden"
               />
               <div className="flex justify-end gap-2">
@@ -245,7 +249,7 @@ Ma'lumotlar platforma ma'muriyati server bazasidan olingan.
                   onClick={() => setShowRejectInput(false)}
                   className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold"
                 >
-                  Bekor qilish
+                  {t('common.cancel')}
                 </button>
                 <button
                   type="button"
@@ -253,7 +257,7 @@ Ma'lumotlar platforma ma'muriyati server bazasidan olingan.
                   onClick={() => handleUpdateVerification('REJECTED')}
                   className="px-4 py-1.5 rounded-lg bg-rose-600 text-white font-bold text-xs cursor-pointer"
                 >
-                  Rad etishni tasdiqlash
+                  {t('admin.upmConfirmReject')}
                 </button>
               </div>
             </div>
@@ -263,10 +267,10 @@ Ma'lumotlar platforma ma'muriyati server bazasidan olingan.
           <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-900 space-y-1">
             <span className="font-bold flex items-center gap-1.5">
               <span>⚠️</span>
-              <span>IIV tergov organlari va Huquqiy xavfsizlik kafolati:</span>
+              <span>{t('admin.upmLegalTitle')}</span>
             </span>
             <p className="opacity-90 leading-relaxed">
-              Ushbu pasport ma’lumotlari foydalanuvchi tomonidan tasdiq nishoni olish arizasida kiritilgan. Tasdiqlangan mutaxassis tomonidan firibgarlik yoki huquqbuzarlik sodir etilganda, ushbu ma’lumotlar IIV xodimlariga taqdim etiladi.
+              {t('admin.upmLegalBody')}
             </p>
           </div>
 
@@ -275,7 +279,7 @@ Ma'lumotlar platforma ma'muriyati server bazasidan olingan.
             <div className="flex items-center justify-between">
               <h4 className="font-extrabold text-sm text-gray-950 flex items-center gap-2">
                 <FileText className="w-4 h-4 text-blue-600" />
-                <span>Pasport va Shaxsiy Identifikatsiya (JSHSHIR)</span>
+                <span>{t('admin.upmPassportSectionTitle')}</span>
               </h4>
 
               <div className="flex items-center gap-2">
@@ -283,17 +287,17 @@ Ma'lumotlar platforma ma'muriyati server bazasidan olingan.
                   type="button"
                   onClick={handleCopyIIVProtocol}
                   className="px-3 py-1.5 rounded-lg bg-white border border-gray-200 hover:bg-gray-100 text-gray-700 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
-                  title="IIVga taqdim etish uchun protokol matnidan nusxa olish"
+                  title={t('admin.upmCopyProtoTip')}
                 >
                   {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copied ? 'Nusxalandi!' : 'IIV protokolidan nusxa'}</span>
+                  <span>{copied ? t('admin.upmCopied') : t('admin.upmCopyProto')}</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setIsEditingPassport(!isEditingPassport)}
                   className="p-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-100 text-gray-700 cursor-pointer"
-                  title="Tahrirlash"
+                  title={t('common.edit')}
                 >
                   <Edit2 className="w-3.5 h-3.5" />
                 </button>
@@ -304,17 +308,17 @@ Ma'lumotlar platforma ma'muriyati server bazasidan olingan.
               <form onSubmit={handleSavePassportData} className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[11px] font-bold text-gray-600 block mb-1">F.I.SH (Pasport bo‘yicha)</label>
+                    <label className="text-[11px] font-bold text-gray-600 block mb-1">{t('admin.upmFlsxLabel')}</label>
                     <input
                       type="text"
                       value={fullLegalName}
                       onChange={(e) => setFullLegalName(e.target.value)}
                       className="w-full p-2 bg-white border border-gray-200 rounded-lg text-xs font-semibold"
-                      placeholder="Masalan: Otajonov Javohir Baxtiyorovich"
+                      placeholder={t('admin.upmFlsxPh')}
                     />
                   </div>
                   <div>
-                    <label className="text-[11px] font-bold text-gray-600 block mb-1">JSHSHIR (PINFL - 14 ta raqam)</label>
+                    <label className="text-[11px] font-bold text-gray-600 block mb-1">{t('admin.upmPinflLabel')}</label>
                     <input
                       type="text"
                       value={pinfl}
@@ -325,7 +329,7 @@ Ma'lumotlar platforma ma'muriyati server bazasidan olingan.
                     />
                   </div>
                   <div>
-                    <label className="text-[11px] font-bold text-gray-600 block mb-1">Pasport Seriya</label>
+                    <label className="text-[11px] font-bold text-gray-600 block mb-1">{t('admin.upmSeriesLabel')}</label>
                     <input
                       type="text"
                       value={passportSeries}
@@ -336,7 +340,7 @@ Ma'lumotlar platforma ma'muriyati server bazasidan olingan.
                     />
                   </div>
                   <div>
-                    <label className="text-[11px] font-bold text-gray-600 block mb-1">Pasport Raqam</label>
+                    <label className="text-[11px] font-bold text-gray-600 block mb-1">{t('admin.upmNumberLabel')}</label>
                     <input
                       type="text"
                       value={passportNumber}
@@ -347,7 +351,7 @@ Ma'lumotlar platforma ma'muriyati server bazasidan olingan.
                     />
                   </div>
                   <div>
-                    <label className="text-[11px] font-bold text-gray-600 block mb-1">Tug‘ilgan sana</label>
+                    <label className="text-[11px] font-bold text-gray-600 block mb-1">{t('admin.upmBirthLabel')}</label>
                     <input
                       type="date"
                       value={birthDate}
@@ -356,7 +360,7 @@ Ma'lumotlar platforma ma'muriyati server bazasidan olingan.
                     />
                   </div>
                   <div>
-                    <label className="text-[11px] font-bold text-gray-600 block mb-1">Kim tomonidan berilgan</label>
+                    <label className="text-[11px] font-bold text-gray-600 block mb-1">{t('admin.upmIssuedByLabel')}</label>
                     <input
                       type="text"
                       value={passportIssuedBy}
@@ -373,7 +377,7 @@ Ma'lumotlar platforma ma'muriyati server bazasidan olingan.
                     onClick={() => setIsEditingPassport(false)}
                     className="px-3.5 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold"
                   >
-                    Bekor qilish
+                    {t('common.cancel')}
                   </button>
                   <button
                     type="submit"
@@ -381,34 +385,34 @@ Ma'lumotlar platforma ma'muriyati server bazasidan olingan.
                     className="px-4 py-1.5 rounded-lg bg-blue-600 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
                   >
                     <Save className="w-3.5 h-3.5" />
-                    <span>Saqlash</span>
+                    <span>{t('common.save')}</span>
                   </button>
                 </div>
               </form>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div>
-                  <span className="text-gray-400 block mb-0.5">To‘liq qonuniy F.I.SH:</span>
-                  <span className="font-bold text-gray-900">{user.full_legal_name || user.name || 'Kiritilmagan'}</span>
+                  <span className="text-gray-400 block mb-0.5">{t('admin.upmFullLegalLabel')}</span>
+                  <span className="font-bold text-gray-900">{user.full_legal_name || user.name || t('admin.passportNot')}</span>
                 </div>
                 <div>
-                  <span className="text-gray-400 block mb-0.5">JSHSHIR (PINFL):</span>
-                  <span className="font-bold font-mono text-gray-900">{user.pinfl || 'Kiritilmagan'}</span>
+                  <span className="text-gray-400 block mb-0.5">{t('admin.upmPinflViewLabel')}</span>
+                  <span className="font-bold font-mono text-gray-900">{user.pinfl || t('admin.passportNot')}</span>
                 </div>
                 <div>
-                  <span className="text-gray-400 block mb-0.5">Pasport Seriya va Raqami:</span>
+                  <span className="text-gray-400 block mb-0.5">{t('admin.upmSeriesViewLabel')}</span>
                   <span className="font-bold font-mono text-gray-900">
-                    {user.passport_series ? `${user.passport_series} ${user.passport_number}` : 'Kiritilmagan'}
+                    {user.passport_series ? `${user.passport_series} ${user.passport_number}` : t('admin.passportNot')}
                   </span>
                 </div>
                 <div>
-                  <span className="text-gray-400 block mb-0.5">Tug‘ilgan sanasi:</span>
-                  <span className="font-semibold text-gray-800">{user.birth_date || 'Kiritilmagan'}</span>
+                  <span className="text-gray-400 block mb-0.5">{t('admin.upmBirthViewLabel')}</span>
+                  <span className="font-semibold text-gray-800">{user.birth_date || t('admin.passportNot')}</span>
                 </div>
                 <div className="sm:col-span-2">
-                  <span className="text-gray-400 block mb-0.5">Berilgan joyi va sanasi:</span>
+                  <span className="text-gray-400 block mb-0.5">{t('admin.upmIssuedViewLabel')}</span>
                   <span className="font-semibold text-gray-800">
-                    {user.passport_issued_by ? `${user.passport_issued_by} (${user.passport_issued_date || ''})` : 'Kiritilmagan'}
+                    {user.passport_issued_by ? `${user.passport_issued_by} (${user.passport_issued_date || ''})` : t('admin.passportNot')}
                   </span>
                 </div>
               </div>
@@ -418,20 +422,20 @@ Ma'lumotlar platforma ma'muriyati server bazasidan olingan.
           {/* User Contact & Platform Info */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-2xl bg-white border border-gray-100 text-xs">
             <div>
-              <span className="text-gray-400 block">Telefon raqami:</span>
-              <span className="font-bold text-gray-900">{user.phone || 'Kiritilmagan'}</span>
+              <span className="text-gray-400 block">{t('admin.upmPhoneLabel')}</span>
+              <span className="font-bold text-gray-900">{user.phone || t('admin.passportNot')}</span>
             </div>
             <div>
-              <span className="text-gray-400 block">Hududi:</span>
-              <span className="font-bold text-gray-900">{user.district_name ? `${user.district_name}, ` : ''}{user.region_name || 'O‘zbekiston'}</span>
+              <span className="text-gray-400 block">{t('admin.upmRegionLabel')}</span>
+              <span className="font-bold text-gray-900">{user.district_name ? `${user.district_name}, ` : ''}{user.region_name || t('admin.upmUzbekistan')}</span>
             </div>
             <div>
-              <span className="text-gray-400 block">Platformadagi roli:</span>
+              <span className="text-gray-400 block">{t('admin.upmRoleLabel')}</span>
               <span className="font-bold text-blue-600">{user.role}</span>
             </div>
             <div>
-              <span className="text-gray-400 block">E’lonlar soni:</span>
-              <span className="font-bold text-gray-900">{user.listings_count || 0} ta</span>
+              <span className="text-gray-400 block">{t('admin.upmListingsLabel')}</span>
+              <span className="font-bold text-gray-900">{t('common.count', { n: user.listings_count || 0 })}</span>
             </div>
           </div>
         </div>

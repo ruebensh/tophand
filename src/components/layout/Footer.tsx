@@ -1,17 +1,19 @@
 import React from 'react';
 import { TopHandLogo } from '../common/TopHandLogo.tsx';
+import { useI18n } from '../../i18n/IntlContext.tsx';
 
 interface FooterProps {
   onNavigate: (route: string) => void;
 }
 
 export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
+  const { t } = useI18n();
   // Huquqiy / axborot sahifalari (AdSense tasdiqi uchun majburiy)
   const legalLinks: { label: string; route: string }[] = [
-    { label: 'Biz haqimizda', route: '/about' },
-    { label: 'Foydalanish shartlari', route: '/terms' },
-    { label: 'Maxfiylik siyosati', route: '/privacy' },
-    { label: 'Aloqa', route: '/contact' },
+    { label: t('footer.about'), route: '/about' },
+    { label: t('footer.terms'), route: '/terms' },
+    { label: t('footer.privacy'), route: '/privacy' },
+    { label: t('footer.contact'), route: '/contact' },
   ];
 
   return (
@@ -26,7 +28,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               <TopHandLogo size="sm" showText={false} imgClassName="w-7 h-7 object-contain" alt="tophand.uz" />
             </div>
             <p className="text-xs text-[#5E6C84]">
-              © {new Date().getFullYear()} TopHand · O‘zbekistonda yaratilgan
+              © {new Date().getFullYear()} {t('footer.tagline')}
             </p>
           </div>
 

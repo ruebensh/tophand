@@ -3,6 +3,7 @@
 // faqat prop orqali qiymat oladi va o'zgarishni callback bilan xabar qiladi.
 
 import { useEffect, useRef, useState } from 'react';
+import { useI18n } from '../../i18n/IntlContext.tsx';
 
 // Umumiy kichik sarlavha (filtr guruhi ichidagi atribut nomi).
 function FieldLabel({ children }: { children: React.ReactNode }) {
@@ -25,6 +26,7 @@ export function RangeFilter({
   meta?: Record<string, any>;
   onChange: (from: string, to: string) => void;
 }) {
+  const { t, intlLocale } = useI18n();
   // Mahalliy kiritish holati — yozish paytida filtrlashni kechiktirish uchun
   // (onChange blur/Enter yoki preset bosilganda qiymatni yuboradi).
   const [localFrom, setLocalFrom] = useState(from);
@@ -54,7 +56,7 @@ export function RangeFilter({
                   active ? 'bg-[#1673E6] text-white border-[#1673E6]' : 'bg-white text-gray-600 border-[#EBECF0] hover:border-[#1673E6] hover:text-[#1673E6]'
                 }`}
               >
-                {pmin.toLocaleString('ru-RU')}–{pmax.toLocaleString('ru-RU')}
+                {pmin.toLocaleString(intlLocale)}–{pmax.toLocaleString(intlLocale)}
               </button>
             );
           })}
@@ -62,7 +64,7 @@ export function RangeFilter({
       )}
       <div className="flex items-center gap-2">
         <input
-          type="text" inputMode="numeric" placeholder="Dan" value={localFrom}
+          type="text" inputMode="numeric" placeholder={t('home.priceFromPh')} value={localFrom}
           onChange={(e) => setLocalFrom(digits(e.target.value))}
           onBlur={() => onChange(localFrom, localTo)}
           onKeyDown={(e) => { if (e.key === 'Enter') { onChange(localFrom, localTo); (e.target as HTMLInputElement).blur(); } }}
@@ -70,7 +72,7 @@ export function RangeFilter({
         />
         <span className="text-gray-400 text-sm shrink-0">—</span>
         <input
-          type="text" inputMode="numeric" placeholder="Gacha" value={localTo}
+          type="text" inputMode="numeric" placeholder={t('home.priceToPh')} value={localTo}
           onChange={(e) => setLocalTo(digits(e.target.value))}
           onBlur={() => onChange(localFrom, localTo)}
           onKeyDown={(e) => { if (e.key === 'Enter') { onChange(localFrom, localTo); (e.target as HTMLInputElement).blur(); } }}
@@ -88,13 +90,16 @@ export function ChipFilter({
   multiple,
   value,
   onChange,
+  labelFor,
 }: {
   label: string;
   options: string[];
   multiple: boolean;
   value: string; // multiple => vergul bilan ajratilgan; single => bitta qiymat
   onChange: (next: string) => void;
+  labelFor?: (opt: string) => string; // qiymat o'zgarmaydi, faqat ko'rinish tarjimasi
 }) {
+  const display = labelFor ?? ((opt: string) => opt);
   const selected = new Set(multiple && value ? value.split(',').filter(Boolean) : value ? [value] : []);
   const toggle = (opt: string) => {
     if (!multiple) {
@@ -120,7 +125,7 @@ export function ChipFilter({
                 active ? 'bg-[#1673E6] text-white border-[#1673E6] shadow-2xs' : 'bg-white text-gray-600 border-[#EBECF0] hover:border-[#1673E6] hover:text-[#1673E6]'
               }`}
             >
-              {opt}
+              {display(opt)}
             </button>
           );
         })}
@@ -180,6 +185,7 @@ export function SelectFilter({
   value: string;
   onChange: (next: string) => void;
 }) {
+  const { t } = useI18n();
   return (
     <label className="flex flex-col gap-1">
       <FieldLabel>{label}</FieldLabel>
@@ -188,7 +194,7 @@ export function SelectFilter({
         onChange={(e) => onChange(e.target.value)}
         className="w-full bg-white border border-[#EBECF0] rounded-xl px-3 py-2 text-xs font-medium text-[#172B4D] focus:outline-hidden focus:border-[#1673E6] cursor-pointer"
       >
-        <option value="">Belgilanmagan</option>
+        <option value="">{t('home.notSet')}</option>
         {options.map((o) => (<option key={o} value={o}>{o}</option>))}
       </select>
     </label>
@@ -205,6 +211,7 @@ export function BooleanFilter({
   value: string;
   onChange: (next: string) => void;
 }) {
+  const { t } = useI18n();
   return (
     <label className="flex flex-col gap-1">
       <FieldLabel>{label}</FieldLabel>
@@ -213,9 +220,9 @@ export function BooleanFilter({
         onChange={(e) => onChange(e.target.value)}
         className="w-full bg-white border border-[#EBECF0] rounded-xl px-3 py-2 text-xs font-medium text-[#172B4D] focus:outline-hidden focus:border-[#1673E6] cursor-pointer"
       >
-        <option value="">Farq qilmaydi</option>
-        <option value="true">Ha</option>
-        <option value="false">Yo‘q</option>
+        <option value="">{t('home.anyMatters')}</option>
+        <option value="true">{t('common.yes')}</option>
+        <option value="false">{t('common.no')}</option>
       </select>
     </label>
   );

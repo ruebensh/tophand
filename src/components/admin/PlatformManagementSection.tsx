@@ -13,8 +13,10 @@ import {
   Eye,
   Sliders,
 } from 'lucide-react';
+import { useI18n } from '../../i18n/IntlContext.tsx';
 
 export const PlatformManagementSection: React.FC = () => {
+  const { t } = useI18n();
   const { branding, updateBranding, updateActiveLogo, refreshLogo, fullLogoSrc } = useLogo();
 
   // Branding Form State
@@ -70,10 +72,10 @@ export const PlatformManagementSection: React.FC = () => {
       });
 
       updateBranding(payload);
-      setBrandSuccessMsg('Platforma nomi, ranglari va shiori muvaffaqiyatli saqlandi!');
+      setBrandSuccessMsg(t('admin.mpsSaveOk'));
       setTimeout(() => setBrandSuccessMsg(''), 4000);
     } catch (err: any) {
-      setBrandErrorMsg(err.message || 'Saqlashda xatolik yuz berdi');
+      setBrandErrorMsg(err.message || t('admin.mpsSaveErr'));
     } finally {
       setIsSavingBrand(false);
     }
@@ -90,14 +92,14 @@ export const PlatformManagementSection: React.FC = () => {
     }
 
     if (!selectedFile.name.toLowerCase().endsWith('.png')) {
-      setUploadError("Faqat .png formatidagi fayllar qabul qilinadi.");
+      setUploadError(t('admin.mpsFmtErr'));
       setFile(null);
       setFilePreview(null);
       return;
     }
 
     if (selectedFile.size > 5 * 1024 * 1024) {
-      setUploadError("Fayl hajmi 5 MB dan oshmasligi kerak.");
+      setUploadError(t('admin.mpsSizeErr'));
       setFile(null);
       setFilePreview(null);
       return;
@@ -132,10 +134,10 @@ export const PlatformManagementSection: React.FC = () => {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Yuklashda xatolik yuz berdi');
+        throw new Error(data.error || t('admin.mpsUploadErrFull'));
       }
 
-      setUploadSuccess('Yangi logotip muvaffaqiyatli o‘rnatildi!');
+      setUploadSuccess(t('admin.mpsUploadOk'));
       setFile(null);
       setFilePreview(null);
       if (data.logo_url) {
@@ -143,7 +145,7 @@ export const PlatformManagementSection: React.FC = () => {
       }
       await refreshLogo();
     } catch (err: any) {
-      setUploadError(err.message || 'Yuklashda xatolik');
+      setUploadError(err.message || t('admin.mnsLoadErr'));
     } finally {
       setIsUploading(false);
     }
@@ -157,15 +159,15 @@ export const PlatformManagementSection: React.FC = () => {
           <div>
             <h2 className="text-lg sm:text-xl font-extrabold text-gray-950 flex items-center gap-2">
               <Palette className="w-5 h-5 text-blue-600" />
-              <span>Platforma nomi va Harflar ranglari boshqaruvi</span>
+              <span>{t('admin.mpsTitle')}</span>
             </h2>
             <p className="text-xs text-gray-500 mt-1">
-              Platforma sarlavhasidagi har bir so‘z va qo‘shimchaning rangini (masalan: «top» qora, «hand» ko‘k) erkin moslang.
+              {t('admin.mpsSubtitle')}
             </p>
           </div>
           <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-bold">
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Jonli yangilanish</span>
+            <span>{t('admin.mpsLiveBadge')}</span>
           </span>
         </div>
 
@@ -173,7 +175,7 @@ export const PlatformManagementSection: React.FC = () => {
         <div className="mb-8 p-6 rounded-2xl bg-gradient-to-r from-gray-50 via-slate-50 to-blue-50/40 border border-gray-200/80">
           <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-3 flex items-center gap-1.5">
             <Eye className="w-3.5 h-3.5 text-blue-600" />
-            <span>Jonli ko‘rinish (Real-time Preview):</span>
+            <span>{t('admin.mpsLivePreview')}</span>
           </span>
 
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl bg-white border border-gray-200/70 shadow-xs">
@@ -189,13 +191,13 @@ export const PlatformManagementSection: React.FC = () => {
                   <span style={{ color: suffixColor }}>{suffixText || 'hand'}</span>
                   <span style={{ color: domainColor }}>{domainSuffix || '.uz'}</span>
                 </span>
-                <p className="text-xs text-gray-400 mt-1 font-medium">{tagline || 'Mahalliy xizmatlar va ish bozori'}</p>
+                <p className="text-xs text-gray-400 mt-1 font-medium">{tagline || t('admin.mpsTaglineDefault')}</p>
               </div>
             </div>
 
             {/* Dark mode mock */}
             <div className="p-3 rounded-xl bg-gray-950 flex items-center gap-2.5">
-              <span className="text-[10px] text-gray-400 font-semibold">Tungi fon:</span>
+              <span className="text-[10px] text-gray-400 font-semibold">{t('admin.mpsNightBg')}</span>
               <span className="font-black text-lg tracking-tight select-none">
                 <span style={{ color: '#ffffff' }}>{prefixText}</span>
                 <span style={{ color: suffixColor }}>{suffixText}</span>
@@ -213,9 +215,9 @@ export const PlatformManagementSection: React.FC = () => {
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
                   <Type className="w-3.5 h-3.5 text-blue-600" />
-                  <span>1-qism matni (Bosh qism)</span>
+                  <span>{t('admin.mpsPart1')}</span>
                 </label>
-                <span className="text-[10px] text-gray-400 font-mono">Masalan: top</span>
+                <span className="text-[10px] text-gray-400 font-mono">{t('admin.mpsExTop')}</span>
               </div>
               <input
                 type="text"
@@ -225,7 +227,7 @@ export const PlatformManagementSection: React.FC = () => {
                 placeholder="top"
               />
               <div>
-                <label className="text-[11px] font-semibold text-gray-600 block mb-1.5">1-qism rangi:</label>
+                <label className="text-[11px] font-semibold text-gray-600 block mb-1.5">{t('admin.mpsPart1Color')}</label>
                 <div className="flex items-center gap-2">
                   <input
                     type="color"
@@ -248,9 +250,9 @@ export const PlatformManagementSection: React.FC = () => {
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
                   <Type className="w-3.5 h-3.5 text-blue-600" />
-                  <span>2-qism matni (Asosiy so‘z)</span>
+                  <span>{t('admin.mpsPart2')}</span>
                 </label>
-                <span className="text-[10px] text-gray-400 font-mono">Masalan: hand</span>
+                <span className="text-[10px] text-gray-400 font-mono">{t('admin.mpsExHand')}</span>
               </div>
               <input
                 type="text"
@@ -260,7 +262,7 @@ export const PlatformManagementSection: React.FC = () => {
                 placeholder="hand"
               />
               <div>
-                <label className="text-[11px] font-semibold text-gray-600 block mb-1.5">2-qism rangi:</label>
+                <label className="text-[11px] font-semibold text-gray-600 block mb-1.5">{t('admin.mpsPart2Color')}</label>
                 <div className="flex items-center gap-2">
                   <input
                     type="color"
@@ -283,9 +285,9 @@ export const PlatformManagementSection: React.FC = () => {
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
                   <Type className="w-3.5 h-3.5 text-blue-600" />
-                  <span>3-qism (Domen / Qo‘shimcha)</span>
+                  <span>{t('admin.mpsPart3')}</span>
                 </label>
-                <span className="text-[10px] text-gray-400 font-mono">Masalan: .uz</span>
+                <span className="text-[10px] text-gray-400 font-mono">{t('admin.mpsExDomain')}</span>
               </div>
               <input
                 type="text"
@@ -295,7 +297,7 @@ export const PlatformManagementSection: React.FC = () => {
                 placeholder=".uz"
               />
               <div>
-                <label className="text-[11px] font-semibold text-gray-600 block mb-1.5">3-qism rangi:</label>
+                <label className="text-[11px] font-semibold text-gray-600 block mb-1.5">{t('admin.mpsPart3Color')}</label>
                 <div className="flex items-center gap-2">
                   <input
                     type="color"
@@ -317,14 +319,14 @@ export const PlatformManagementSection: React.FC = () => {
           {/* Slogan */}
           <div className="p-4 rounded-2xl bg-gray-50/80 border border-gray-200/60">
             <label className="text-xs font-bold text-gray-800 block mb-1.5">
-              Platforma shiori (Slogan / Tavsifi)
+              {t('admin.mpsSloganLabel')}
             </label>
             <input
               type="text"
               value={tagline}
               onChange={(e) => setTagline(e.target.value)}
               className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-xs text-gray-900 focus:outline-hidden focus:border-blue-600"
-              placeholder="Mahalliy Xizmatlar va Ish Bozori Platformasi"
+              placeholder={t('admin.mpsTaglinePlaceholder')}
             />
           </div>
 
@@ -351,12 +353,12 @@ export const PlatformManagementSection: React.FC = () => {
               {isSavingBrand ? (
                 <>
                   <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  <span>Saqlanmoqda...</span>
+                  <span>{t('admin.lmsSaving')}</span>
                 </>
               ) : (
                 <>
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>Ranglar va matnni saqlash</span>
+                  <span>{t('admin.mpsSaveBtn')}</span>
                 </>
               )}
             </button>
@@ -368,10 +370,10 @@ export const PlatformManagementSection: React.FC = () => {
       <div className="bg-white rounded-3xl border border-gray-100 p-6 sm:p-8 shadow-xs">
         <h3 className="text-lg font-extrabold text-gray-950 flex items-center gap-2 mb-2">
           <Upload className="w-5 h-5 text-blue-600" />
-          <span>Logotip tasvirini yangilash (PNG)</span>
+          <span>{t('admin.mpsLogoTitle')}</span>
         </h3>
         <p className="text-xs text-gray-500 mb-6">
-          Platformaning rasmiy logotip tasvirini almashtirish. Faqat shaffof (.png) format qabul qilinadi.
+          {t('admin.mpsLogoSubtitle')}
         </p>
 
         <div className="border-2 border-dashed border-gray-200 rounded-2xl p-6 text-center hover:border-blue-400 transition-colors">
@@ -390,7 +392,7 @@ export const PlatformManagementSection: React.FC = () => {
                   alt="Preview"
                   className="max-h-24 max-w-full object-contain mx-auto"
                 />
-                <span className="text-xs text-blue-600 font-bold block mt-2">Boshqa fayl tanlash</span>
+                <span className="text-xs text-blue-600 font-bold block mt-2">{t('admin.mpsChooseOther')}</span>
               </div>
             ) : (
               <>
@@ -398,9 +400,9 @@ export const PlatformManagementSection: React.FC = () => {
                   <Upload className="w-6 h-6" />
                 </div>
                 <span className="text-sm font-bold text-gray-900 block mb-1">
-                  Yangi PNG logotipni tanlang
+                  {t('admin.mpsChooseNew')}
                 </span>
-                <span className="text-xs text-gray-400">Maksimal hajm: 5 MB</span>
+                <span className="text-xs text-gray-400">{t('admin.mpsMaxSize')}</span>
               </>
             )}
           </label>
@@ -430,12 +432,12 @@ export const PlatformManagementSection: React.FC = () => {
               {isUploading ? (
                 <>
                   <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  <span>Yuklanmoqda...</span>
+                  <span>{t('admin.mpsUploading')}</span>
                 </>
               ) : (
                 <>
                   <Upload className="w-3.5 h-3.5" />
-                  <span>Logotipni o‘rnatish</span>
+                  <span>{t('admin.mpsSetLogo')}</span>
                 </>
               )}
             </button>

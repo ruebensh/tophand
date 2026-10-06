@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from 'react';
 import { getCategoryPopular, CategoryPopularResult } from '../../lib/api.ts';
 import { CategoryAdSlot } from './CategoryAdSlot.tsx';
 import { useHorizontalWheel } from './FilterControls.tsx';
+import { useI18n } from '../../i18n/IntlContext.tsx';
 
 type PopularItem = CategoryPopularResult['items'][number];
 
@@ -23,6 +24,7 @@ function ChipRow({
   active: string;
   onToggle: (value: string) => void;
 }) {
+  const { intlLocale } = useI18n();
   const ref = useRef<HTMLDivElement>(null);
   useHorizontalWheel(ref, items.length > 0);
 
@@ -46,7 +48,7 @@ function ChipRow({
           >
             {it.value}
             <span className={`ml-1.5 tabular-nums ${isActive ? 'text-white/70' : 'text-[#5E6C84]'}`}>
-              {it.count.toLocaleString('ru-RU')}
+              {it.count.toLocaleString(intlLocale)}
             </span>
           </button>
         );
@@ -66,6 +68,7 @@ export function PopularRow({
   attrFilters: Record<string, string | number>;
   onToggle: (key: string, value: string) => void;
 }) {
+  const { t } = useI18n();
   const [data, setData] = useState<CategoryPopularResult | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -110,7 +113,7 @@ export function PopularRow({
     <div className="mb-5">
       <div className="flex items-baseline justify-between gap-2 mb-2">
         <span className="font-mono text-[11px] uppercase tracking-wider text-[#5E6C84] font-semibold">
-          Mashxur {data?.label ? `— ${data.label.toLowerCase()}` : ''}
+          {t('home.popularWord')}{data?.label ? ` — ${data.label.toLowerCase()}` : ''}
         </span>
         {active && (
           <button
@@ -118,7 +121,7 @@ export function PopularRow({
             onClick={() => onToggle(key, '')}
             className="text-[11px] font-semibold text-[#1673E6] hover:underline cursor-pointer"
           >
-            Tozalash
+            {t('common.clear')}
           </button>
         )}
       </div>

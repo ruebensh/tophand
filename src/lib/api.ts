@@ -23,6 +23,14 @@ export async function apiRequest<T = any>(
     ...(init.headers as Record<string, string>),
   };
 
+  // Faol tilni serverga xabar qilamiz (backend xabarlar/e-pochta lokalizatsiyasi).
+  try {
+    const lang = localStorage.getItem('th_lang');
+    if (lang) headers['X-Lang'] = lang;
+  } catch {
+    /* localStorage yo'q (SSR) */
+  }
+
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
@@ -273,4 +281,25 @@ export async function importEntityFromExcel(entity: string, file: File): Promise
     throw new Error(data.error || 'Importda xatlik');
   }
   return data as ImportReport;
+}
+
+// ─── Mashina-tarjimasi (Faza E) ────────────────────────────────────────
+export interface TranslateResponse {
+  translations: string[];
+  sourceLang?: string | null;
+  cached?: number;
+  translated?: number;
+  degraded?: boolean;
+}
+
+export function getTranslateStatus(): Promise<{ configured: boolean; engine: string; targets: string[] }> {
+  return apiRequest('/api/translate/status');
+}
+
+export function translateTexts(texts: string[], target: 'ru' | 'en'): Promise<TranslateResponse> {
+  return apiRequest<TranslateResponse>('/api/translate', {
+    method: 'POST',
+    body: JSON.stringify({ texts, target }),
+    timeoutMs: 25000,
+  });
 }

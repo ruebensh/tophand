@@ -2,10 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Listing, CategoryAttribute } from '../types/index.ts';
 import { apiRequest, getPublicMonetization, promoteListingRequest, getCategoryAttributes, type PublicMonetization } from '../lib/api.ts';
 import { ListingTypeBadge } from '../components/listings/ListingTypeBadge.tsx';
+import { Translated } from '../components/common/Translated.tsx';
 import { PriceDisplay } from '../components/listings/PriceDisplay.tsx';
 import { getContactTimeLabel, formatDateAgo, isOfficialAccount, isStaffAccount } from '../lib/utils.ts';
 import { useAuth } from '../context/AuthContext.tsx';
 import { useGeo } from '../context/GeoContext.tsx';
+import { useI18n } from '../i18n/IntlContext.tsx';
+import { useTranslate } from '../i18n/useTranslate.ts';
 import {
   MapPin,
   Clock,
@@ -54,8 +57,12 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
   onBack,
 }) => {
   const { user, openLoginModal } = useAuth();
+  const { t, intlLocale } = useI18n();
 
   const [listing, setListing] = useState<Listing | null>(null);
+  // E'lon sarlavha/tavsifi — foydalanuvchi kontenti (ru/en MT, uz-Cyrl translit).
+  const { value: title } = useTranslate(listing?.title);
+  const { value: description } = useTranslate(listing?.description);
   const [selectedImageIdx, setSelectedImageIdx] = useState(0);
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
@@ -81,6 +88,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
   const [attrSchema, setAttrSchema] = useState<CategoryAttribute[]>([]);
   const [isPromoting, setIsPromoting] = useState(false);
   const [promoMsg, setPromoMsg] = useState('');
+  const [promoErr, setPromoErr] = useState(false);
 
   // Foydalanuvchi GPS koordinatalari — e'lon manziligacha bo'lgan masofani
   // client-side (haversine) hisoblash uchun.
@@ -134,7 +142,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
       setIsSaved(data.is_saved || false);
       setIsFollowed(data.is_followed || false);
     } catch (err: any) {
-      setError(err.message || "E'lon yuklanmadi");
+      setError(err.message || t('detail.loadError'));
     } finally {
       setIsLoading(false);
     }
@@ -224,7 +232,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
       setShareCopied(true);
       setTimeout(() => setShareCopied(false), 2000);
     } catch {
-      window.prompt('Havolani nusxalang:', url);
+      window.prompt(t('detail.copyLinkPrompt'), url);
     }
   };
 
@@ -248,10 +256,12 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
     setPromoMsg('');
     try {
       await promoteListingRequest(listingId);
-      setPromoMsg("E'lon topga ko'tarildi!");
+      setPromoMsg(t('detail.promotedOk'));
+      setPromoErr(false);
       fetchDetail();
     } catch (err: any) {
-      setPromoMsg(err?.message || "Ko'tarishda xatolik");
+      setPromoMsg(err?.message || t('detail.promoteError'));
+      setPromoErr(true);
     } finally {
       setIsPromoting(false);
     }
@@ -259,7 +269,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
 
   const handleAdminDeleteListing = async () => {
     if (!user || user.role !== 'ADMIN') return;
-    if (!window.confirm("Haqiqatan ham bu e'lonni butunlay o'chirmoqchimisiz? Bu amalni qaytarib bo'lmaydi!")) return;
+    if (!window.confirm(t('detail.adminDeleteConfirm'))) return;
     setIsAdminDeleting(true);
     try {
       await apiRequest(`/api/admin/listings/${listingId}`, { method: 'DELETE' });
@@ -290,10 +300,10 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
     return (
       <div className="max-w-lg mx-auto px-4 py-16 text-center">
         <div className="w-16 h-16 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center text-3xl mx-auto mb-3">⚠️</div>
-        <h2 className="text-lg font-bold text-gray-900">E'lon topilmadi yoki arxivlangan</h2>
-        <p className="text-xs text-gray-500 mt-1 mb-6">{error || "Ushbu e'lon o'chirilgan yoki muddati tugagan."}</p>
+        <h2 className="text-lg font-bold text-gray-900">{t('detail.notFoundTitle')}</h2>
+        <p className="text-xs text-gray-500 mt-1 mb-6">{error || t('detail.notFoundBody')}</p>
         <button onClick={onBack} className="px-6 py-2.5 rounded-full bg-blue-600 text-white font-bold text-xs shadow-md">
-          Orqaga qaytish
+          {t('detail.back')}
         </button>
       </div>
     );
@@ -314,42 +324,42 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
 
   // Build structured "Подробности / Tafsilotlar" list
   const typeLabels: Record<string, string> = {
-    SELL: 'Sotuvga',
-    WANTED: "Izlayman",
-    RENT_OUT: 'Ijaraga beriladi',
-    RENT_WANTED: 'Ijara izlanmoqda',
-    SERVICE_OFFER: "Xizmat taklifi",
-    SERVICE_REQUEST: "Xizmat so'rovi (Buyurtma)",
-    JOB_OPENING: "Vakansiya / Ish o'rni",
-    JOB_SEEKER: "Rezyume / Mutaxassis",
+    SELL: t('detail.types.SELL'),
+    WANTED: t('detail.types.WANTED'),
+    RENT_OUT: t('detail.types.RENT_OUT'),
+    RENT_WANTED: t('detail.types.RENT_WANTED'),
+    SERVICE_OFFER: t('detail.types.SERVICE_OFFER'),
+    SERVICE_REQUEST: t('detail.types.SERVICE_REQUEST'),
+    JOB_OPENING: t('detail.types.JOB_OPENING'),
+    JOB_SEEKER: t('detail.types.JOB_SEEKER'),
   };
   const workFormatLabels: Record<string, string> = {
-    ONSITE: 'Joyida (Ofis / Xonadon)',
-    REMOTE: 'Masofaviy (Online)',
-    HYBRID: 'Gibrid (Aralash)',
+    ONSITE: t('detail.workFormats.ONSITE'),
+    REMOTE: t('detail.workFormats.REMOTE'),
+    HYBRID: t('detail.workFormats.HYBRID'),
   };
   const experienceLabels: Record<string, string> = {
-    none: 'Tajribasiz / Yangi boshlovchi',
-    '1-3': '1–3 yil',
-    '3-5': '3–5 yil',
-    '5+': '5 yildan ortiq',
+    none: t('detail.experience.none'),
+    '1-3': t('detail.experience.1-3'),
+    '3-5': t('detail.experience.3-5'),
+    '5+': t('detail.experience.5+'),
   };
 
   const details: { label: string; value: string; icon?: React.ReactNode }[] = [
     {
-      label: "E'lon turi",
+      label: t('detail.typeLabel'),
       value: typeLabels[listing.type] || listing.type,
       icon: <Briefcase className="w-4 h-4 text-blue-600" />,
     },
     {
-      label: 'Kategoriya',
+      label: t('detail.categoryLabel'),
       value: listing.category_name || '—',
       icon: <Layers className="w-4 h-4 text-violet-500" />,
     },
     ...(listing.work_format
       ? [
           {
-            label: 'Ish / Xizmat formati',
+            label: t('detail.workFormatLabel'),
             value: workFormatLabels[listing.work_format] || listing.work_format,
             icon: <Globe className="w-4 h-4 text-teal-500" />,
           },
@@ -358,31 +368,31 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
     ...(listing.experience_level
       ? [
           {
-            label: 'Tajriba darajasi',
+            label: t('detail.experienceLabel'),
             value: experienceLabels[listing.experience_level] || listing.experience_level,
             icon: <CheckCircle2 className="w-4 h-4 text-green-500" />,
           },
         ]
       : []),
     {
-      label: "E'lon holati",
+      label: t('detail.statusLabel'),
       value:
         listing.status === 'ACTIVE'
-          ? 'Faol'
+          ? t('status.active')
           : listing.status === 'ARCHIVED'
-          ? 'Arxivlangan'
+          ? t('status.archived')
           : listing.status === 'HIDDEN'
-          ? 'Yashirilgan'
-          : "O'chirilgan",
+          ? t('status.hidden')
+          : t('status.deleted'),
       icon: <Eye className="w-4 h-4 text-gray-400" />,
     },
     {
-      label: "E'lon joylashtirildi",
+      label: t('detail.postedLabel'),
       value: formatDateAgo(listing.created_at),
       icon: <Calendar className="w-4 h-4 text-gray-400" />,
     },
     {
-      label: "Bog'lanish vaqti",
+      label: t('detail.contactTimeLabel'),
       value: getContactTimeLabel(listing.contact_time, listing.contact_custom_text),
       icon: <Clock className="w-4 h-4 text-amber-500" />,
     },
@@ -397,12 +407,12 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
           className="inline-flex items-center gap-1 font-medium hover:text-blue-600 transition-colors group"
         >
           <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-          <span>Barcha e'lonlar</span>
+          <span>{t('detail.allListings')}</span>
         </button>
         <ChevronRight className="w-3 h-3 text-gray-300" />
         <span className="truncate max-w-[200px] text-gray-400">{listing.category_name}</span>
         <ChevronRight className="w-3 h-3 text-gray-300" />
-        <span className="truncate max-w-[160px] font-medium text-gray-700">{listing.title}</span>
+        <span className="truncate max-w-[160px] font-medium text-gray-700">{title}</span>
       </div>
 
       {/* Admin Action Banner */}
@@ -413,8 +423,8 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
               <Trash2 className="w-5 h-5" />
             </div>
             <div>
-              <span className="font-extrabold text-xs text-rose-950 block">👑 Administrator amallari</span>
-              <span className="text-[11px] text-rose-700">Ushbu e'lonni butunlay o'chirish imkoniyati.</span>
+              <span className="font-extrabold text-xs text-rose-950 block">👑 {t('detail.adminActions')}</span>
+              <span className="text-[11px] text-rose-700">{t('detail.adminActionsHint')}</span>
             </div>
           </div>
           <button
@@ -423,7 +433,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
             className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
           >
             <Edit3 className="w-3.5 h-3.5" />
-            <span>{"E'lonni tahrirlash"}</span>
+            <span>{t('detail.editListing')}</span>
           </button>
           <button
             type="button"
@@ -432,7 +442,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
             className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
           >
             <Trash2 className="w-3.5 h-3.5" />
-            <span>{isAdminDeleting ? "O'chirilmoqda..." : "E'lonni o'chirish"}</span>
+            <span>{isAdminDeleting ? t('detail.deleting') : t('detail.deleteListing')}</span>
           </button>
         </div>
       )}
@@ -441,8 +451,8 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
       {listing.status === 'ARCHIVED' && (
         <div className="mb-4 p-4 rounded-2xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-900 text-xs">
           <div>
-            <p className="font-bold">Ushbu e'lon arxivlangan ({activeDays} kunlik muddat tugagan)</p>
-            <p className="text-amber-700 text-[11px] mt-0.5">Hozirda qidiruvda ko'rinmaydi.</p>
+            <p className="font-bold">{t('detail.archivedTitle', { n: activeDays })}</p>
+            <p className="text-amber-700 text-[11px] mt-0.5">{t('detail.archivedHidden')}</p>
           </div>
           {isOwner && (
             <button
@@ -452,8 +462,8 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isRenewing ? 'animate-spin' : ''}`} />
               <span>
-                Yana {activeDays} kunga uzaytirish
-                {renewPrice > 0 ? ` · ${renewPrice.toLocaleString('uz-UZ')} so'm` : ' · Bepul'}
+                {t('detail.extendBtn', { n: activeDays })}
+                {renewPrice > 0 ? ` · ${renewPrice.toLocaleString(intlLocale)} ${t('wallet.som')}` : ` · ${t('common.free')}`}
               </span>
             </button>
           )}
@@ -469,18 +479,18 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
             </div>
             <div>
               <span className="font-bold block">
-                {daysLeft !== null ? `⏳ ${daysLeft} kun qoldi` : "Faol e'lon"}
+                {daysLeft !== null ? t('detail.daysLeft', { n: daysLeft }) : t('detail.activeListing')}
               </span>
               <span className="text-[11px] text-blue-700">
                 {daysLeft !== null && daysLeft <= (monetization?.warning_days ?? 3)
-                  ? 'Muddati tugaydi — uzatishni unutmang.'
-                  : `E'lon ${activeDays} kun davomida faol bo'ladi.`}
+                  ? t('detail.expiresSoon')
+                  : t('detail.activeForDays', { n: activeDays })}
               </span>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0 flex-wrap">
             {promoMsg && (
-              <span className={`text-[11px] font-semibold ${promoMsg.includes('xatolik') ? 'text-rose-600' : 'text-emerald-600'}`}>
+              <span className={`text-[11px] font-semibold ${promoErr ? 'text-rose-600' : 'text-emerald-600'}`}>
                 {promoMsg}
               </span>
             )}
@@ -489,7 +499,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
               className="px-4 py-2 rounded-full bg-white hover:bg-blue-50 border border-blue-300 text-blue-700 font-bold text-xs shadow-xs flex items-center gap-1.5"
             >
               <Edit3 className="w-3.5 h-3.5" />
-              <span>Tahrirlash</span>
+              <span>{t('common.edit')}</span>
             </button>
             <button
               onClick={handlePromote}
@@ -498,8 +508,8 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
             >
               <Rocket className={`w-3.5 h-3.5 ${isPromoting ? 'animate-pulse' : ''}`} />
               <span>
-                {isPromoActive ? 'Promo faol' : 'Topga ko\'tarish'}
-                {promoPrice > 0 ? ` · ${promoPrice.toLocaleString('uz-UZ')} so'm` : ' · Bepul'}
+                {isPromoActive ? t('detail.promoActive') : t('detail.promoteToTop')}
+                {promoPrice > 0 ? ` · ${promoPrice.toLocaleString(intlLocale)} ${t('wallet.som')}` : ` · ${t('common.free')}`}
               </span>
             </button>
           </div>
@@ -541,7 +551,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                   ) : (
                     <img
                       src={currentMedia}
-                      alt={listing.title}
+                      alt={title}
                       className="w-full h-full object-cover"
                     />
                   )}
@@ -551,7 +561,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                       {selectedImageIdx > 0 && (
                         <button
                           type="button"
-                          aria-label="Oldingi rasm"
+                          aria-label={t('detail.prevImage')}
                           onClick={() => setSelectedImageIdx((i) => Math.max(i - 1, 0))}
                           className="absolute left-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-black/40 backdrop-blur-sm text-white flex items-center justify-center active:bg-black/60"
                         >
@@ -561,7 +571,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                       {selectedImageIdx < images.length - 1 && (
                         <button
                           type="button"
-                          aria-label="Keyingi rasm"
+                          aria-label={t('detail.nextImage')}
                           onClick={() => setSelectedImageIdx((i) => Math.min(i + 1, images.length - 1))}
                           className="absolute right-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-black/40 backdrop-blur-sm text-white flex items-center justify-center active:bg-black/60"
                         >
@@ -601,7 +611,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                             </span>
                           </div>
                         ) : (
-                          <img src={img} alt={`Rasm ${idx + 1}`} className="w-full h-full object-cover" />
+                          <img src={img} alt={t('detail.imageAlt', { n: idx + 1 })} className="w-full h-full object-cover" />
                         )}
                       </button>
                     ))}
@@ -623,7 +633,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
               {isCompleted ? (
                 <div className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700">
                   <CheckCircle2 className="w-6 h-6" />
-                  <span className="text-2xl sm:text-3xl font-extrabold leading-none">Yakunlangan</span>
+                  <span className="text-2xl sm:text-3xl font-extrabold leading-none">{t('listing.completed')}</span>
                 </div>
               ) : (
                 <PriceDisplay
@@ -649,7 +659,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                       ? 'bg-rose-50 text-rose-600 border-rose-300'
                       : 'border-gray-200 text-gray-500 hover:border-rose-300 hover:text-rose-500'
                   }`}
-                  title={isSaved ? 'Yoqtirilgan' : 'Yoqtirish'}
+                  title={isSaved ? t('detail.liked') : t('detail.likedShort')}
                 >
                   <Heart className={`w-4 h-4 ${isSaved ? 'fill-rose-500' : ''}`} />
                 </button>
@@ -657,7 +667,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                   type="button"
                   onClick={handleShare}
                   className="p-2.5 rounded-full border-2 border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700 transition-all"
-                  title={shareCopied ? 'Havola nusxalandi' : 'Ulashish'}
+                  title={shareCopied ? t('detail.linkCopied') : t('detail.share')}
                 >
                   {shareCopied ? <CheckCheck className="w-4 h-4 text-green-600" /> : <Share2 className="w-4 h-4" />}
                 </button>
@@ -665,7 +675,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                   type="button"
                   onClick={() => setIsReportModalOpen(true)}
                   className="p-2.5 rounded-full border-2 border-gray-200 text-gray-400 hover:border-amber-300 hover:text-amber-600 transition-all"
-                  title="Shikoyat qilish"
+                  title={t('detail.report')}
                 >
                   <AlertTriangle className="w-4 h-4" />
                 </button>
@@ -673,30 +683,30 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
             </div>
 
             <h1 className="text-lg sm:text-xl font-bold text-gray-950 leading-snug tracking-tight">
-              {listing.title}
+              {title}
             </h1>
 
             {/* Location line */}
             <div className="flex items-center gap-1.5 mt-2 text-sm text-gray-500">
               <MapPin className="w-4 h-4 text-blue-500 shrink-0" />
               <span>
-                {[listing.district_name, listing.region_name].filter(Boolean).join(', ') || "Manzil ko'rsatilmagan"}
+                {[listing.district_name, listing.region_name].filter(Boolean).join(', ') || t('detail.noAddress')}
               </span>
             </div>
 
             {/* Posted date */}
             <div className="flex items-center gap-1.5 mt-1.5 text-xs text-gray-400">
               <Calendar className="w-3.5 h-3.5" />
-              <span>E'lon joylashtirildi: {formatDateAgo(listing.created_at)}</span>
+              <span>{t('detail.postedAt', { date: formatDateAgo(listing.created_at) })}</span>
             </div>
           </div>
 
           {/* 2b. Tavsif (Описание) — Avito style */}
           {listing.description && (
             <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-xs">
-              <h2 className="font-bold text-sm text-gray-900 mb-2">Tavsif</h2>
+              <h2 className="font-bold text-sm text-gray-900 mb-2">{t('detail.description')}</h2>
               <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap break-words">
-                {listing.description}
+                {description}
               </p>
             </div>
           )}
@@ -705,7 +715,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
           {!isCompleted && (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-xs overflow-hidden">
             <div className="px-4 sm:px-5 py-3.5 border-b border-gray-100 bg-gray-50/60">
-              <h2 className="font-bold text-sm text-gray-900">Tafsilotlar</h2>
+              <h2 className="font-bold text-sm text-gray-900">{t('detail.details')}</h2>
             </div>
             <div className="divide-y divide-gray-50">
               {details.map((d, i) => (
@@ -739,14 +749,14 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
             return (
               <div className="bg-white rounded-2xl border border-gray-100 shadow-xs overflow-hidden">
                 <div className="px-4 sm:px-5 py-3.5 border-b border-gray-100 bg-gray-50/60">
-                  <h2 className="font-bold text-sm text-gray-900">Xususiyatlar</h2>
+                  <h2 className="font-bold text-sm text-gray-900">{t('detail.attributes')}</h2>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 divide-y divide-gray-50 sm:divide-y-0">
                   {ordered.map((a) => (
                     <div key={a.key} className="flex items-center justify-between px-4 sm:px-5 py-2.5 text-xs border-b border-gray-50">
                       <span className="text-gray-500">{labelFor(a.key)}</span>
                       <span className="font-semibold text-gray-900 text-right ml-4">
-                        {typeof attrs[a.key] === 'boolean' ? (attrs[a.key] ? 'Ha' : "Yo'q") : String(attrs[a.key])}
+                        {typeof attrs[a.key] === 'boolean' ? (attrs[a.key] ? t('detail.yes') : t('detail.no')) : String(attrs[a.key])}
                         {unitFor(a.key) ? ` ${unitFor(a.key)}` : ''}
                       </span>
                     </div>
@@ -759,14 +769,14 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
           {/* 4. Ko'nikmalar / Skills */}
           {skillsList.length > 0 && (
             <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-xs">
-              <h2 className="font-bold text-sm text-gray-900 mb-3">Ko'nikmalar va talablar</h2>
+              <h2 className="font-bold text-sm text-gray-900 mb-3">{t('detail.skills')}</h2>
               <div className="flex flex-wrap gap-2">
                 {skillsList.map((skill: string, idx: number) => (
                   <span
                     key={idx}
                     className="px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-100 text-blue-800 text-xs font-semibold"
                   >
-                    {skill}
+                    <Translated text={skill} />
                   </span>
                 ))}
               </div>
@@ -776,7 +786,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
           {/* 5. Joylashuv (Расположение) — Avito style */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-xs overflow-hidden">
             <div className="px-4 sm:px-5 py-3.5 border-b border-gray-100 bg-gray-50/60">
-              <h2 className="font-bold text-sm text-gray-900">Joylashuv</h2>
+              <h2 className="font-bold text-sm text-gray-900">{t('detail.location')}</h2>
             </div>
             <div className="p-4 sm:p-5">
               <div className="flex items-start gap-3">
@@ -794,7 +804,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                     <p className="text-xs text-gray-500 mt-1">📍 {listing.organization_address}</p>
                   )}
                   {!listing.region_name && !listing.district_name && (
-                    <p className="text-xs text-gray-400 italic">Manzil ko'rsatilmagan</p>
+                    <p className="text-xs text-gray-400 italic">{t('detail.noAddress')}</p>
                   )}
                 </div>
               </div>
@@ -812,7 +822,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                     {distanceToListing !== null && (
                       <div className="absolute top-2 left-2 flex items-center gap-1 bg-black/60 backdrop-blur-sm text-white text-[11px] px-2 py-1 rounded-md font-medium">
                         <MapPin className="w-3 h-3" />
-                        Sizdan {distanceToListing} km
+                        {t('detail.distanceFromYou', { n: distanceToListing })}
                       </div>
                     )}
                   </div>
@@ -823,7 +833,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                     className="mt-2 flex items-center justify-center gap-2 w-full py-2 rounded-xl border border-blue-200 bg-blue-50 text-blue-700 text-xs font-semibold hover:bg-blue-100 transition-colors"
                   >
                     <MapPin className="w-3.5 h-3.5" />
-                    Google Maps-da ochish
+                    {t('detail.openInMaps')}
                   </a>
                 </div>
               ) : null}
@@ -838,7 +848,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                 <Clock className="w-4 h-4" />
               </div>
               <div>
-                <p className="font-bold text-xs text-gray-500 uppercase tracking-wide">Bog'lanish vaqti</p>
+                <p className="font-bold text-xs text-gray-500 uppercase tracking-wide">{t('detail.contactTimeLabel')}</p>
                 <p className="font-semibold text-sm text-gray-900 mt-0.5">
                   {getContactTimeLabel(listing.contact_time, listing.contact_custom_text)}
                 </p>
@@ -851,7 +861,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
           <div id="reviews" className="scroll-mt-20">
             <ReviewsSection
               targetUserId={listing.owner_user_id}
-              employerName={listing.organization_name || listing.owner_name || 'Ish beruvchi'}
+              employerName={listing.organization_name || listing.owner_name || t('detail.employerFallback')}
               listingId={listing.id}
               onRatingUpdated={(newAvg, total) => {
                 setListing((prev) =>
@@ -874,21 +884,21 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                 <CheckCircle2 className="w-5 h-5" />
               </div>
               <div>
-                <p className="font-bold text-sm text-emerald-800">E'lon yakunlangan</p>
+                <p className="font-bold text-sm text-emerald-800">{t('detail.contactCompletedTitle')}</p>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  Bu e'lon bajarildi (yakunlandi) deb belgilangan — bog'lanish imkoni yopiq.
+                  {t('detail.contactCompletedBody')}
                 </p>
               </div>
             </div>
           ) : (
           <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-xs">
-            <h3 className="font-bold text-sm text-gray-900 mb-3">Aloqaga chiqish</h3>
+            <h3 className="font-bold text-sm text-gray-900 mb-3">{t('detail.contactTitle')}</h3>
 
             {/* Safety note */}
             <div className="p-3 rounded-xl bg-blue-50 border border-blue-100 text-[11px] text-blue-900 mb-4 flex items-start gap-2">
               <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
               <span>
-                TopHand orqali yozish — xavfsizroq aloqa usuli. Begona havolalarga kirmang.
+                {t('detail.safetyNote')}
               </span>
             </div>
 
@@ -905,7 +915,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                 className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 group"
               >
                 <MessageSquare className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                <span>TopHand Chat orqali yozish</span>
+                <span>{t('detail.chatBtn')}</span>
               </button>
 
               {/* 2. Telegram */}
@@ -917,7 +927,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                   className="w-full py-2.5 rounded-xl bg-[#2AABEE]/10 hover:bg-[#2AABEE]/20 text-[#2AABEE] font-bold text-xs border border-[#2AABEE]/30 transition-colors flex items-center justify-center gap-2"
                 >
                   <Send className="w-4 h-4 -rotate-45" />
-                  <span>Telegram: @{listing.owner_username}</span>
+                  <span>{t('detail.telegram', { username: listing.owner_username })}</span>
                 </a>
               )}
 
@@ -927,7 +937,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                 className="w-full py-2.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-colors flex items-center justify-center gap-2"
               >
                 <Phone className="w-4 h-4 text-blue-600" />
-                <span>{revealedPhone ? revealedPhone : "Telefon raqamini ko'rish"}</span>
+                <span>{revealedPhone ? revealedPhone : t('detail.showPhone')}</span>
               </button>
             </div>
           </div>
@@ -948,19 +958,19 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <h4 className="font-bold text-sm text-gray-900 truncate">{listing.owner_name}</h4>
                   {isOfficialAccount(listing) ? (
-                    <VerifiedBadge size="sm" variant="official" tooltip="TopHand rasmiy hisobi" />
+                    <VerifiedBadge size="sm" variant="official" tooltip={t('badge.officialTooltip')} />
                   ) : isStaffAccount(listing) ? (
-                    <VerifiedBadge size="sm" variant="staff" tooltip="TopHand moderatori (staff)" />
+                    <VerifiedBadge size="sm" variant="staff" tooltip={t('badge.staffTooltip')} />
                   ) : listing.is_verified ? (
-                    <VerifiedBadge size="sm" tooltip="TopHand tomonidan pasport orqali tasdiqlangan mutaxassis" />
+                    <VerifiedBadge size="sm" tooltip={t('badge.verifiedTooltip')} />
                   ) : null}
                 </div>
                 <p className="text-[11px] text-gray-400 mt-0.5">
-                  {listing.owner_username ? `@${listing.owner_username}` : "TopHand a'zosi"}
+                  {listing.owner_username ? `@${listing.owner_username}` : t('detail.memberFallback')}
                 </p>
                 {listing.owner_registered_at && (
                   <p className="text-[10px] text-gray-400">
-                    A'zo: {formatDateAgo(listing.owner_registered_at)}
+                    {t('detail.memberSince', { date: formatDateAgo(listing.owner_registered_at) })}
                   </p>
                 )}
                 {/* Rating */}
@@ -968,10 +978,10 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                   <a href="#reviews" className="mt-1 flex items-center gap-1 text-amber-600 hover:underline">
                     <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
                     <span className="text-xs font-bold">{listing.employer_rating.toFixed(1)}</span>
-                    <span className="text-[11px] text-gray-500">({listing.employer_review_count} ta)</span>
+                    <span className="text-[11px] text-gray-500">({t('common.count', { n: listing.employer_review_count })})</span>
                   </a>
                 ) : (
-                  <span className="text-[10px] text-gray-400 italic mt-0.5 block">Hali baholanmagan</span>
+                  <span className="text-[10px] text-gray-400 italic mt-0.5 block">{t('detail.notRated')}</span>
                 )}
               </div>
             </div>
@@ -988,13 +998,13 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                 <span className="block font-bold text-gray-900 text-sm">
                   {listing.owner_active_listing_count || 1}
                 </span>
-                <span className="text-[11px] text-gray-400">Faol e'lonlar</span>
+                <span className="text-[11px] text-gray-400">{t('detail.activeListingsCount')}</span>
               </div>
               <div>
                 <span className="block font-bold text-gray-900 text-sm">
                   {listing.owner_followers_count || 0}
                 </span>
-                <span className="text-[11px] text-gray-400">Obunachilar</span>
+                <span className="text-[11px] text-gray-400">{t('detail.followers')}</span>
               </div>
             </div>
 
@@ -1012,12 +1022,12 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                 {isFollowed ? (
                   <>
                     <UserCheck className="w-4 h-4 text-blue-600" />
-                    <span>Obunadasiz (Bekor qilish)</span>
+                    <span>{t('detail.subscribed')}</span>
                   </>
                 ) : (
                   <>
                     <UserPlus className="w-4 h-4 text-blue-600" />
-                    <span>Obuna bo'lish</span>
+                    <span>{t('detail.subscribe')}</span>
                   </>
                 )}
               </button>
@@ -1027,7 +1037,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
               onClick={() => onNavigate(`/profile/${listing.owner_user_id}`)}
               className="w-full mt-2 py-2 text-center text-xs font-semibold text-gray-500 hover:text-blue-600 transition-colors"
             >
-              Profilni to'liq ko'rish →
+              {t('detail.viewFullProfile')}
             </button>
           </div>
 
@@ -1050,16 +1060,16 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                   <div className="flex items-center gap-1">
                     <h4 className="font-bold text-sm text-gray-900 truncate">{listing.organization_name}</h4>
                     {listing.organization_verification_status === 'VERIFIED' && (
-                      <VerifiedBadge size="sm" variant="emerald" tooltip="Rasmiy tasdiqlangan tashkilot" />
+                      <VerifiedBadge size="sm" variant="emerald" tooltip={t('detail.orgVerifiedTooltip')} />
                     )}
                   </div>
-                  <span className="text-[10px] text-gray-400">Rasmiy tashkilot profili</span>
+                  <span className="text-[10px] text-gray-400">{t('detail.orgProfileLabel')}</span>
                 </div>
               </div>
 
               {listing.organization_description && (
                 <p className="text-xs text-gray-600 line-clamp-3 mb-3 leading-relaxed">
-                  {listing.organization_description}
+                  <Translated text={listing.organization_description} />
                 </p>
               )}
 
@@ -1067,7 +1077,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                 onClick={() => onNavigate(`/org/${listing.organization_id}`)}
                 className="w-full py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
               >
-                Tashkilot sahifasi va barcha vakansiyalari
+                {t('detail.orgViewBtn')}
               </button>
             </div>
           )}
@@ -1083,7 +1093,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
         isOpen={isCallModalOpen}
         onClose={() => setIsCallModalOpen(false)}
         phone={revealedPhone}
-        ownerName={listing.owner_name || 'Foydalanuvchi'}
+        ownerName={listing.owner_name || t('detail.userFallback')}
         onOpenChat={() => setIsChatOpen(true)}
       />
 

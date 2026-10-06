@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ListingType, Region, District } from '../../types/index.ts';
+import { useI18n } from '../../i18n/IntlContext.tsx';
 import { MapPin, SlidersHorizontal, X, Compass } from 'lucide-react';
 import { apiRequest } from '../../lib/api.ts';
 
@@ -40,6 +41,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   onResetFilters,
   activeFilterCount,
 }) => {
+  const { t, localized } = useI18n();
   const [regions, setRegions] = useState<Region[]>([]);
   const [districts, setDistricts] = useState<District[]>([]);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -71,11 +73,11 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   };
 
   const TYPE_TABS: { type?: ListingType; label: string; countColor: string }[] = [
-    { type: undefined, label: 'Barchasi', countColor: 'bg-gray-100 text-gray-700' },
-    { type: 'SERVICE_OFFER', label: 'Xizmat takliflari', countColor: 'bg-blue-100 text-blue-700' },
-    { type: 'SERVICE_REQUEST', label: 'Xizmat so‘rovlari', countColor: 'bg-amber-100 text-amber-700' },
-    { type: 'JOB_OPENING', label: 'Vakansiyalar', countColor: 'bg-purple-100 text-purple-700' },
-    { type: 'JOB_SEEKER', label: 'Rezyumelar', countColor: 'bg-emerald-100 text-emerald-700' },
+    { type: undefined, label: t('home.tabAll'), countColor: 'bg-gray-100 text-gray-700' },
+    { type: 'SERVICE_OFFER', label: t('home.tbServices'), countColor: 'bg-blue-100 text-blue-700' },
+    { type: 'SERVICE_REQUEST', label: t('home.tbRequests'), countColor: 'bg-amber-100 text-amber-700' },
+    { type: 'JOB_OPENING', label: t('home.tbVacancies'), countColor: 'bg-purple-100 text-purple-700' },
+    { type: 'JOB_SEEKER', label: t('home.tbResumes'), countColor: 'bg-emerald-100 text-emerald-700' },
   ];
 
   return (
@@ -111,13 +113,13 @@ export const FilterBar: React.FC<FilterBarProps> = ({
               onRegionChange(val);
               onDistrictChange(undefined);
             }}
-            aria-label="Hududni tanlang"
+            aria-label={t('home.pickRegion')}
             className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium text-gray-700 focus:outline-hidden focus:ring-2 focus:ring-blue-500 appearance-none pr-8 cursor-pointer"
           >
-            <option value="">Barcha viloyatlar</option>
+            <option value="">{t('home.allRegions')}</option>
             {regions.map((r) => (
               <option key={r.id} value={r.id}>
-                {r.name_uz}
+                {localized(r)}
               </option>
             ))}
           </select>
@@ -130,13 +132,13 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             <select
               value={selectedDistrictId || ''}
               onChange={(e) => onDistrictChange(e.target.value || undefined)}
-              aria-label="Tumanni tanlang"
+              aria-label={t('home.pickDistrict')}
               className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium text-gray-700 focus:outline-hidden focus:ring-2 focus:ring-blue-500 appearance-none pr-8 cursor-pointer"
             >
-              <option value="">Barcha tumanlar</option>
+              <option value="">{t('home.allDistricts')}</option>
               {districts.map((d) => (
                 <option key={d.id} value={d.id}>
-                  {d.name_uz}
+                  {localized(d)}
                 </option>
               ))}
             </select>
@@ -151,10 +153,10 @@ export const FilterBar: React.FC<FilterBarProps> = ({
               ? 'bg-blue-50 text-blue-700 border-blue-200'
               : 'bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200'
           }`}
-          title="Yaqin-atrofdagi e'lonlarni ko'rsatish"
+          title={t('home.geoTitle')}
         >
           <Compass className={`w-3.5 h-3.5 ${isGeoActive ? 'text-blue-600 animate-spin-slow' : 'text-gray-500'}`} />
-          <span>{isGeoActive ? 'Joylashuv aniqlandi' : 'Yaqin atrofdagilar'}</span>
+          <span>{isGeoActive ? t('home.geoLocated') : t('home.geoNearby')}</span>
         </button>
 
         {/* Advanced Filters Toggle */}
@@ -167,7 +169,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           }`}
         >
           <SlidersHorizontal className="w-3.5 h-3.5" />
-          <span>Filtrlar</span>
+          <span>{t('home.filters')}</span>
           {activeFilterCount > 0 && (
             <span className="w-4 h-4 rounded-full bg-blue-500 text-white text-[10px] flex items-center justify-center font-bold">
               {activeFilterCount}
@@ -182,7 +184,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             className="flex items-center gap-1 text-xs text-rose-600 hover:text-rose-800 font-medium px-2 py-1 transition-colors"
           >
             <X className="w-3.5 h-3.5" />
-            Tozalash
+            {t('common.clear')}
           </button>
         )}
       </div>
@@ -193,12 +195,12 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           {/* Price Range */}
           <div>
             <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-              Narx / Maosh oralig‘i (UZS)
+              {t('home.priceRangeSection')}
             </label>
             <div className="flex items-center gap-2">
               <input
                 type="number"
-                placeholder="Dan"
+                placeholder={t('home.priceFromPh')}
                 value={localPriceMin}
                 onChange={(e) => setLocalPriceMin(e.target.value)}
                 className="w-full bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-medium focus:outline-hidden focus:ring-1 focus:ring-blue-500"
@@ -206,7 +208,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
               <span className="text-gray-400 text-xs">—</span>
               <input
                 type="number"
-                placeholder="Gacha"
+                placeholder={t('home.priceToPh')}
                 value={localPriceMax}
                 onChange={(e) => setLocalPriceMax(e.target.value)}
                 className="w-full bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-medium focus:outline-hidden focus:ring-1 focus:ring-blue-500"
@@ -224,7 +226,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           {isGeoActive && (
             <div>
               <div className="flex justify-between items-center mb-1">
-                <label className="text-xs font-semibold text-gray-700">Maksimal masofa</label>
+                <label className="text-xs font-semibold text-gray-700">{t('home.maxDistance')}</label>
                 <span className="text-xs font-bold text-blue-600">{maxDistanceKm || 50} km</span>
               </div>
               <input

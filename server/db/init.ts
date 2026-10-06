@@ -79,6 +79,20 @@ export async function initDatabase() {
     END $$;
   `);
 
+  // 3b. Ko'p tillilik (i18n): taksonomiya uchun ixtiyoriy tarjima ustunlari.
+  //     name_uz — manba; name_ru/name_en bo'sh bo'lsa frontend name_uz ga qaytadi,
+  //     uz-Cyrl esa name_uz'dan transliteratsiya qilinadi.
+  await pool.query(`
+    ALTER TABLE catalogs   ADD COLUMN IF NOT EXISTS name_ru TEXT;
+    ALTER TABLE catalogs   ADD COLUMN IF NOT EXISTS name_en TEXT;
+    ALTER TABLE regions    ADD COLUMN IF NOT EXISTS name_ru TEXT;
+    ALTER TABLE regions    ADD COLUMN IF NOT EXISTS name_en TEXT;
+    ALTER TABLE districts  ADD COLUMN IF NOT EXISTS name_ru TEXT;
+    ALTER TABLE districts  ADD COLUMN IF NOT EXISTS name_en TEXT;
+    ALTER TABLE categories ADD COLUMN IF NOT EXISTS name_ru TEXT;
+    ALTER TABLE categories ADD COLUMN IF NOT EXISTS name_en TEXT;
+  `);
+
   // 4. users
   await createTableIfNotExists(`
     CREATE TABLE IF NOT EXISTS users (
@@ -480,6 +494,24 @@ export async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_email_verification ON email_verification_codes(email, code);
   `);
 
+  // ─── translation_cache (Faza E): mashina-tarjimalarini bir marta qilib saqlash ───
+  await createTableIfNotExists(`
+    CREATE TABLE IF NOT EXISTS translation_cache (
+      id TEXT PRIMARY KEY,
+      src_hash TEXT NOT NULL,
+      src_text TEXT NOT NULL,
+      source_lang TEXT,
+      target_lang TEXT NOT NULL,
+      out_text TEXT NOT NULL,
+      engine TEXT NOT NULL DEFAULT 'google',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(src_hash, target_lang)
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_translation_cache_lookup ON translation_cache(src_hash, target_lang);
+  `);
+
   // ─── Idempotent schema migrations FIRST (adds listings.attributes, categories.scope,
   //     category_attributes table, drops the rigid type CHECK) so seeding can use them ───
   await runMigrations();
@@ -497,17 +529,19 @@ export async function syncCategories() {
   // 1. Sync catalogs (services, jobs, etc.)
   for (const cat of CATALOGS_LIST) {
     await pool.query(`
-      INSERT INTO catalogs (id, name_uz, slug, icon, description, listing_types, sort_order, is_active, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, 1, $8, $9)
+      INSERT INTO catalogs (id, name_uz, name_ru, name_en, slug, icon, description, listing_types, sort_order, is_active, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 1, $10, $11)
       ON CONFLICT (id) DO UPDATE SET
         name_uz = EXCLUDED.name_uz,
+        name_ru = EXCLUDED.name_ru,
+        name_en = EXCLUDED.name_en,
         slug = EXCLUDED.slug,
         icon = EXCLUDED.icon,
         description = EXCLUDED.description,
         listing_types = EXCLUDED.listing_types,
         sort_order = EXCLUDED.sort_order,
         updated_at = EXCLUDED.updated_at
-    `, [cat.id, cat.name_uz, cat.slug, cat.icon, cat.description, cat.listing_types, cat.sort_order, now, now]);
+    `, [cat.id, cat.name_uz, cat.name_ru ?? null, cat.name_en ?? null, cat.slug, cat.icon, cat.description, cat.listing_types, cat.sort_order, now, now]);
   }
   console.log(`✅ Catalogs synced: ${CATALOGS_LIST.length} catalogs.`);
 

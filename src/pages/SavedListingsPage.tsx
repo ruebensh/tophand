@@ -4,6 +4,7 @@ import { apiRequest } from '../lib/api.ts';
 import { ListingCard } from '../components/listings/ListingCard.tsx';
 import { ChevronLeft, Heart, LogIn } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.tsx';
+import { useI18n } from '../i18n/IntlContext.tsx';
 
 interface SavedListingsPageProps {
   onNavigate: (route: string) => void;
@@ -15,6 +16,7 @@ export const SavedListingsPage: React.FC<SavedListingsPageProps> = ({
   onOpenListing,
 }) => {
   const { user, openLoginModal } = useAuth();
+  const { t } = useI18n();
   const [savedListings, setSavedListings] = useState<Listing[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -53,24 +55,24 @@ export const SavedListingsPage: React.FC<SavedListingsPageProps> = ({
           <button
             onClick={() => onNavigate('/')}
             className="p-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-500 hover:text-gray-900 transition-colors cursor-pointer"
-            title="Asosiy sahifaga qaytish"
+            title={t('saved.backHome')}
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
           <div>
             <h1 className="text-xl sm:text-2xl font-extrabold text-gray-900 flex items-center gap-2 tracking-tight">
               <Heart className="w-5 h-5 text-rose-500 fill-rose-500" />
-              <span>Yoqtirilgan e’lonlar</span>
+              <span>{t('nav.savedListings')}</span>
             </h1>
             <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
-              Siz yoqtirgan barcha e’lonlar
+              {t('saved.subtitle')}
             </p>
           </div>
         </div>
 
         {savedListings.length > 0 && (
           <span className="text-xs font-bold text-gray-700 bg-gray-100 px-3 py-1.5 rounded-full">
-            {savedListings.length} ta yoqtirilgan
+            {t('saved.countSaved', { n: savedListings.length })}
           </span>
         )}
       </div>
@@ -82,17 +84,17 @@ export const SavedListingsPage: React.FC<SavedListingsPageProps> = ({
             <Heart className="w-7 h-7" />
           </div>
           <h3 className="font-bold text-base text-gray-900">
-            Yoqtirilgan e’lonlarni ko‘rish uchun tizimga kiring
+            {t('saved.loginTitle')}
           </h3>
           <p className="text-xs text-gray-500 mt-2 mb-6 leading-relaxed">
-            Yoqqan xizmat yoki ish e’lonlarini yurakcha bilan belgilab, istalgan qurilmadan qayta kirish uchun hisobingizga kiring.
+            {t('saved.loginBody')}
           </p>
           <button
             onClick={() => openLoginModal()}
             className="px-6 py-2.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm transition-colors shadow-xs flex items-center justify-center gap-2 mx-auto cursor-pointer"
           >
             <LogIn className="w-4 h-4" />
-            <span>Tizimga kirish</span>
+            <span>{t('saved.loginBtn')}</span>
           </button>
         </div>
       ) : isLoading ? (
@@ -117,16 +119,16 @@ export const SavedListingsPage: React.FC<SavedListingsPageProps> = ({
             <Heart className="w-7 h-7" />
           </div>
           <h3 className="font-bold text-base text-gray-900">
-            Hozircha yoqtirilgan e’lonlar yo‘q
+            {t('saved.emptyTitle')}
           </h3>
           <p className="text-xs text-gray-500 mt-1.5 mb-6 leading-relaxed">
-            Sizga ma’qul kelgan ish yoki xizmat e’lonlaridagi yurakcha tugmasini bosib, ularni bu yerda to‘plashingiz mumkin.
+            {t('saved.emptyBody')}
           </p>
           <button
             onClick={() => onNavigate('/')}
             className="px-6 py-2.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm transition-colors shadow-xs cursor-pointer inline-flex items-center gap-2"
           >
-            <span>E’lonlarni ko‘rish</span>
+            <span>{t('saved.browseBtn')}</span>
           </button>
         </div>
       ) : (

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Bell, BellRing, Loader2, CheckCircle2, Info } from 'lucide-react';
 import { useNotifications } from '../../context/NotificationContext.tsx';
+import { useI18n } from '../../i18n/IntlContext.tsx';
 
 /**
  * Lets the user turn browser (Web) Push on/off. Once enabled, TopHand
@@ -9,6 +10,7 @@ import { useNotifications } from '../../context/NotificationContext.tsx';
 export const PushNotificationsCard: React.FC = () => {
   const { pushSupported, pushPermission, pushEnabled, isEnablingPush, enablePush, disablePush } =
     useNotifications();
+  const { t } = useI18n();
   const [error, setError] = React.useState<string | null>(null);
 
   const handleToggle = async () => {
@@ -20,7 +22,7 @@ export const PushNotificationsCard: React.FC = () => {
         await enablePush();
       }
     } catch (err: any) {
-      setError(err?.message || 'Amal bajarilmadi');
+      setError(err?.message || t('profile.pushErr'));
     }
   };
 
@@ -29,10 +31,9 @@ export const PushNotificationsCard: React.FC = () => {
       <div className="bg-white rounded-2xl border border-gray-200 p-5 flex items-start gap-3">
         <Info className="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
         <div>
-          <h4 className="text-sm font-extrabold text-gray-900">Bildirishnomalar</h4>
+          <h4 className="text-sm font-extrabold text-gray-900">{t('profile.pushTitle')}</h4>
           <p className="text-xs text-gray-500 mt-0.5">
-            Brauzeringiz push bildirishnomalarni qo‘llab-quvvatlamaydi. Sayt ochiq bo'lganda
-            bildirishnomalar baribir ko'rinadi.
+            {t('profile.pushUnsupported')}
           </p>
         </div>
       </div>
@@ -54,16 +55,15 @@ export const PushNotificationsCard: React.FC = () => {
           </div>
           <div>
             <h4 className="text-sm font-extrabold text-gray-900">
-              Push bildirishnomalar
+              {t('profile.pushHeading')}
               {pushEnabled && (
                 <span className="ml-2 inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Yoqilgan
+                  <CheckCircle2 className="w-3.5 h-3.5" /> {t('profile.pushOn')}
                 </span>
               )}
             </h4>
             <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
-              Saytdan tashqarida bo'lganda ham — xabarlar, e'lon natijalari va bayram
-              bildirishnomalari qurilmangizga yetib keladi.
+              {t('profile.pushBody')}
             </p>
           </div>
         </div>
@@ -79,20 +79,19 @@ export const PushNotificationsCard: React.FC = () => {
         >
           {isEnablingPush ? (
             <span className="inline-flex items-center gap-2">
-              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Kutilmoqda…
+              <Loader2 className="w-3.5 h-3.5 animate-spin" /> {t('profile.pushWaiting')}
             </span>
           ) : pushEnabled ? (
-            'O‘chirish'
+            t('profile.pushTurnOff')
           ) : (
-            'Yoqish'
+            t('profile.pushTurnOn')
           )}
         </button>
       </div>
 
       {denied && (
         <p className="text-[11px] text-amber-600 mt-3">
-          Brauzer ruxsatni blokagan. Ruxsatni tiklash uchun brauzer sozlamalari → Sayit →
-          Bildirishnomalar bo'limiga kiring.
+          {t('profile.pushDenied')}
         </p>
       )}
       {error && <p className="text-[11px] text-red-600 mt-3">{error}</p>}

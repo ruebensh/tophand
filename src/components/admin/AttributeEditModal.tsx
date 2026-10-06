@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, Filter } from 'lucide-react';
 import type { CategoryAttribute, AttributeType } from '../../types/index.ts';
+import { useI18n } from '../../i18n/IntlContext.tsx';
 
-const TYPE_OPTIONS: { value: AttributeType; label: string }[] = [
-  { value: 'select', label: 'Tanlash (bir qiymat)' },
-  { value: 'multiselect', label: 'Bir nechta tanlash' },
-  { value: 'range', label: 'Oraliq (dan – gacha)' },
-  { value: 'number', label: 'Raqam' },
-  { value: 'year', label: 'Yil oralig’i' },
-  { value: 'text', label: 'Matn' },
-  { value: 'bool', label: 'Ha / Yo‘q (belgi)' },
-  { value: 'color', label: 'Rang' },
+const TYPE_OPTIONS: { value: AttributeType; labelKey: string }[] = [
+  { value: 'select', labelKey: 'admin.aemTypeSelect' },
+  { value: 'multiselect', labelKey: 'admin.aemTypeMulti' },
+  { value: 'range', labelKey: 'admin.aemTypeRange' },
+  { value: 'number', labelKey: 'admin.aemTypeNumber' },
+  { value: 'year', labelKey: 'admin.aemTypeYear' },
+  { value: 'text', labelKey: 'admin.aemTypeText' },
+  { value: 'bool', labelKey: 'admin.aemTypeBool' },
+  { value: 'color', labelKey: 'admin.aemTypeColor' },
 ];
 
 const SECTION_SUGGESTIONS = ['Asosiy', 'Texnik', 'Holat', 'Qo’shimcha', 'O‘lcham', 'Yetkazib berish'];
@@ -36,6 +37,7 @@ export const AttributeEditModal: React.FC<AttributeEditModalProps> = ({
   attribute,
   onSave,
 }) => {
+  const { t } = useI18n();
   const isEditing = Boolean(attribute?.id);
 
   const [key, setKey] = useState('');
@@ -127,10 +129,10 @@ export const AttributeEditModal: React.FC<AttributeEditModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!key.trim()) { alert('Filtr kaliti (key) kiritilishi shart'); return; }
-    if (!label.trim()) { alert('Filtr nomi (label) kiritilishi shart'); return; }
+    if (!key.trim()) { alert(t('admin.aemKeyRequired')); return; }
+    if (!label.trim()) { alert(t('admin.aemLabelRequired')); return; }
     if (usesOptions(type) && parseLines(optionsText).length === 0) {
-      alert('Bu filtr turi uchun kamida bitta variant kiriting'); return;
+      alert(t('admin.aemOptionsRequired')); return;
     }
 
     const payload: any = {
@@ -154,7 +156,7 @@ export const AttributeEditModal: React.FC<AttributeEditModalProps> = ({
       await onSave(payload, attribute?.id);
       onClose();
     } catch (err: any) {
-      alert(err.message || 'Saqlashda xatolik');
+      alert(err.message || t('admin.teamSaveErr'));
     } finally {
       setIsSubmitting(false);
     }
@@ -176,7 +178,7 @@ export const AttributeEditModal: React.FC<AttributeEditModalProps> = ({
             </div>
             <div>
               <h3 className="font-extrabold text-base text-gray-950">
-                {isEditing ? 'Filtrni tahrirlash' : 'Yangi filtr qo‘shish'}
+                {isEditing ? t('admin.aemEditTitle') : t('admin.aemAddTitle')}
               </h3>
               <p className="text-xs text-gray-500 truncate max-w-[280px]">{categoryLabel}</p>
             </div>
@@ -192,35 +194,35 @@ export const AttributeEditModal: React.FC<AttributeEditModalProps> = ({
         <form onSubmit={handleSubmit} className="p-5 overflow-y-auto space-y-4 text-xs">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={labelCls}>Kalit (key) <span className="text-rose-500">*</span></label>
+              <label className={labelCls}>{t('admin.aemKeyLabel')} <span className="text-rose-500">*</span></label>
               <input
                 type="text" value={key}
                 onChange={(e) => setKey(e.target.value)}
                 className={inputCls + ' font-mono'}
-                placeholder="masalan: marka"
+                placeholder={t('admin.aemKeyPh')}
               />
-              <p className="text-[10px] text-gray-400 mt-1">Faqat a-z, 0-9, _ (ichki identifikator)</p>
+              <p className="text-[10px] text-gray-400 mt-1">{t('admin.aemKeyHint')}</p>
             </div>
             <div>
-              <label className={labelCls}>Ko‘rinadigan nom (label) <span className="text-rose-500">*</span></label>
+              <label className={labelCls}>{t('admin.aemDisplayNameLabel')} <span className="text-rose-500">*</span></label>
               <input
                 type="text" value={label}
                 onChange={(e) => setLabel(e.target.value)}
                 className={inputCls}
-                placeholder="Masalan: Marka"
+                placeholder={t('admin.aemNamePh')}
               />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={labelCls}>Filtr turi</label>
+              <label className={labelCls}>{t('admin.aemTypeLabel')}</label>
               <select value={type} onChange={(e) => setType(e.target.value as AttributeType)} className={inputCls}>
-                {TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                {TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{t(o.labelKey)}</option>)}
               </select>
             </div>
             <div>
-              <label className={labelCls}>Bo‘lim (section)</label>
+              <label className={labelCls}>{t('admin.aemSectionLabel')}</label>
               <input
                 type="text" value={section} list="section-suggestions"
                 onChange={(e) => setSection(e.target.value)}
@@ -234,7 +236,7 @@ export const AttributeEditModal: React.FC<AttributeEditModalProps> = ({
 
           {usesOptions(type) && (
             <div>
-              <label className={labelCls}>Variantlar (har bir qatorga bittadan)</label>
+              <label className={labelCls}>{t('admin.aemOptionsLabel')}</label>
               <textarea
                 rows={5} value={optionsText}
                 onChange={(e) => setOptionsText(e.target.value)}
@@ -246,26 +248,26 @@ export const AttributeEditModal: React.FC<AttributeEditModalProps> = ({
 
           {usesNumericMeta(type) && (
             <div>
-              <label className={labelCls}>Son oralig’i sozlamalari</label>
+              <label className={labelCls}>{t('admin.aemNumericLabel')}</label>
               <div className="grid grid-cols-3 gap-2">
                 <input type="number" value={metaMin} onChange={(e) => setMetaMin(e.target.value)} className={inputCls} placeholder="min" />
                 <input type="number" value={metaMax} onChange={(e) => setMetaMax(e.target.value)} className={inputCls} placeholder="max" />
                 <input type="number" value={metaStep} onChange={(e) => setMetaStep(e.target.value)} className={inputCls} placeholder="step" />
               </div>
-              <p className="text-[10px] text-gray-400 mt-1">Bo‘sh qoldirsangiz avtomatik chegaralar ishlatiladi.</p>
+              <p className="text-[10px] text-gray-400 mt-1">{t('admin.aemNumericHint')}</p>
             </div>
           )}
 
           {(type === 'number' || type === 'range' || type === 'year') && (
             <div>
-              <label className={labelCls}>O‘lchov birligi (unit)</label>
+              <label className={labelCls}>{t('admin.aemUnitLabel')}</label>
               <input type="text" value={unit} onChange={(e) => setUnit(e.target.value)} className={inputCls} placeholder="km, m², yil, GB…" />
             </div>
           )}
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={labelCls}>UI control (ixtiyoriy)</label>
+              <label className={labelCls}>{t('admin.aemControlLabel')}</label>
               <input
                 type="text" value={metaControl} list="control-suggestions"
                 onChange={(e) => setMetaControl(e.target.value)}
@@ -276,8 +278,8 @@ export const AttributeEditModal: React.FC<AttributeEditModalProps> = ({
               </datalist>
             </div>
             <div>
-              <label className={labelCls}>Placeholder (ixtiyoriy)</label>
-              <input type="text" value={metaPlaceholder} onChange={(e) => setMetaPlaceholder(e.target.value)} className={inputCls} placeholder="Matn kiriting…" />
+              <label className={labelCls}>{t('admin.aemPlaceholderLabel')}</label>
+              <input type="text" value={metaPlaceholder} onChange={(e) => setMetaPlaceholder(e.target.value)} className={inputCls} placeholder={t('admin.aemPlaceholderPh')} />
             </div>
           </div>
 
@@ -285,11 +287,11 @@ export const AttributeEditModal: React.FC<AttributeEditModalProps> = ({
           <div className="grid grid-cols-2 gap-2">
             <label className="flex items-center gap-2 p-2.5 rounded-xl border border-gray-200 cursor-pointer hover:bg-gray-50">
               <input type="checkbox" checked={required} onChange={(e) => setRequired(e.target.checked)} className="w-4 h-4 accent-blue-600" />
-              <span className="font-semibold text-gray-700">Majburiy (required)</span>
+              <span className="font-semibold text-gray-700">{t('admin.aemRequiredFlag')}</span>
             </label>
             <label className="flex items-center gap-2 p-2.5 rounded-xl border border-gray-200 cursor-pointer hover:bg-gray-50">
               <input type="checkbox" checked={filterable} onChange={(e) => setFilterable(e.target.checked)} className="w-4 h-4 accent-blue-600" />
-              <span className="font-semibold text-gray-700">Filtrlarda ko‘rsatilsin</span>
+              <span className="font-semibold text-gray-700">{t('admin.aemFilterableFlag')}</span>
             </label>
           </div>
 
@@ -297,17 +299,17 @@ export const AttributeEditModal: React.FC<AttributeEditModalProps> = ({
           <div className="p-3 rounded-xl border border-gray-200 bg-gray-50/50 space-y-2">
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" checked={isPopular} onChange={(e) => setIsPopular(e.target.checked)} className="w-4 h-4 accent-blue-600" />
-              <span className="font-bold text-gray-700">“Top mashxur” qatorida ko‘rsatish</span>
+              <span className="font-bold text-gray-700">{t('admin.aemPopularFlag')}</span>
             </label>
             {isPopular && (
               <>
                 <div className="grid grid-cols-3 gap-2">
                   <div className="col-span-1">
-                    <label className={labelCls}>Tartib</label>
+                    <label className={labelCls}>{t('admin.aemOrderLabel')}</label>
                     <input type="number" value={popularOrder} onChange={(e) => setPopularOrder(Number(e.target.value))} className={inputCls} />
                   </div>
                   <div className="col-span-2">
-                    <label className={labelCls}>Mashxur qiymatlar (qatorlar)</label>
+                    <label className={labelCls}>{t('admin.aemPopularValuesLabel')}</label>
                     <textarea rows={2} value={popularValuesText} onChange={(e) => setPopularValuesText(e.target.value)} className={inputCls + ' font-mono resize-y'} placeholder={'Chevrolet\nHyundai'} />
                   </div>
                 </div>
@@ -316,17 +318,17 @@ export const AttributeEditModal: React.FC<AttributeEditModalProps> = ({
           </div>
 
           <div>
-            <label className={labelCls}>Tartib raqami (sort_order)</label>
+            <label className={labelCls}>{t('admin.aemSortLabel')}</label>
             <input type="number" value={sortOrder} onChange={(e) => setSortOrder(Number(e.target.value))} className={inputCls} />
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-4 border-t border-gray-100">
             <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl border border-gray-200 font-semibold hover:bg-gray-50 cursor-pointer">
-              Bekor qilish
+              {t('common.cancel')}
             </button>
             <button type="submit" disabled={isSubmitting} className="px-6 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors disabled:opacity-60">
               <Save className="w-3.5 h-3.5" />
-              <span>{isSubmitting ? 'Saqlanmoqda…' : isEditing ? 'Saqlash' : 'Qo‘shish'}</span>
+              <span>{isSubmitting ? t('admin.aemSaving') : isEditing ? t('common.save') : t('common.add')}</span>
             </button>
           </div>
         </form>

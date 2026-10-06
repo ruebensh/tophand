@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Category } from '../../types/index.ts';
 import { CategoryIcon } from '../common/CategoryIcon.tsx';
 import { Check, ChevronRight, Layers, X } from 'lucide-react';
+import { useI18n } from '../../i18n/IntlContext.tsx';
 
 interface CategoryFilterProps {
   categories?: Category[];
@@ -26,6 +27,7 @@ export const CategoryFilter: React.FC<CategoryFilterProps> = ({
   className = '',
   onClose,
 }) => {
+  const { t, localized } = useI18n();
   const [internalCategories, setInternalCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [hoveredParentId, setHoveredParentId] = useState<string | null>(null);
@@ -132,7 +134,7 @@ export const CategoryFilter: React.FC<CategoryFilterProps> = ({
                 onClick={() => handleSelect(hoveredParent.id)}
                 className="font-bold text-sm text-gray-900 hover:text-blue-700 cursor-pointer transition-colors flex-1 text-left"
               >
-                {hoveredParent.name_uz}
+                {localized(hoveredParent)}
               </button>
               <ChevronRight className="w-3.5 h-3.5 text-gray-400 shrink-0" />
             </div>
@@ -148,7 +150,7 @@ export const CategoryFilter: React.FC<CategoryFilterProps> = ({
                 }`}
               >
                 <Layers className="w-3.5 h-3.5" />
-                <span>Barcha {hoveredParent.name_uz}</span>
+                <span>{t('home.allOf', { name: localized(hoveredParent) })}</span>
                 {selectedCategoryId === hoveredParent.id && (
                   <Check className="w-3 h-3 ml-auto" />
                 )}
@@ -169,7 +171,7 @@ export const CategoryFilter: React.FC<CategoryFilterProps> = ({
                         : 'text-gray-700 hover:bg-gray-50 hover:text-blue-700'
                     }`}
                   >
-                    <span className="truncate">{sub.name_uz}</span>
+                    <span className="truncate">{localized(sub)}</span>
                     {isSel && <Check className="w-3 h-3 shrink-0 ml-1" />}
                   </button>
                 );
@@ -194,18 +196,18 @@ export const CategoryFilter: React.FC<CategoryFilterProps> = ({
               <div className="min-w-0">
                 {selectedParent && (
                   <span className="text-blue-500 text-[10px] block leading-tight">
-                    {selectedParent.name_uz}
+                    {localized(selectedParent)}
                   </span>
                 )}
                 <span className="font-semibold text-blue-900 truncate block">
-                  {selectedCategory.name_uz}
+                  {localized(selectedCategory)}
                 </span>
               </div>
             </div>
             <button
               onClick={() => handleSelect(undefined)}
               className="p-0.5 text-blue-400 hover:text-rose-500 shrink-0 cursor-pointer rounded transition-colors"
-              title="Tozalash"
+              title={t('common.clear')}
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -225,7 +227,7 @@ export const CategoryFilter: React.FC<CategoryFilterProps> = ({
           <Layers
             className={`w-3.5 h-3.5 shrink-0 ${!selectedCategoryId ? 'text-white' : 'text-gray-400'}`}
           />
-          <span>Barcha kataloglar</span>
+          <span>{t('nav.allCatalogs')}</span>
           {!selectedCategoryId && <Check className="w-3 h-3 ml-auto" />}
         </button>
 
@@ -276,7 +278,7 @@ export const CategoryFilter: React.FC<CategoryFilterProps> = ({
                         : 'text-gray-400 group-hover:text-blue-600'
                     }`}
                   />
-                  <span className="flex-1 truncate">{parent.name_uz}</span>
+                  <span className="flex-1 truncate">{localized(parent)}</span>
                   {(isSelected || hasSelectedSub) && <Check className="w-3 h-3 shrink-0" />}
                   {hasSubs && !isSelected && !hasSelectedSub && (
                     <ChevronRight

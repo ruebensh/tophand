@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { formatDateAgo } from '../lib/utils.ts';
 import { ReportModal } from '../components/modals/ReportModal.tsx';
+import { useI18n } from '../i18n/IntlContext.tsx';
 
 interface ChatPageProps {
   initialConversationId?: string;
@@ -29,6 +30,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({
   onOpenListing,
 }) => {
   const { user } = useAuth();
+  const { t } = useI18n();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConvId, setSelectedConvId] = useState<string | undefined>(initialConversationId);
   const [activeConv, setActiveConv] = useState<any>(null);
@@ -103,7 +105,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({
       setMessages((prev) => [...prev, msg]);
       fetchConversations();
     } catch (err: any) {
-      alert(err.message || 'Xabar yuborishda xatolik');
+      alert(err.message || t('chat.sendError'));
       setText(sending);
     } finally {
       setIsSending(false);
@@ -119,12 +121,12 @@ export const ChatPage: React.FC<ChatPageProps> = ({
       const url = await uploadImageFile(file);
       const msg = await apiRequest(`/api/chat/conversations/${selectedConvId}/messages`, {
         method: 'POST',
-        body: JSON.stringify({ text: 'Rasm yuborildi', attachment_url: url }),
+        body: JSON.stringify({ text: t('chat.imageSent'), attachment_url: url }),
       });
       setMessages((prev) => [...prev, msg]);
       fetchConversations();
     } catch (err: any) {
-      alert(err.message || 'Rasm yuklashda xatolik');
+      alert(err.message || t('chat.imageError'));
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -133,18 +135,18 @@ export const ChatPage: React.FC<ChatPageProps> = ({
 
   const handleBlockUser = async () => {
     if (!partner) return;
-    if (!confirm(`${partner.name}ni bloklamoqchimisiz?`)) return;
+    if (!confirm(t('chat.blockConfirm', { name: partner.name }))) return;
 
     try {
       await apiRequest('/api/chat/block', {
         method: 'POST',
         body: JSON.stringify({ blocked_user_id: partner.id }),
       });
-      alert('Foydalanuvchi bloklandi');
+      alert(t('chat.blocked'));
       setShowMenu(false);
       fetchConversations();
     } catch (err: any) {
-      alert(err.message || 'Xatolik yuz berdi');
+      alert(err.message || t('chat.genericError'));
     }
   };
 
@@ -160,13 +162,13 @@ export const ChatPage: React.FC<ChatPageProps> = ({
         {/* Left Column: Conversations List */}
         <div className={`border-r border-gray-100 flex flex-col ${selectedConvId ? 'hidden md:flex' : 'flex'}`}>
           <div className="p-4 border-b border-gray-100">
-            <h2 className="font-extrabold text-base text-gray-900 mb-3">TopHand Suhbatlar</h2>
+            <h2 className="font-extrabold text-base text-gray-900 mb-3">{t('chat.title')}</h2>
             <div className="relative">
               <input
                 type="text"
                 value={searchFilter}
                 onChange={(e) => setSearchFilter(e.target.value)}
-                placeholder="Suhbatdosh yoki e’lon bo‘yicha..."
+                placeholder={t('chat.searchPlaceholder')}
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-8 pr-3 py-1.5 text-xs focus:outline-hidden focus:ring-1 focus:ring-blue-500"
               />
               <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
@@ -176,7 +178,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({
           <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
             {filteredConversations.length === 0 ? (
               <div className="p-8 text-center text-xs text-gray-400">
-                Hozircha suhbatlar yo‘q
+                {t('chat.noConversations')}
               </div>
             ) : (
               filteredConversations.map((c) => {
@@ -242,7 +244,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({
                       {partner.name}
                     </h3>
                     <p className="text-[11px] text-gray-400 truncate">
-                      {partner.telegram_username ? `@${partner.telegram_username}` : 'TopHand foydalanuvchisi'}
+                      {partner.telegram_username ? `@${partner.telegram_username}` : t('chat.userFallback')}
                     </p>
                   </div>
                 </div>
@@ -254,7 +256,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({
                       onClick={() => onOpenListing(activeConv.listing_id)}
                       className="hidden sm:inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs transition-colors"
                     >
-                      <span>E’lonni ko‘rish</span>
+                      <span>{t('chat.viewListing')}</span>
                     </button>
                   )}
 
@@ -277,14 +279,14 @@ export const ChatPage: React.FC<ChatPageProps> = ({
                           className="w-full px-3.5 py-2 text-xs text-left font-medium text-amber-700 hover:bg-amber-50 flex items-center gap-2"
                         >
                           <AlertTriangle className="w-3.5 h-3.5" />
-                          Shikoyat qilish
+                          {t('chat.report')}
                         </button>
                         <button
                           onClick={handleBlockUser}
                           className="w-full px-3.5 py-2 text-xs text-left font-medium text-rose-600 hover:bg-rose-50 flex items-center gap-2"
                         >
                           <Ban className="w-3.5 h-3.5" />
-                          Bloklash
+                          {t('chat.block')}
                         </button>
                       </div>
                     )}
@@ -296,13 +298,13 @@ export const ChatPage: React.FC<ChatPageProps> = ({
               {activeConv && (
                 <div className="px-4 py-2 bg-blue-50/80 border-b border-blue-100 text-xs text-blue-900 flex items-center justify-between shrink-0">
                   <span className="truncate">
-                    Siz <strong className="font-semibold">"{activeConv.listing_title}"</strong> e’loni bo‘yicha yozmoqdasiz.
+                    {t('chat.contextBanner', { title: activeConv.listing_title })}
                   </span>
                   <button
                     onClick={() => onOpenListing(activeConv.listing_id)}
                     className="sm:hidden text-xs text-blue-600 font-bold ml-2 shrink-0"
                   >
-                    E’lon
+                    {t('chat.listingShort')}
                   </button>
                 </div>
               )}
@@ -381,7 +383,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({
                   type="text"
                   value={text}
                   onChange={(e) => setText(e.target.value)}
-                  placeholder="Xabaringizni yozing..."
+                  placeholder={t('chat.inputPlaceholder')}
                   className="flex-1 bg-gray-50 border border-gray-200 rounded-full px-4 py-2 text-xs sm:text-sm text-gray-900 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
                 />
 
@@ -397,9 +399,9 @@ export const ChatPage: React.FC<ChatPageProps> = ({
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-gray-400 text-center p-8">
               <MessageSquare className="w-12 h-12 stroke-[1.5] mb-2 text-gray-300" />
-              <h3 className="font-bold text-sm text-gray-700">Suhbatni tanlang</h3>
+              <h3 className="font-bold text-sm text-gray-700">{t('chat.selectTitle')}</h3>
               <p className="text-xs text-gray-400 max-w-xs mt-1">
-                Chap tomondagi ro‘yxatdan suhbatni tanlang yoki e’lon sahifasidan yangi suhbat boshlang.
+                {t('chat.selectBody')}
               </p>
             </div>
           )}
@@ -412,7 +414,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({
           onClose={() => setReportTarget(null)}
           targetType="CONVERSATION"
           targetId={reportTarget}
-          targetTitle="Suhbat bo‘yicha shikoyat"
+          targetTitle={t('chat.reportConversationTitle')}
         />
       )}
     </div>

@@ -3,6 +3,7 @@ import { ChevronRight, MapPin, Loader2, SearchX } from 'lucide-react';
 import { apiRequest } from '../lib/api.ts';
 import { Listing } from '../types/index.ts';
 import { ListingCard } from '../components/listings/ListingCard.tsx';
+import { useI18n } from '../i18n/IntlContext.tsx';
 
 interface LandingData {
   region: { id: string; name_uz: string; slug: string };
@@ -40,6 +41,7 @@ function setCanonical(href: string) {
 }
 
 export const RegionCategoryPage: React.FC<Props> = ({ regionSlug, categorySlug, onNavigate, onOpenListing }) => {
+  const { t, localized } = useI18n();
   const [data, setData] = useState<LandingData | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -79,49 +81,49 @@ export const RegionCategoryPage: React.FC<Props> = ({ regionSlug, categorySlug, 
   }, [load]);
 
   const heading = data?.category
-    ? `${data.category.name_uz} — ${data.region.name_uz}`
+    ? `${localized(data.category)} — ${localized(data.region)}`
     : data?.region
-      ? `${data.region.name_uz} e'lonlari`
+      ? t('landing.regionListings', { region: localized(data.region) })
       : '';
 
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
       {/* Breadcrumb */}
       <nav className="flex items-center gap-1 text-xs text-gray-500 mb-3 flex-wrap">
-        <button onClick={() => onNavigate('/')} className="hover:text-blue-600 font-medium cursor-pointer">Bosh sahifa</button>
+        <button onClick={() => onNavigate('/')} className="hover:text-blue-600 font-medium cursor-pointer">{t('nav.home')}</button>
         <ChevronRight className="w-3.5 h-3.5" />
         {data && (
           <button
             onClick={() => onNavigate(`/hudud/${regionSlug}`)}
             className={`hover:text-blue-600 font-medium cursor-pointer ${data.category ? '' : 'text-gray-900'}`}
           >
-            {data.region.name_uz}
+            {localized(data.region)}
           </button>
         )}
         {data?.category && (
           <>
             <ChevronRight className="w-3.5 h-3.5" />
-            <span className="text-gray-900 font-medium">{data.category.name_uz}</span>
+            <span className="text-gray-900 font-medium">{localized(data.category)}</span>
           </>
         )}
       </nav>
 
       {loading && (
         <div className="flex items-center justify-center py-24 text-gray-400 gap-2">
-          <Loader2 className="w-5 h-5 animate-spin" /> <span className="text-sm">Yuklanmoqda…</span>
+          <Loader2 className="w-5 h-5 animate-spin" /> <span className="text-sm">{t('common.loading')}</span>
         </div>
       )}
 
       {!loading && notFound && (
         <div className="text-center py-24">
           <SearchX className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-          <h1 className="text-lg font-extrabold text-gray-900">Bo'lim topilmadi</h1>
-          <p className="text-sm text-gray-500 mt-1">Ushbu hudud yoki kategoriya mavjud emas yoki e'lonlar yo'q.</p>
+          <h1 className="text-lg font-extrabold text-gray-900">{t('landing.notFoundTitle')}</h1>
+          <p className="text-sm text-gray-500 mt-1">{t('landing.notFoundBody')}</p>
           <button
             onClick={() => onNavigate('/')}
             className="mt-5 px-5 py-2.5 rounded-full bg-blue-600 text-white text-xs font-bold cursor-pointer"
           >
-            Bosh sahifaga qaytish
+            {t('landing.backHome')}
           </button>
         </div>
       )}
@@ -135,10 +137,10 @@ export const RegionCategoryPage: React.FC<Props> = ({ regionSlug, categorySlug, 
               <span>{heading}</span>
             </h1>
             <p className="text-sm text-gray-600 mt-1.5 max-w-3xl leading-relaxed">
-              {data.count} ta e'lon.{' '}
+              {t('landing.countListings', { n: data.count })}{' '}
               {data.category
-                ? `${data.region.name_uz} bo'yicha ${data.category.name_uz} xizmatlari va mutaxassislarini toping — narxlar, telefon raqamlari va bog'lanish bir joyda.`
-                : `${data.region.name_uz} bo'ylab xizmatlar, mutaxassislar va ish e'lonlarini ko'ring va bepul joylang.`}
+                ? t('landing.catDesc', { region: localized(data.region), category: localized(data.category) })
+                : t('landing.regionDesc', { region: localized(data.region) })}
             </p>
           </header>
 
@@ -151,12 +153,12 @@ export const RegionCategoryPage: React.FC<Props> = ({ regionSlug, categorySlug, 
             </div>
           ) : (
             <div className="text-center py-16 bg-white rounded-2xl border border-gray-100">
-              <p className="text-sm text-gray-500">Hozircha bu yo'nalishda faol e'lonlar yo'q.</p>
+              <p className="text-sm text-gray-500">{t('landing.emptyListings')}</p>
               <button
                 onClick={() => onNavigate('/create')}
                 className="mt-4 px-5 py-2.5 rounded-full bg-blue-600 text-white text-xs font-bold cursor-pointer"
               >
-                Birinchi e'lonni joylash
+                {t('landing.firstListing')}
               </button>
             </div>
           )}
@@ -164,11 +166,11 @@ export const RegionCategoryPage: React.FC<Props> = ({ regionSlug, categorySlug, 
           {/* Ichki havolalar (SEO) */}
           <div className="mt-8 flex flex-wrap items-center gap-2 text-xs">
             <button onClick={() => onNavigate('/categories')} className="px-3 py-2 rounded-xl bg-white border border-gray-200 hover:border-blue-400 font-semibold text-gray-700 cursor-pointer">
-              Barcha kataloglar
+              {t('nav.allCatalogs')}
             </button>
             {data.category && (
               <button onClick={() => onNavigate(`/hudud/${regionSlug}`)} className="px-3 py-2 rounded-xl bg-white border border-gray-200 hover:border-blue-400 font-semibold text-gray-700 cursor-pointer">
-                {data.region.name_uz} — barcha yo'nalishlar
+                {t('landing.allDirections', { region: localized(data.region) })}
               </button>
             )}
           </div>

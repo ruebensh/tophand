@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
+import { useI18n } from '../../i18n/IntlContext.tsx';
 
 /**
  * TopHand shared Modal shell — modeled on Avito's modern (Gen B) dialog system.
@@ -123,15 +124,18 @@ export const Modal: React.FC<ModalProps> = ({
   );
 };
 
-const CloseButton: React.FC<{ onClose: () => void }> = ({ onClose }) => (
+const CloseButton: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+  const { t } = useI18n();
+  return (
   <button
     type="button"
     onClick={onClose}
-    aria-label="Yopish"
+    aria-label={t('common.close')}
     className="shrink-0 w-9 h-9 -mr-1 rounded-full flex items-center justify-center text-gray-900 hover:bg-gray-100 transition-colors cursor-pointer"
   >
     <X className="w-[18px] h-[18px]" strokeWidth={2.2} />
   </button>
-);
+  );
+};
 
 export default Modal;

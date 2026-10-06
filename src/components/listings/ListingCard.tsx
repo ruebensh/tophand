@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import { apiRequest } from '../../lib/api.ts';
 import { useAuth } from '../../context/AuthContext.tsx';
+import { useI18n } from '../../i18n/IntlContext.tsx';
+import { useTranslate } from '../../i18n/useTranslate.ts';
 
 interface ListingCardProps {
   listing: Listing;
@@ -39,6 +41,9 @@ export const ListingCard: React.FC<ListingCardProps> = ({
   footer,
 }) => {
   const { user, openLoginModal } = useAuth();
+  const { t } = useI18n();
+  // E'lon sarlavhasi — foydalanuvchi kontenti: ru/en MT, uz-Cyrl translit, uz asl.
+  const { value: title } = useTranslate(listing.title);
   const [isSaved, setIsSaved] = useState(listing.is_saved || false);
   const [isSaving, setIsSaving] = useState(false);
   // Tashqi rasm (masalan Unsplash) yuklanmasa — chiroyli placeholder'ga qaytamiz.
@@ -88,7 +93,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
           {coverImage && !imgFailed ? (
             <img
               src={coverImage}
-              alt={listing.title}
+              alt={title}
               loading="lazy"
               onError={() => setImgFailed(true)}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 absolute inset-0"
@@ -126,7 +131,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
               />
             </div>
             <h3 className="font-medium text-sm text-gray-800 line-clamp-2 group-hover:text-blue-600 transition-colors leading-snug">
-              {listing.title}
+              {title}
             </h3>
             <div className="mt-2 flex items-center gap-1 text-xs text-gray-400">
               <MapPin className="w-3 h-3 shrink-0" />
@@ -175,7 +180,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
           ) : (
             <img
               src={coverImage}
-              alt={listing.title}
+              alt={title}
               loading="lazy"
               onError={() => setImgFailed(true)}
               className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
@@ -214,7 +219,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
               ? 'bg-white text-rose-500 shadow-sm'
               : 'bg-white/80 text-gray-500 hover:bg-white hover:text-rose-500 shadow-sm'
           }`}
-          aria-label="Yoqtirish"
+          aria-label={t('common.like')}
         >
           <Heart
             className={`w-[18px] h-[18px] transition-transform ${
@@ -248,7 +253,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
         {listing.status === 'COMPLETED' ? (
           <div className="inline-flex items-center gap-1 text-base font-extrabold leading-tight text-emerald-600">
             <BadgeCheck className="w-4 h-4" />
-            <span>Yakunlangan</span>
+            <span>{t('listing.completed')}</span>
           </div>
         ) : (
           <div className="text-lg font-extrabold leading-tight text-ink">
@@ -268,7 +273,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
 
         {/* Title */}
         <h3 className="text-[13px] font-medium text-gray-700 line-clamp-2 leading-snug group-hover:text-blue-600 transition-colors">
-          {listing.title}
+          {title}
         </h3>
 
         {/* Location */}

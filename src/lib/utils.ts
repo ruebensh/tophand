@@ -1,4 +1,5 @@
 import { ListingType, PriceType, SalaryType, ContactTime } from '../types/index.ts';
+import { translate as tf, getActiveLocale, INTL_LOCALE } from '../i18n/core.ts';
 
 /**
  * The official TopHand account(s). Admin / super-admin roles are rendered with a
@@ -21,71 +22,53 @@ export function isStaffAccount(entity?: { role?: string | null; owner_role?: str
 
 export function formatCurrency(amount?: number | null): string {
   if (amount === undefined || amount === null || isNaN(amount)) return '';
-  return new Intl.NumberFormat('uz-UZ').format(amount).replace(/,/g, ' ');
+  return new Intl.NumberFormat(INTL_LOCALE[getActiveLocale()]).format(amount).replace(/,/g, ' ');
 }
 
 export function formatPrice(priceType: PriceType, min?: number | null, max?: number | null, currency = 'UZS'): string {
   switch (priceType) {
     case 'FREE':
-      return 'Bepul';
+      return tf('price.free');
     case 'NEGOTIABLE':
-      return 'Kelishiladi';
+      return tf('price.negotiable');
     case 'FIXED':
-      return min ? `${formatCurrency(min)} ${currency}` : 'Kelishiladi';
+      return min ? `${formatCurrency(min)} ${currency}` : tf('price.negotiable');
     case 'FROM':
-      return min ? `${formatCurrency(min)} ${currency} dan` : 'Kelishiladi';
+      return min ? `${formatCurrency(min)} ${currency} ${tf('price.fromWord')}` : tf('price.negotiable');
     case 'RANGE':
       if (min && max) {
         return `${formatCurrency(min)} – ${formatCurrency(max)} ${currency}`;
       }
-      return min ? `${formatCurrency(min)} ${currency} dan` : 'Kelishiladi';
+      return min ? `${formatCurrency(min)} ${currency} ${tf('price.fromWord')}` : tf('price.negotiable');
     default:
-      return 'Kelishiladi';
+      return tf('price.negotiable');
   }
 }
 
 export function formatSalary(salaryType?: SalaryType | null, min?: number | null, max?: number | null): string {
   if (!salaryType || salaryType === 'SALARY_NEGOTIABLE') {
-    return 'Maosh: Kelishiladi';
+    return tf('price.salaryNegotiable');
   }
 
   if (salaryType === 'SALARY_FIXED' && min) {
-    return `${formatCurrency(min)} UZS / oy`;
+    return `${formatCurrency(min)} UZS ${tf('price.perMonth')}`;
   }
 
   if (salaryType === 'SALARY_RANGE') {
     if (min && max) {
-      return `${formatCurrency(min)} – ${formatCurrency(max)} UZS / oy`;
+      return `${formatCurrency(min)} – ${formatCurrency(max)} UZS ${tf('price.perMonth')}`;
     }
     if (min) {
-      return `${formatCurrency(min)} UZS dan / oy`;
+      return `${formatCurrency(min)} UZS ${tf('price.fromWord')} ${tf('price.perMonth')}`;
     }
   }
 
-  return 'Maosh: Kelishiladi';
+  return tf('price.salaryNegotiable');
 }
 
 export function getListingTypeLabel(type: ListingType): string {
-  switch (type) {
-    case 'SERVICE_OFFER':
-      return 'Xizmat taklif qilaman';
-    case 'SERVICE_REQUEST':
-      return 'Xizmat kerak';
-    case 'JOB_OPENING':
-      return 'Ishchi qidiraman';
-    case 'JOB_SEEKER':
-      return 'Ish qidiraman';
-    case 'SELL':
-      return 'Sotaman';
-    case 'WANTED':
-      return 'Qidiraman';
-    case 'RENT_OUT':
-      return 'Ijaraga beraman';
-    case 'RENT_WANTED':
-      return 'Ijaraga olaman';
-    default:
-      return type;
-  }
+  const s = tf(`listingType.${type}`);
+  return s === `listingType.${type}` ? type : s;
 }
 
 export function getListingTypeBadgeColors(type: ListingType) {
@@ -148,20 +131,9 @@ export function getListingTypeBadgeColors(type: ListingType) {
 }
 
 export function getContactTimeLabel(time: ContactTime, customText?: string): string {
-  switch (time) {
-    case 'ANY_TIME':
-      return 'Istalgan vaqtda aloqaga chiqish mumkin';
-    case 'MORNING':
-      return 'Ertalab (09:00 – 13:00)';
-    case 'AFTERNOON':
-      return 'Kunduzi (13:00 – 18:00)';
-    case 'EVENING':
-      return 'Kechqurun (18:00 – 21:00)';
-    case 'CUSTOM':
-      return customText || 'Kelishilgan vaqtda';
-    default:
-      return 'Istalgan vaqtda';
-  }
+  if (time === 'CUSTOM') return customText || tf('contactTime.CUSTOM');
+  const s = tf(`contactTime.${time}`);
+  return s === `contactTime.${time}` ? tf('contactTime.ANY_TIME_SHORT') : s;
 }
 
 export function formatDateAgo(dateStr: string): string {
@@ -169,11 +141,11 @@ export function formatDateAgo(dateStr: string): string {
   const now = new Date();
   const diffSec = Math.floor((now.getTime() - date.getTime()) / 1000);
 
-  if (diffSec < 60) return 'Hozirgina';
-  if (diffSec < 3600) return `${Math.floor(diffSec / 60)} daqiqa oldin`;
-  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)} soat oldin`;
-  if (diffSec < 86400 * 2) return 'Kecha';
-  if (diffSec < 86400 * 7) return `${Math.floor(diffSec / 86400)} kun oldin`;
+  if (diffSec < 60) return tf('timeAgo.now');
+  if (diffSec < 3600) return tf('timeAgo.minutesAgo', { n: Math.floor(diffSec / 60) });
+  if (diffSec < 86400) return tf('timeAgo.hoursAgo', { n: Math.floor(diffSec / 3600) });
+  if (diffSec < 86400 * 2) return tf('timeAgo.yesterday');
+  if (diffSec < 86400 * 7) return tf('timeAgo.daysAgo', { n: Math.floor(diffSec / 86400) });
 
-  return date.toLocaleDateString('uz-UZ', { day: 'numeric', month: 'short' });
+  return date.toLocaleDateString(INTL_LOCALE[getActiveLocale()], { day: 'numeric', month: 'short' });
 }

@@ -5,12 +5,14 @@ import { useTheme } from '../../context/ThemeContext.tsx';
 import { DEFAULT_HOLIDAYS, type HolidayDef } from '../../lib/holidays.ts';
 import { REGION_THEMES, type RegionTheme } from '../../lib/regionThemes.ts';
 import { PATTERN_OPTIONS, EFFECT_OPTIONS, type PatternKey, type EffectKey } from '../../lib/themePatterns.ts';
+import { useI18n } from '../../i18n/IntlContext.tsx';
 
 const ADMIN_ROLES = ['ADMIN', 'SUPER_ADMIN'];
 
 type Override = { type: 'holiday' | 'region' | 'none'; id?: string };
 
 export const ThemeHolidaySection: React.FC = () => {
+  const { t } = useI18n();
   const { setPreview, reload, regionThemesEnabled } = useTheme();
 
   const [holidays, setHolidays] = useState<HolidayDef[]>(DEFAULT_HOLIDAYS);
@@ -79,9 +81,9 @@ export const ThemeHolidaySection: React.FC = () => {
       const url = await uploadImageFile(file);
       const h = holidays[idx];
       updateHoliday(idx, { backgrounds: [...(h.backgrounds || []), url] });
-      flash('Fon rasmi qo‘shildi — “Saqlash” ni bosing');
+      flash(t('admin.thsBgAdded'));
     } catch (e: any) {
-      flash(e.message || 'Rasm yuklashda xatolik');
+      flash(e.message || t('admin.thsImgErr'));
     } finally {
       setBusy(false);
     }
@@ -92,9 +94,9 @@ export const ThemeHolidaySection: React.FC = () => {
     try {
       await apiRequest('/api/theme/holidays', { method: 'PUT', body: JSON.stringify({ holidays }) });
       await reload();
-      flash('Bayramlar saqlandi ✓');
+      flash(t('admin.thsHolsSaved'));
     } catch (e: any) {
-      flash(e.message || 'Saqlashda xatolik');
+      flash(e.message || t('admin.mnsSaveErr'));
     } finally {
       setBusy(false);
     }
@@ -117,9 +119,9 @@ export const ThemeHolidaySection: React.FC = () => {
       const list = cur.backgrounds || REGION_THEMES[id]?.backgrounds || [];
       const next = [...list, url];
       updateRegion(id, { backgrounds: next, hero_image_url: next[0] || '' });
-      flash('Rasm qo‘shildi — “Saqlash” ni bosing');
+      flash(t('admin.thsImgAdded'));
     } catch (e: any) {
-      flash(e.message || 'Rasm yuklashda xatolik');
+      flash(e.message || t('admin.thsImgErr'));
     } finally {
       setBusy(false);
     }
@@ -142,9 +144,9 @@ export const ThemeHolidaySection: React.FC = () => {
     try {
       await apiRequest('/api/theme/region-themes', { method: 'PUT', body: JSON.stringify({ regionThemes: regionOverrides }) });
       await reload();
-      flash('Hudud mavzulari saqlandi ✓');
+      flash(t('admin.thsRegionsSaved'));
     } catch (e: any) {
-      flash(e.message || 'Saqlashda xatolik');
+      flash(e.message || t('admin.mnsSaveErr'));
     } finally {
       setBusy(false);
     }
@@ -157,9 +159,9 @@ export const ThemeHolidaySection: React.FC = () => {
       const next = !regionThemesEnabled;
       await apiRequest('/api/theme/region-themes/enabled', { method: 'PUT', body: JSON.stringify({ enabled: next }) });
       await reload();
-      flash(next ? 'Hudud dizayni yoqildi ✓' : 'Hudud dizayni o‘chirildi ✓');
+      flash(next ? t('admin.thsDesignOn') : t('admin.thsDesignOff'));
     } catch (e: any) {
-      flash(e.message || 'O‘zgartirishda xatolik');
+      flash(e.message || t('admin.thsChangeErr'));
     } finally {
       setBusy(false);
     }
@@ -176,9 +178,9 @@ export const ThemeHolidaySection: React.FC = () => {
       await apiRequest('/api/theme/override', { method: 'PUT', body: JSON.stringify({ override: o }) });
       setServerOverride(o);
       await reload();
-      flash(o.type === 'none' ? 'Mavzu o‘chirildi, avtomatik rejim' : `Hammasi uchun qo‘llandi: ${o.id}`);
+      flash(o.type === 'none' ? t('admin.thsClearedAuto') : t('admin.thsAppliedAll', { id: o.id ?? '' }));
     } catch (e: any) {
-      flash(e.message || 'Qo‘llashda xatolik');
+      flash(e.message || t('admin.thsApplyErr'));
     } finally {
       setBusy(false);
     }
@@ -189,10 +191,10 @@ export const ThemeHolidaySection: React.FC = () => {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-lg font-extrabold text-gray-900 flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-blue-600" /> Bayramlar va Mavzular
+            <Sparkles className="w-5 h-5 text-blue-600" /> {t('admin.thsTitle')}
           </h2>
           <p className="text-xs text-gray-500 mt-0.5">
-            Hudud (GPS) va bayram mavzularini sozlang. Har hudud uchun fon rasmlari va naqsh, har bayram uchun animatsiya tanlang.
+            {t('admin.thsSubtitle')}
           </p>
         </div>
         {msg && (
@@ -203,28 +205,28 @@ export const ThemeHolidaySection: React.FC = () => {
       </div>
 
       <div className="flex flex-wrap items-center gap-2 p-3 bg-blue-50/60 border border-blue-100 rounded-xl text-xs">
-        <span className="font-bold text-blue-900">Joriy server mavzusi:</span>
+        <span className="font-bold text-blue-900">{t('admin.thsServerTheme')}</span>
         <span className="text-blue-800">
-          {serverOverride.type === 'none' ? 'Avtomatik (hudud/bayram)' : `${serverOverride.type} → ${serverOverride.id}`}
+          {serverOverride.type === 'none' ? t('admin.thsAutoHoliday') : `${serverOverride.type} → ${serverOverride.id}`}
         </span>
         <button
           onClick={stopPreview}
           className="ml-auto flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 font-semibold cursor-pointer"
         >
-          <RotateCcw className="w-3.5 h-3.5" /> Preview’ni to‘xtatish
+          <RotateCcw className="w-3.5 h-3.5" /> {t('admin.thsStopPreview')}
         </button>
       </div>
 
       {/* ── Holidays ── */}
       <div className="bg-white rounded-2xl border border-gray-200 p-5">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-bold text-sm text-gray-900">Bayramlar ro‘yxati</h3>
+          <h3 className="font-bold text-sm text-gray-900">{t('admin.thsHolidayList')}</h3>
           <div className="flex items-center gap-2">
             <button onClick={addHoliday} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-xs font-bold cursor-pointer">
-              <Plus className="w-3.5 h-3.5" /> Qo'shish
+              <Plus className="w-3.5 h-3.5" /> {t('common.add')}
             </button>
             <button onClick={saveHolidays} disabled={busy} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold disabled:opacity-50 cursor-pointer">
-              <Save className="w-3.5 h-3.5" /> Saqlash
+              <Save className="w-3.5 h-3.5" /> {t('common.save')}
             </button>
           </div>
         </div>
@@ -239,7 +241,7 @@ export const ThemeHolidaySection: React.FC = () => {
                     value={h.motif}
                     onChange={(e) => updateHoliday(idx, { motif: e.target.value })}
                     className="w-12 text-center bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-sm"
-                    title="Motif (emoji)"
+                    title={t('admin.thsMotifTitle')}
                   />
                   <input
                     value={h.name}
@@ -251,46 +253,46 @@ export const ThemeHolidaySection: React.FC = () => {
                       <input
                         type="number" min={1} max={12} value={h.month ?? ''}
                         onChange={(e) => updateHoliday(idx, { month: Number(e.target.value), date: undefined })}
-                        className="w-14 bg-white border border-gray-200 rounded-lg px-2 py-1.5" title="Oy (1-12)"
+                        className="w-14 bg-white border border-gray-200 rounded-lg px-2 py-1.5" title={t('admin.thsMonthTitle')}
                       />
                       <span>—</span>
                       <input
                         type="number" min={1} max={31} value={h.day ?? ''}
                         onChange={(e) => updateHoliday(idx, { day: Number(e.target.value), date: undefined })}
-                        className="w-14 bg-white border border-gray-200 rounded-lg px-2 py-1.5" title="Kun"
+                        className="w-14 bg-white border border-gray-200 rounded-lg px-2 py-1.5" title={t('admin.thsDayTitle')}
                       />
                     </div>
                   ) : (
                     <input
                       type="date" value={h.date || ''}
                       onChange={(e) => updateHoliday(idx, { date: e.target.value, month: undefined, day: undefined })}
-                      className="bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs" title="Aniq sana (oy taqvimi)"
+                      className="bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs" title={t('admin.thsDateTitle')}
                     />
                   )}
                   <select
                     value={h.effect || 'none'}
                     onChange={(e) => updateHoliday(idx, { effect: e.target.value as EffectKey })}
                     className="bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs font-semibold cursor-pointer"
-                    title="Bayram animatsiyasi"
+                    title={t('admin.thsEffectTitle')}
                   >
                     {EFFECT_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
                   </select>
                   <input
                     type="color" value={h.accent}
                     onChange={(e) => { const accent = e.target.value; updateHoliday(idx, { accent, gradient: `linear-gradient(135deg, ${accent}, ${accent})` }); }}
-                    className="w-9 h-9 rounded-lg border border-gray-200 bg-white cursor-pointer" title="Aksent rangi"
+                    className="w-9 h-9 rounded-lg border border-gray-200 bg-white cursor-pointer" title={t('admin.thsAccentTitle')}
                   />
-                  <button onClick={() => previewHoliday(h.id)} className="px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 hover:border-blue-400 text-xs font-semibold cursor-pointer">Preview</button>
-                  <button onClick={() => applyOverride({ type: 'holiday', id: h.id })} className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer flex items-center gap-1" title="Hammasi uchun qo'llash">
-                    <Check className="w-3.5 h-3.5" /> Hammaga
+                  <button onClick={() => previewHoliday(h.id)} className="px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 hover:border-blue-400 text-xs font-semibold cursor-pointer">{t('admin.thsPreview')}</button>
+                  <button onClick={() => applyOverride({ type: 'holiday', id: h.id })} className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer flex items-center gap-1" title={t('admin.thsApplyAllTitle')}>
+                    <Check className="w-3.5 h-3.5" /> {t('admin.thsHammaga')}
                   </button>
-                  <button onClick={() => removeHoliday(idx)} className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 cursor-pointer" title="O'chirish">
+                  <button onClick={() => removeHoliday(idx)} className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 cursor-pointer" title={t('common.delete')}>
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
                 {/* Bayram fon rasmlari */}
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[11px] text-gray-500 font-semibold">Fon rasmlari:</span>
+                  <span className="text-[11px] text-gray-500 font-semibold">{t('admin.thsBgImages')}</span>
                   {(h.backgrounds || []).map((src, bIdx) => (
                     <div key={src + bIdx} className="relative w-14 h-10 rounded-md overflow-hidden border border-gray-200 bg-gray-100">
                       <img src={src} alt="" className="w-full h-full object-cover" />
@@ -298,7 +300,7 @@ export const ThemeHolidaySection: React.FC = () => {
                     </div>
                   ))}
                   <label className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 text-[11px] font-semibold cursor-pointer">
-                    <ImagePlus className="w-3.5 h-3.5" /> Rasm
+                    <ImagePlus className="w-3.5 h-3.5" /> {t('admin.thsImage')}
                     <input type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadHolidayBg(idx, f); }} />
                   </label>
                 </div>
@@ -307,7 +309,7 @@ export const ThemeHolidaySection: React.FC = () => {
           })}
         </div>
         {!isStaff && (
-          <p className="text-[11px] text-amber-600 mt-3">ℹ️ Saqlash/apply uchun administrator auth tokeni kerak (server tekshiradi).</p>
+          <p className="text-[11px] text-amber-600 mt-3">{t('admin.thsAdminNote')}</p>
         )}
       </div>
 
@@ -315,9 +317,9 @@ export const ThemeHolidaySection: React.FC = () => {
       <div className="bg-white rounded-2xl border border-gray-200 p-5">
         <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
           <div className="min-w-0">
-            <h3 className="font-bold text-sm text-gray-900">Hudud mavzulari (14)</h3>
+            <h3 className="font-bold text-sm text-gray-900">{t('admin.thsRegionThemes')}</h3>
             <p className="text-[11px] text-gray-500 mt-0.5">
-              O‘chirsangiz, GPS hududiga qarab sayt dizayni o‘zgartirilmaydi — sayt standart brend ko‘rinishida qoladi (bayramlar ishlayveradi).
+              {t('admin.thsRegionHint')}
             </p>
           </div>
           <div className="flex items-center gap-3 shrink-0">
@@ -327,22 +329,22 @@ export const ThemeHolidaySection: React.FC = () => {
               className={`relative inline-flex items-center gap-2 h-9 pl-1 pr-3 rounded-full border text-xs font-bold transition-colors cursor-pointer disabled:opacity-50 ${
                 regionThemesEnabled ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-gray-100 border-gray-300 text-gray-500'
               }`}
-              title="Hudud (GPS) dizaynini yoqish / o‘chirish"
+              title={t('admin.thsToggleTitle')}
             >
               <span className={`inline-flex w-8 h-8 rounded-full items-center justify-center transition-colors ${regionThemesEnabled ? 'bg-emerald-500 text-white' : 'bg-white text-gray-400 border border-gray-200'}`}>
                 <span className={`w-3.5 h-3.5 rounded-full ${regionThemesEnabled ? 'bg-white' : 'bg-gray-300'}`} />
               </span>
-              {regionThemesEnabled ? 'Hudud dizayni YOGILGAN' : 'Hudud dizayni O‘CHIRILGAN'}
+              {regionThemesEnabled ? t('admin.thsEnabledState') : t('admin.thsDisabledState')}
             </button>
             <button onClick={saveRegions} disabled={busy} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold disabled:opacity-50 cursor-pointer">
-              <Save className="w-3.5 h-3.5" /> Saqlash
+              <Save className="w-3.5 h-3.5" /> {t('common.save')}
             </button>
           </div>
         </div>
 
         {!regionThemesEnabled && (
           <div className="mb-4 flex items-center gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800">
-            <X className="w-4 h-4 shrink-0" /> Hudud dizayni hozircha o‘chirilgan — quyidagi sozlamalar saqlanadi, lekin saytga qo‘llanilmaydi.
+            <X className="w-4 h-4 shrink-0" /> {t('admin.thsOffBanner')}
           </div>
         )}
 
@@ -364,7 +366,7 @@ export const ThemeHolidaySection: React.FC = () => {
                   <input
                     type="color" value={accent}
                     onChange={(e) => updateRegion(id, { accent: e.target.value })}
-                    className="w-9 h-9 rounded-lg border border-gray-200 bg-white cursor-pointer" title="Aksent"
+                    className="w-9 h-9 rounded-lg border border-gray-200 bg-white cursor-pointer" title={t('admin.thsAccent')}
                   />
                   <input
                     value={motif} onChange={(e) => updateRegion(id, { motif: e.target.value })}
@@ -372,7 +374,7 @@ export const ThemeHolidaySection: React.FC = () => {
                   />
                   <select
                     value={pattern} onChange={(e) => updateRegion(id, { pattern: e.target.value as PatternKey })}
-                    className="flex-1 min-w-0 bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-[11px] font-semibold cursor-pointer" title="Naqsh"
+                    className="flex-1 min-w-0 bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-[11px] font-semibold cursor-pointer" title={t('admin.thsPattern')}
                   >
                     {PATTERN_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
                   </select>
@@ -386,14 +388,14 @@ export const ThemeHolidaySection: React.FC = () => {
                     </div>
                   ))}
                   <label className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 text-[11px] font-semibold cursor-pointer">
-                    <Upload className="w-3.5 h-3.5" /> {bgs.length ? 'Qo‘shish' : 'Fon rasm(lar)'}
+                    <Upload className="w-3.5 h-3.5" /> {bgs.length ? t('admin.thsAddShort') : t('admin.thsBgLabel')}
                     <input type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) addRegionBg(id, f); }} />
                   </label>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => previewRegion(id)} className="px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 hover:border-blue-400 text-xs font-semibold cursor-pointer">Preview</button>
-                  <button onClick={() => applyOverride({ type: 'region', id })} className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer flex items-center gap-1" title="Hammasi uchun qo'llash">
-                    <Check className="w-3.5 h-3.5" /> Hammaga
+                  <button onClick={() => previewRegion(id)} className="px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 hover:border-blue-400 text-xs font-semibold cursor-pointer">{t('admin.thsPreview')}</button>
+                  <button onClick={() => applyOverride({ type: 'region', id })} className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer flex items-center gap-1" title={t('admin.thsApplyAllTitle')}>
+                    <Check className="w-3.5 h-3.5" /> {t('admin.thsHammaga')}
                   </button>
                 </div>
               </div>
@@ -408,7 +410,7 @@ export const ThemeHolidaySection: React.FC = () => {
           disabled={busy}
           className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs font-bold disabled:opacity-50 cursor-pointer"
         >
-          <RotateCcw className="w-4 h-4" /> Avtomatik rejimga qaytarish (server)
+          <RotateCcw className="w-4 h-4" /> {t('admin.thsAutoBack')}
         </button>
       </div>
     </div>

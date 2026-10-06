@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ShieldCheck, Loader2, Check, X, ExternalLink, RefreshCw } from 'lucide-react';
 import { apiRequest } from '../../lib/api.ts';
+import { useI18n } from '../../i18n/IntlContext.tsx';
 
 interface VerificationRequest {
   id: string;
@@ -22,12 +23,13 @@ interface VerificationRequest {
 }
 
 const STATUS_OPTIONS = [
-  { id: 'PENDING', label: 'Ko‘rib chiqilishi kerak' },
-  { id: 'VERIFIED', label: 'Tasdiqlanganlar' },
-  { id: 'REJECTED', label: 'Rad etilganlar' },
+  { id: 'PENDING', labelKey: 'mod.vqStPending' },
+  { id: 'VERIFIED', labelKey: 'mod.vqStVerified' },
+  { id: 'REJECTED', labelKey: 'mod.vqStRejected' },
 ];
 
 export const VerificationQueue: React.FC = () => {
+  const { t } = useI18n();
   const [status, setStatus] = useState<string>('PENDING');
   const [list, setList] = useState<VerificationRequest[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -46,7 +48,7 @@ export const VerificationQueue: React.FC = () => {
       const data = await apiRequest<VerificationRequest[]>(`/api/moderation/verifications?status=${status}`);
       setList(Array.isArray(data) ? data : []);
     } catch (err: any) {
-      setActionError(err.message || 'Navbatni yuklashda xatolik');
+      setActionError(err.message || t('mod.vqLoadErr'));
     } finally {
       setIsLoading(false);
     }
@@ -57,7 +59,7 @@ export const VerificationQueue: React.FC = () => {
   }, [fetchList]);
 
   const handleApprove = async (target: VerificationRequest) => {
-    if (!confirm(`${target.full_legal_name || target.name} foydalanuvchisini tasdiqlaysizmi?`)) return;
+    if (!confirm(t('mod.vqApproveConfirm', { name: target.full_legal_name || target.name }))) return;
     setBusyId(target.id);
     setActionError('');
     try {
@@ -67,7 +69,7 @@ export const VerificationQueue: React.FC = () => {
       });
       setList((prev) => prev.filter((u) => u.id !== target.id));
     } catch (err: any) {
-      setActionError(err.message || 'Tasdiqlashda xatolik');
+      setActionError(err.message || t('mod.vqApproveErr'));
     } finally {
       setBusyId(null);
     }
@@ -91,7 +93,7 @@ export const VerificationQueue: React.FC = () => {
       setList((prev) => prev.filter((u) => u.id !== rejectTarget.id));
       setRejectTarget(null);
     } catch (err: any) {
-      setActionError(err.message || 'Rad etishda xatolik');
+      setActionError(err.message || t('mod.vqRejectErr'));
     } finally {
       setIsSubmitting(false);
     }
@@ -104,10 +106,10 @@ export const VerificationQueue: React.FC = () => {
         <div>
           <h3 className="font-bold text-sm text-gray-900 flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            <span>Tasdiq nishoni arizalari</span>
+            <span>{t('mod.vqTitle')}</span>
           </h3>
           <p className="text-[11px] text-gray-500 mt-0.5">
-            Foydalanuvchilar yuborgan pasport ma’lumotlari. Tekshirib, tasdiqlang yoki rad eting.
+            {t('mod.vqSub')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -118,7 +120,7 @@ export const VerificationQueue: React.FC = () => {
           >
             {STATUS_OPTIONS.map((o) => (
               <option key={o.id} value={o.id}>
-                {o.label}
+                {t(o.labelKey)}
               </option>
             ))}
           </select>
@@ -126,7 +128,7 @@ export const VerificationQueue: React.FC = () => {
             type="button"
             onClick={fetchList}
             className="h-8 w-8 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50 cursor-pointer"
-            title="Yangilash"
+            title={t('mod.vqRefresh')}
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
           </button>
@@ -143,7 +145,7 @@ export const VerificationQueue: React.FC = () => {
         </div>
       ) : list.length === 0 ? (
         <div className="py-16 text-center text-sm text-gray-400 bg-white rounded-2xl border border-gray-100">
-          Ushbu holatda ariza topilmadi.
+          {t('mod.vqEmpty')}
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -159,22 +161,22 @@ export const VerificationQueue: React.FC = () => {
                 <div className="min-w-0">
                   <p className="font-bold text-sm text-gray-900 truncate">{u.name}</p>
                   <p className="text-[11px] text-gray-400">
-                    {u.region_name || 'Hudud ko‘rsatilmagan'} · {u.active_listing_count || 0} ta faol e’lon
+                    {u.region_name || t('mod.vqNoRegion')} · {t('mod.vqActiveListings', { n: u.active_listing_count || 0 })}
                   </p>
                 </div>
               </div>
 
               {/* Passport data */}
               <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-[11px] bg-gray-50/70 rounded-xl p-3 border border-gray-100 mb-3">
-                <Field label="To‘liq ism" value={u.full_legal_name} span />
+                <Field label={t('mod.vqFullName')} value={u.full_legal_name} span />
                 <Field label="PINFL" value={u.pinfl} />
-                <Field label="Tav. sanasi" value={u.birth_date} />
-                <Field label="Pasport" value={`${u.passport_series || ''} ${u.passport_number || ''}`.trim()} />
-                <Field label="Berilgan" value={u.passport_issued_date} />
-                {u.passport_issued_by && <Field label="Kim bergan" value={u.passport_issued_by} span />}
+                <Field label={t('mod.vqBirthDate')} value={u.birth_date} />
+                <Field label={t('mod.vqPassport')} value={`${u.passport_series || ''} ${u.passport_number || ''}`.trim()} />
+                <Field label={t('mod.vqIssued')} value={u.passport_issued_date} />
+                {u.passport_issued_by && <Field label={t('mod.vqIssuedBy')} value={u.passport_issued_by} span />}
                 {u.verification_status === 'REJECTED' && u.verification_rejection_reason && (
                   <div className="col-span-2 text-rose-600">
-                    <span className="font-semibold">Rad sababi: </span>
+                    <span className="font-semibold">{t('mod.vqRejectReasonLabel')} </span>
                     {u.verification_rejection_reason}
                   </div>
                 )}
@@ -188,9 +190,9 @@ export const VerificationQueue: React.FC = () => {
                   rel="noopener noreferrer"
                   className="group relative block rounded-xl overflow-hidden border border-gray-200 mb-3 bg-gray-50"
                 >
-                  <img src={u.verification_photo_url} alt="Hujjat" className="w-full h-36 object-cover" />
+                  <img src={u.verification_photo_url} alt={t('mod.vqDocAlt')} className="w-full h-36 object-cover" />
                   <span className="absolute bottom-2 right-2 inline-flex items-center gap-1 text-[10px] font-bold text-white bg-black/55 px-2 py-1 rounded-lg">
-                    <ExternalLink className="w-3 h-3" /> Rasmi ochish
+                    <ExternalLink className="w-3 h-3" /> {t('mod.vqOpenPhoto')}
                   </span>
                 </a>
               )}
@@ -204,7 +206,7 @@ export const VerificationQueue: React.FC = () => {
                       onClick={() => openReject(u)}
                       className="flex-1 h-10 rounded-xl border border-rose-200 bg-rose-50 text-rose-600 font-bold text-xs flex items-center justify-center gap-1.5 active:bg-rose-100 cursor-pointer"
                     >
-                      <X className="w-4 h-4" /> Rad etish
+                      <X className="w-4 h-4" /> {t('mod.vqReject')}
                     </button>
                     <button
                       type="button"
@@ -213,7 +215,7 @@ export const VerificationQueue: React.FC = () => {
                       className="flex-1 h-10 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 disabled:opacity-60 cursor-pointer"
                     >
                       {busyId === u.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                      Tasdiqlash
+                      {t('common.confirm')}
                     </button>
                   </>
                 ) : (
@@ -222,7 +224,7 @@ export const VerificationQueue: React.FC = () => {
                     onClick={() => { setStatus('PENDING'); }}
                     className="w-full h-10 rounded-xl border border-gray-200 text-gray-600 font-semibold text-xs hover:bg-gray-50 cursor-pointer"
                   >
-                    Ko‘rib chiqilgan — navbatga qaytish
+                    {t('mod.vqBackToQueue')}
                   </button>
                 )}
               </div>
@@ -241,10 +243,9 @@ export const VerificationQueue: React.FC = () => {
             onClick={(e) => e.stopPropagation()}
             className="w-full sm:max-w-md bg-white rounded-t-[28px] sm:rounded-[28px] shadow-xl p-6 sm:p-8 pb-[calc(24px+env(safe-area-inset-bottom))]"
           >
-            <h3 className="text-lg font-bold text-gray-950 mb-1">Arizani rad etish</h3>
+            <h3 className="text-lg font-bold text-gray-950 mb-1">{t('mod.vqRejectTitle')}</h3>
             <p className="text-xs text-gray-500 mb-4">
-              <span className="font-semibold text-gray-700">{rejectTarget.full_legal_name || rejectTarget.name}</span> uchun
-              rad sababini kiriting (foydalanuvchiga xabar beriladi).
+              {t('mod.vqRejectBody', { name: rejectTarget.full_legal_name || rejectTarget.name })}
             </p>
             <form onSubmit={submitReject} className="space-y-4">
               <textarea
@@ -252,7 +253,7 @@ export const VerificationQueue: React.FC = () => {
                 autoFocus
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="Masalan: Pasport rasmi noaniq / ma’lumotlar mos kelmadi"
+                placeholder={t('mod.vqRejectPh')}
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-base focus:outline-hidden focus:ring-2 focus:ring-blue-500"
               />
               <div className="flex items-center gap-2">
@@ -261,7 +262,7 @@ export const VerificationQueue: React.FC = () => {
                   onClick={() => setRejectTarget(null)}
                   className="flex-1 h-11 rounded-xl text-gray-700 text-sm font-semibold hover:bg-gray-100 cursor-pointer"
                 >
-                  Bekor qilish
+                  {t('common.cancel')}
                 </button>
                 <button
                   type="submit"
@@ -269,7 +270,7 @@ export const VerificationQueue: React.FC = () => {
                   className="flex-1 h-11 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold disabled:opacity-60 cursor-pointer flex items-center justify-center gap-1.5"
                 >
                   {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                  Rad etish
+                  {t('mod.vqReject')}
                 </button>
               </div>
             </form>

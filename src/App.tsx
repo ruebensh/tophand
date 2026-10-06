@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { IntlProvider, useI18n } from './i18n/IntlContext.tsx';
 import { AuthProvider, useAuth } from './context/AuthContext.tsx';
 import { NotificationProvider } from './context/NotificationContext.tsx';
 import { LogoProvider } from './context/LogoContext.tsx';
@@ -30,6 +31,7 @@ import { ThemeAtmosphere } from './components/theme/ThemeAtmosphere.tsx';
 
 const AppContent: React.FC = () => {
   const { user, openLoginModal } = useAuth();
+  const { t } = useI18n();
   const [currentRoute, setCurrentRoute] = useState<string>(
     (window.location.pathname || '/') + (window.location.search || '')
   );
@@ -210,15 +212,15 @@ const AppContent: React.FC = () => {
       if (!user || !STAFF_ROLES.includes(user.role)) {
         return (
           <div className="max-w-md mx-auto py-16 text-center">
-            <h3 className="font-bold text-base text-gray-900">Ruxsat cheklangan</h3>
+            <h3 className="font-bold text-base text-gray-900">{t('common.accessDenied')}</h3>
             <p className="text-xs text-gray-500 mt-1">
-              Ushbu sahifaga faqat tayinlangan moderatorlar kira oladi.
+              {t('mod.accessNote')}
             </p>
             <button
               onClick={() => openLoginModal()}
               className="mt-4 px-5 py-2 rounded-full bg-blue-600 text-white text-xs font-bold"
             >
-              Moderator hisobiga kirish
+              {t('mod.loginAsModerator')}
             </button>
           </div>
         );
@@ -236,15 +238,15 @@ const AppContent: React.FC = () => {
       if (!user || (user.role !== 'ADMIN' && user.role !== 'SUPER_ADMIN')) {
         return (
           <div className="max-w-md mx-auto py-16 text-center">
-            <h3 className="font-bold text-base text-gray-900">Ruxsat cheklangan</h3>
+            <h3 className="font-bold text-base text-gray-900">{t('common.accessDenied')}</h3>
             <p className="text-xs text-gray-500 mt-1">
-              Ushbu sahifaga faqat platforma administratori kira oladi.
+              {t('admin.accessNote')}
             </p>
             <button
               onClick={() => openLoginModal()}
               className="mt-4 px-5 py-2 rounded-full bg-blue-600 text-white text-xs font-bold"
             >
-              Admin hisobiga kirish
+              {t('admin.loginAsAdmin')}
             </button>
           </div>
         );
@@ -300,19 +302,21 @@ const AppContent: React.FC = () => {
 
 export function App() {
   return (
-    <AuthProvider>
-      <NotificationProvider>
-        <LogoProvider>
-          <AdsProvider>
-            <GeoProvider>
-              <ThemeProvider>
-                <AppContent />
-              </ThemeProvider>
-            </GeoProvider>
-          </AdsProvider>
-        </LogoProvider>
-      </NotificationProvider>
-    </AuthProvider>
+    <IntlProvider>
+      <AuthProvider>
+        <NotificationProvider>
+          <LogoProvider>
+            <AdsProvider>
+              <GeoProvider>
+                <ThemeProvider>
+                  <AppContent />
+                </ThemeProvider>
+              </GeoProvider>
+            </AdsProvider>
+          </LogoProvider>
+        </NotificationProvider>
+      </AuthProvider>
+    </IntlProvider>
   );
 }
 

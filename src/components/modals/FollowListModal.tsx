@@ -5,6 +5,7 @@ import { VerifiedBadge } from '../common/VerifiedBadge.tsx';
 import { isOfficialAccount, isStaffAccount } from '../../lib/utils.ts';
 import { X, UserCheck, UserPlus, Users, MapPin } from 'lucide-react';
 import { Modal } from '../common/Modal.tsx';
+import { useI18n } from '../../i18n/IntlContext.tsx';
 
 export interface FollowUserItem {
   id: string;
@@ -38,6 +39,7 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
   initialTab = 'followers',
   onOpenProfile,
 }) => {
+  const { t } = useI18n();
   const { user: currentUser, openLoginModal } = useAuth();
   const [activeTab, setActiveTab] = useState<'followers' | 'following'>(initialTab);
   const [users, setUsers] = useState<FollowUserItem[]>([]);
@@ -103,7 +105,7 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
     } catch (err: any) {
       // Rollback on error
       setFollowingMap((prev) => ({ ...prev, [targetUser.id]: currentlyFollowing }));
-      alert(err.message || 'Obunani o‘zgartirishda xatolik yuz berdi');
+      alert(err.message || t('profile.errFollow'));
     } finally {
       setLoadingActionId(null);
     }
@@ -125,13 +127,13 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
               </div>
               <div className="min-w-0">
                 <h3 className="font-extrabold text-base text-gray-950 truncate">{userName}</h3>
-                <p className="text-[11px] text-gray-400">Obuna aloqalari</p>
+                <p className="text-[11px] text-gray-400">{t('profile.followRelations')}</p>
               </div>
             </div>
             <button
               onClick={onClose}
               className="w-9 h-9 -mr-1 rounded-full flex items-center justify-center text-gray-900 hover:bg-gray-100 transition-colors cursor-pointer"
-              aria-label="Yopish"
+              aria-label={t('common.close')}
             >
               <X className="w-[18px] h-[18px]" strokeWidth={2.2} />
             </button>
@@ -147,7 +149,7 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
                   : 'border-transparent text-gray-500 hover:text-gray-900'
               }`}
             >
-              Obunachilar ({activeTab === 'followers' ? users.length : '...'})
+              {t('profile.statFollowers')} ({activeTab === 'followers' ? users.length : '...'})
             </button>
             <button
               onClick={() => setActiveTab('following')}
@@ -157,7 +159,7 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
                   : 'border-transparent text-gray-500 hover:text-gray-900'
               }`}
             >
-              Obunalar ({activeTab === 'following' ? users.length : '...'})
+              {t('profile.statFollowing')} ({activeTab === 'following' ? users.length : '...'})
             </button>
           </div>
         </>
@@ -181,14 +183,10 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
             <div className="py-12 px-4 text-center">
               <span className="text-3xl block mb-2">👥</span>
               <p className="font-bold text-sm text-gray-800">
-                {activeTab === 'followers'
-                  ? 'Hozircha obunachilar yo‘q'
-                  : 'Hozircha hech kimga obuna bo‘linmagan'}
+                {activeTab === 'followers' ? t('profile.noFollowers') : t('profile.noFollowing')}
               </p>
               <p className="text-xs text-gray-400 mt-1 max-w-xs mx-auto">
-                {activeTab === 'followers'
-                  ? 'Ushbu profilga boshqa foydalanuvchilar obuna bo‘lganda shu yerda ko‘rinadi.'
-                  : 'Ushbu foydalanuvchi qiziqarli usta va mutaxassislarni kuzatganda shu yerda jamlanadi.'}
+                {activeTab === 'followers' ? t('profile.noFollowersHint') : t('profile.noFollowingHint')}
               </p>
             </div>
           ) : (
@@ -223,9 +221,9 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
                           {item.name}
                         </span>
                         {isOfficialAccount(item) ? (
-                          <VerifiedBadge size="xs" variant="official" tooltip="TopHand rasmiy hisobi" />
+                          <VerifiedBadge size="xs" variant="official" tooltip={t('badge.officialTooltip')} />
                         ) : isStaffAccount(item) ? (
-                          <VerifiedBadge size="xs" variant="staff" tooltip="TopHand moderatori (staff)" />
+                          <VerifiedBadge size="xs" variant="staff" tooltip={t('badge.staffTooltip')} />
                         ) : item.is_verified ? (
                           <VerifiedBadge size="xs" />
                         ) : null}
@@ -265,12 +263,12 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
                       ) : isItemFollowed ? (
                         <>
                           <UserCheck className="w-3.5 h-3.5 text-blue-600" />
-                          <span>Obunadasiz</span>
+                          <span>{t('profile.following')}</span>
                         </>
                       ) : (
                         <>
                           <UserPlus className="w-3.5 h-3.5" />
-                          <span>Obuna</span>
+                          <span>{t('profile.follow')}</span>
                         </>
                       )}
                     </button>

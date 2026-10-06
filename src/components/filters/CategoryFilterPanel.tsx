@@ -10,12 +10,16 @@ import { CategoryAttribute } from '../../types/index.ts';
 import {
   RangeFilter, ChipFilter, CheckboxFilter, SelectFilter, BooleanFilter, TextFilter,
 } from './FilterControls.tsx';
+import { useI18n } from '../../i18n/IntlContext.tsx';
 
 type Setter = React.Dispatch<React.SetStateAction<Record<string, string | number>>>;
 
-const COLOR_PALETTE = [
-  'Qora', 'Oq', 'Kul', 'Qizil', 'Ko’k', 'Yashil', 'Sariq', 'To’q sariq', 'Jigarrang', 'Pushti',
+// Ranglar: qiymat (backend/DB) o'zbekcha qoladi, ko'rinish esa tillga tarjima qilinadi.
+const COLOR_ENTRIES: [value: string, dictKey: string][] = [
+  ['Qora', 'black'], ['Oq', 'white'], ['Kul', 'gray'], ['Qizil', 'red'], ['Ko’k', 'blue'],
+  ['Yashil', 'green'], ['Sariq', 'yellow'], ['To’q sariq', 'darkYellow'], ['Jigarrang', 'brown'], ['Pushti', 'pink'],
 ];
+const COLOR_VALUES = COLOR_ENTRIES.map(([v]) => v);
 
 function patch(setAttrFilters: Setter, updates: Record<string, string | number | undefined | ''>) {
   setAttrFilters((prev) => {
@@ -62,13 +66,18 @@ export function CategoryFilterPanel({
   attrFilters: Record<string, string | number>;
   setAttrFilters: Setter;
 }) {
+  const { t } = useI18n();
+  const colorLabelFor = (opt: string) => {
+    const entry = COLOR_ENTRIES.find(([v]) => v === opt);
+    return entry ? t(`colors.${entry[1]}`) : opt;
+  };
   if (!attrSchema || attrSchema.length === 0) return null;
 
   // Bo'limlarni birinchi paydo bo'lish tartibida guruhlaymiz (attrSchema sort_order bo'yicha).
   const groups: { name: string; attrs: CategoryAttribute[] }[] = [];
   const byName = new Map<string, CategoryAttribute[]>();
   for (const a of attrSchema) {
-    const name = a.section || 'Asosiy';
+    const name = a.section || t('home.sectionBasic');
     if (!byName.has(name)) { const arr: CategoryAttribute[] = []; byName.set(name, arr); groups.push({ name, attrs: arr }); }
     byName.get(name)!.push(a);
   }
@@ -80,7 +89,8 @@ export function CategoryFilterPanel({
     const label = attr.label;
     const options = (attr.options && attr.options.length > 0)
       ? attr.options
-      : (attr.type === 'color' ? COLOR_PALETTE : []);
+      : (attr.type === 'color' ? COLOR_VALUES : []);
+    const colorLabelers = attr.type === 'color' ? colorLabelFor : undefined;
 
     if (control === 'range') {
       return (
@@ -93,10 +103,10 @@ export function CategoryFilterPanel({
       );
     }
     if (control === 'chipsSingle') {
-      return <ChipFilter key={attr.id} label={label} options={options} multiple={false} value={val(attr.key)} onChange={(next) => patch(setAttrFilters, { [attr.key]: next })} />;
+      return <ChipFilter key={attr.id} label={label} options={options} multiple={false} value={val(attr.key)} onChange={(next) => patch(setAttrFilters, { [attr.key]: next })} labelFor={colorLabelers} />;
     }
     if (control === 'chipsMulti') {
-      return <ChipFilter key={attr.id} label={label} options={options} multiple value={val(attr.key)} onChange={(next) => patch(setAttrFilters, { [attr.key]: next })} />;
+      return <ChipFilter key={attr.id} label={label} options={options} multiple value={val(attr.key)} onChange={(next) => patch(setAttrFilters, { [attr.key]: next })} labelFor={colorLabelers} />;
     }
     if (control === 'checkbox') {
       return <CheckboxFilter key={attr.id} label={label} options={options} value={val(attr.key)} onChange={(next) => patch(setAttrFilters, { [attr.key]: next })} />;
