@@ -202,29 +202,6 @@ export function AdSlot({
     </button>
   ) : null;
 
-  // Bir nechta reklama bo'lsa navigatsiya nuqtalari
-  const dots = rawList.length > 1 ? (
-    <div className="flex items-center gap-1.5 py-0.5 z-20">
-      {rawList.map((_, i) => (
-        <button
-          key={i}
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setActiveIdx(i);
-          }}
-          className={`h-1.5 rounded-full transition-all cursor-pointer ${
-            i === activeIdx % rawList.length
-              ? 'w-3.5 bg-[#1673E6]'
-              : 'w-1.5 bg-gray-300 hover:bg-gray-400'
-          }`}
-          aria-label={`Reklama ${i + 1}`}
-        />
-      ))}
-    </div>
-  ) : null;
-
   // ---------------------------------------------------------------- REAL AD --
   if (camp) {
     const external = isExternal(camp.link_url);
@@ -319,7 +296,6 @@ export function AdSlot({
             >
               {camp.cta_label || 'Batafsil'} <span aria-hidden>→</span>
             </a>
-            {dots}
           </div>
         </div>
       );
@@ -352,7 +328,6 @@ export function AdSlot({
           <div className={`min-w-0 ${isBanner ? 'flex-1' : 'w-full px-4 pb-4 pt-1 text-center'}`}>
             <div className="flex items-center justify-between gap-2">
               <p className={`font-extrabold text-[#172B4D] ${isBanner ? 'text-sm' : 'text-base'} truncate`}>{camp.title}</p>
-              {isBanner && dots}
             </div>
             {camp.body && (
               <p className={`text-[#5E6C84] mt-0.5 ${isBanner ? 'text-xs line-clamp-1' : 'text-xs line-clamp-2'}`}>
@@ -361,7 +336,6 @@ export function AdSlot({
             )}
             <div className={isBanner ? 'mt-1.5 flex items-center justify-between' : 'mt-2.5 flex flex-col items-center gap-2'}>
               <div>{cta}</div>
-              {!isBanner && dots}
             </div>
           </div>
         </a>
