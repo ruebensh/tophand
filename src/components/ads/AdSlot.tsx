@@ -142,37 +142,21 @@ export function AdSlot({
   // Ushbu joylashuvga mos barcha aktiv kampaniyalar
   const rawList: AdCampaign[] = placementOn ? campaigns[placement] || [] : [];
 
-  // Sahifaga har kirish/reload uchun random boshlang'ich offset (session davomida bir xil)
-  // Bu sessionStorage da saqlanadi — sahifa yangilansa yangi random, tab yopilsa tozalanadi
-  const pageOffset = (() => {
-    try {
-      const key = 'th_ad_offset';
-      let v = sessionStorage.getItem(key);
-      if (!v) {
-        v = String(Math.floor(Math.random() * 97)); // 0-96 orasida random (tub son)
-        sessionStorage.setItem(key, v);
-      }
-      return parseInt(v, 10);
-    } catch {
-      return Math.floor(Math.random() * 97);
-    }
-  })();
+  // ─── Har bir slot o'z mustaqil random boshlang'ich indeksiga ega ───
+  const [activeIdx, setActiveIdx] = useState(0);
+  const initializedRef = useRef(false);
 
-  // Boshlang'ich indeks: random offset + slot pozitsiyasi (har bir slot boshqasidan farqli)
-  const initialIndex = rawList.length > 0
-    ? (pageOffset + slotIndex) % rawList.length
-    : 0;
-  const [activeIdx, setActiveIdx] = useState(initialIndex);
-
-  // SlotIndex yoki kampaniyalar ro'yxati o'zgarsa indeksni yangilash
+  // Kampaniyalar birinchi marta yuklanganda FAQAT BIR MARTA random boshlang'ich tanlanadi.
+  // Keyin rotatsiya o'sha joydan tartib bilan davom etadi.
   useEffect(() => {
-    if (rawList.length > 0) {
-      setActiveIdx((pageOffset + slotIndex) % rawList.length);
+    if (rawList.length > 0 && !initializedRef.current) {
+      initializedRef.current = true;
+      const randomStart = Math.floor(Math.random() * rawList.length);
+      setActiveIdx(randomStart);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slotIndex, rawList.length]);
+  }, [rawList.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Bir nechta kampaniya bo'lsa avtomatik rotatsiya (almashib turish)
+  // Rotatsiya: random boshlanган joydan tartib bilan almashaveradi
   useEffect(() => {
     if (!autoRotate || rawList.length <= 1 || isPaused || hidden) return;
     const timer = setInterval(() => {
