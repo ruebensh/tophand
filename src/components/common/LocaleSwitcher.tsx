@@ -4,15 +4,15 @@
 // ============================================================================
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Globe, Check } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { useI18n, LOCALES, type Locale } from '../../i18n/IntlContext.tsx';
 
-// Qisqa ko'rsatkich (tugma ustida) — uzunlikni tejash uchun.
-const SHORT: Record<Locale, string> = {
-  uz: "O'zbekcha",
-  'uz-Cyrl': 'Ўзбекча',
-  ru: 'Русский',
-  en: 'English',
+// Har til uchun bayroq (emoji). uz va uz-Cyrl — O'zbekiston bayrog'i.
+const FLAG: Record<Locale, string> = {
+  uz: '🇺🇿',
+  'uz-Cyrl': '🇺🇿',
+  ru: '🇷🇺',
+  en: '🇬🇧',
 };
 
 interface Props {
@@ -57,11 +57,10 @@ export const LocaleSwitcher: React.FC<Props> = ({ className = '', variant = 'pil
         className={
           variant === 'icon'
             ? 'flex h-10 w-10 items-center justify-center rounded-xl text-[#5E6C84] hover:bg-gray-50 transition-colors cursor-pointer'
-            : 'flex items-center gap-1.5 h-10 px-2.5 sm:px-3 rounded-xl text-sm font-semibold text-[#172B4D] hover:bg-gray-50 border border-[#EBECF0] transition-colors cursor-pointer'
+            : 'flex h-10 w-11 items-center justify-center rounded-xl border border-[#EBECF0] hover:bg-gray-50 transition-colors cursor-pointer'
         }
       >
-        <Globe className="w-5 h-5 sm:w-4 sm:h-4 th-accent-text shrink-0" />
-        {variant === 'pill' && <span className="hidden md:inline">{SHORT[locale]}</span>}
+        <span className="text-lg sm:text-xl leading-none">{FLAG[locale]}</span>
       </button>
 
       {open && (
@@ -78,7 +77,10 @@ export const LocaleSwitcher: React.FC<Props> = ({ className = '', variant = 'pil
                 locale === l.id ? 'text-[#1673E6] font-bold bg-blue-50/60' : 'text-gray-700 hover:bg-gray-50'
               }`}
             >
-              <span>{l.label}</span>
+              <span className="flex items-center gap-2">
+                <span className="text-base leading-none">{FLAG[l.id]}</span>
+                {l.label}
+              </span>
               {locale === l.id && <Check className="w-4 h-4" />}
             </button>
           ))}
