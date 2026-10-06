@@ -324,3 +324,35 @@ export interface AuditLog {
   metadata?: string;
   created_at: string;
 }
+
+// ─── Ichki Reklama menejeri ──────────────────────────────────────────────
+export type AdType = 'image' | 'text' | 'video';
+export type AdPlacement = 'top' | 'popular' | 'inline' | 'sidebar' | 'all';
+
+export interface AdCampaign {
+  id: string;
+  type: AdType;
+  title: string;
+  body?: string | null;
+  image_url?: string | null;
+  video_url?: string | null;
+  link_url: string;
+  cta_label: string;
+  placement: AdPlacement;
+  active: number;
+  priority: number;
+  starts_at?: string | null;
+  ends_at?: string | null;
+  impressions: number;
+  clicks: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// Frontend slotlari bo'yicha guruhlangan aktiv kampaniyalar.
+export interface AdCampaignBuckets {
+  top: AdCampaign[];
+  popular: AdCampaign[];
+  inline: AdCampaign[];
+  sidebar: AdCampaign[];
+}

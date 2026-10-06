@@ -28,6 +28,7 @@ import catalogRoutes from './server/routes/catalogRoutes.ts';
 import aiRoutes from './server/routes/aiRoutes.ts';
 import walletRoutes from './server/routes/walletRoutes.ts';
 import monetizationRoutes from './server/routes/monetizationRoutes.ts';
+import adsRoutes from './server/routes/adsRoutes.ts';
 import seoRoutes from './server/routes/seoRoutes.ts';
 
 dotenv.config();
@@ -136,6 +137,7 @@ app.use('/api/theme', themeRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/monetization', monetizationRoutes);
+app.use('/api/ads', adsRoutes);
 
 // Health check endpoint
 app.get('/api/health', (_req, res) => {

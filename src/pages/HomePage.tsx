@@ -27,6 +27,9 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.tsx';
 import { useGeo } from '../context/GeoContext.tsx';
+import { useAds } from '../context/AdsContext.tsx';
+import { AdSlot } from '../components/ads/AdSlot.tsx';
+import { INLINE_AD_EVERY } from '../components/ads/adConfig.ts';
 
 interface HomePageProps {
   initialType?: ListingType;
@@ -160,6 +163,8 @@ export const HomePage: React.FC<HomePageProps> = ({
 }) => {
   const { user } = useAuth();
   const { coords } = useGeo();
+  const { ads } = useAds();
+  const inlineEvery = ads.inlineEvery > 0 ? ads.inlineEvery : INLINE_AD_EVERY;
 
   // Read URL params initially
   const getInitialParams = () => {
@@ -845,13 +850,21 @@ export const HomePage: React.FC<HomePageProps> = ({
         ) : (
           <>
             <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-4">
-              {listings.map((listing) => (
-                <ListingCard
-                  key={listing.id}
-                  listing={listing}
-                  variant="grid"
-                  onClick={() => onOpenListing(listing.id)}
-                />
+              {listings.map((listing, idx) => (
+                <React.Fragment key={listing.id}>
+                  <ListingCard
+                    listing={listing}
+                    variant="grid"
+                    onClick={() => onOpenListing(listing.id)}
+                  />
+                  {(idx + 1) % inlineEvery === 0 && (
+                    <AdSlot
+                      placement="inline"
+                      variant="card"
+                      slotIndex={Math.floor((idx + 1) / inlineEvery) - 1}
+                    />
+                  )}
+                </React.Fragment>
               ))}
             </div>
             {currentPage < totalPages && (
@@ -1325,6 +1338,9 @@ export const HomePage: React.FC<HomePageProps> = ({
           </button>
         )}
 
+        {/* Filtr paneli ostidagi reklama joyi (desktop) */}
+        <AdSlot placement="sidebar" variant="box" className="mt-5 hidden lg:block" />
+
         {/* Mobil sheet: pastdagi qotib turuvcha “qo'llash” paneli */}
         <div className="lg:hidden sticky bottom-0 z-10 -mx-5 mt-4 px-5 pt-3 pb-[calc(12px+env(safe-area-inset-bottom))] bg-white border-t border-[#EBECF0] flex items-center gap-2">
           {activeFiltersCount > 0 && (
@@ -1351,6 +1367,16 @@ export const HomePage: React.FC<HomePageProps> = ({
       {/* 2. Main Content */}
       <div className="px-3 py-3.5 sm:p-6 lg:p-8 bg-white flex-1 flex flex-col justify-between lg:overflow-y-auto w-full max-w-full min-w-0">
         <div>
+          {/* Header ostidagi, yopiladigan (dismissible) reklama banneri — faqat filtrlangan holatlarda */}
+          {!isLanding && (
+            <AdSlot
+              placement="top"
+              variant="banner"
+              dismissible
+              storageKey="th_ad_top_v1"
+              className="mb-4"
+            />
+          )}
           {/* Search Form — faqat kategoriya/filtrlangan sahifada (home'da qidiruv header'da) */}
           {!isClean && (
           <form
@@ -1495,6 +1521,14 @@ export const HomePage: React.FC<HomePageProps> = ({
           {/* ─── SEKTOR (KATALOG) GRIDI (faqat toza bosh sahifada) ─── */}
           {isLanding && (
             <>
+              {/* Bosh sahifada ham header reklama banneri */}
+              <AdSlot
+                placement="top"
+                variant="banner"
+                dismissible
+                storageKey="th_ad_top_landing_v1"
+                className="mb-5"
+              />
               <section className="mb-6">
                 <h2 className="text-base sm:text-lg font-extrabold text-[#172B4D] tracking-tight mb-3">
                   Kategoriyalar bo‘yicha
@@ -1517,38 +1551,190 @@ export const HomePage: React.FC<HomePageProps> = ({
             </>
           )}
 
-          {/* ─── KATALOG ICHIDAGI TOP-KATEGORIYALAR GRIDI (katalog landing) ─── */}
-          {isCatalogLanding && (
-            <section className="mb-6">
-              <div className="mb-3 flex items-center justify-between gap-2">
-                <h2 className="text-base sm:text-lg font-extrabold text-[#172B4D] tracking-tight">
-                  {selectedCatalogName} — kategoriyalar
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => onNavigate('/')}
-                  className="shrink-0 text-xs font-semibold text-[#1673E6] hover:underline cursor-pointer"
-                >
-                  Bosh sahifa
-                </button>
-              </div>
-              <TileGrid
-                items={categories.filter((c) => !c.parent_id)}
-                getKey={(c) => c.id}
-                renderItem={(c, i) => (
-                  <CatalogTile
-                    label={c.name_uz}
-                    icon={c.icon}
-                    imgSrc={`/categories/${selectedCatalogId}/${c.id}.png`}
-                    tone={CAT_TONE[selectedCatalogId ?? '']}
-                    index={i}
-                    count={c.active_count}
-                    onOpen={() => openCategoryTile(selectedCatalogId!, c.id)}
-                  />
+          {/* ─── KATALOG ICHIDAGI HERO + TOP-KATEGORIYALAR GRIDI (katalog landing) ─── */}
+          {isCatalogLanding && (() => {
+            const isAvto = selectedCatalogId === 'transport';
+            const isUylar = selectedCatalogId === 'realty';
+            const isParts = selectedCatalogId === 'parts';
+            const isHandmade = selectedCatalogId === 'handmade';
+
+            return (
+              <section className="mb-6">
+                {/* ── TRANSPORT HERO: Ikki ustun layout — chap qora + o'ng rasm ── */}
+                {isAvto && (
+                  <div className="relative w-full rounded-2xl overflow-hidden mb-5 min-h-[200px] sm:min-h-[280px] flex"
+                       style={{ background: '#06101f' }}>
+                    {/* Speed lines decoration */}
+                    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                      {[20, 50, 80, 110, 140, 170].map(y => (
+                        <div key={y} className="absolute h-px opacity-10"
+                             style={{ top: y, left: 0, right: 0, background: 'linear-gradient(90deg, transparent 5%, #22d3ee 45%, transparent 100%)' }} />
+                      ))}
+                    </div>
+                    {/* Chap: qora panel */}
+                    <div className="relative z-10 flex flex-col justify-between p-5 sm:p-7 w-full sm:w-1/2">
+                      <button type="button" onClick={() => onNavigate('/')}
+                        className="self-start text-[10px] font-bold tracking-widest uppercase text-cyan-500/60 hover:text-cyan-300 transition-colors cursor-pointer">
+                        ← Bosh sahifa
+                      </button>
+                      <div>
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className="w-6 h-0.5 bg-cyan-400" />
+                          <span className="text-cyan-400 text-[10px] font-black uppercase tracking-[0.2em]">TopHand Avto</span>
+                        </div>
+                        <h2 className="text-3xl sm:text-4xl font-black text-white leading-none mb-2"
+                            style={{ letterSpacing: '-0.03em', textShadow: '0 0 40px rgba(34,211,238,0.3)' }}>
+                          TRANSPORT<br/><span className="text-cyan-400">BOZORI</span>
+                        </h2>
+                        <p className="text-slate-400 text-xs leading-relaxed mt-1">
+                          Avtomobillar · Mototsikllar<br/>Servislar · Ijaraga
+                        </p>
+                      </div>
+                    </div>
+                    {/* O'ng: rasm — faqat desktop */}
+                    <div className="hidden sm:block absolute right-0 top-0 bottom-0 w-1/2">
+                      <img src="/catalog-heroes/avto-hero.jpg" alt=""
+                        className="w-full h-full object-cover" />
+                      <div className="absolute inset-0"
+                           style={{ background: 'linear-gradient(90deg, #06101f 0%, transparent 40%)' }} />
+                    </div>
+                    {/* Mobil: rasm background */}
+                    <img src="/catalog-heroes/avto-hero.jpg" alt=""
+                      className="sm:hidden absolute inset-0 w-full h-full object-cover opacity-20" />
+                    {/* Cyan bottom line */}
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5"
+                         style={{ background: 'linear-gradient(90deg, #22d3ee, #0ea5e9, #22d3ee)' }} />
+                  </div>
                 )}
-              />
-            </section>
-          )}
+
+                {/* ── REALTY HERO: To'liq rasm + breadcrumb + pastda stats qatori ── */}
+                {isUylar && (
+                  <div className="relative w-full rounded-2xl overflow-hidden mb-5 min-h-[200px] sm:min-h-[280px]">
+                    <img src="/catalog-heroes/uylar-hero.jpg" alt="TopHand Uylar" className="absolute inset-0 w-full h-full object-cover" />
+                    <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.55) 0%, transparent 40%, rgba(10,5,0,0.88) 100%)' }} />
+                    {/* Breadcrumb top */}
+                    <div className="absolute top-4 left-4 z-10">
+                      <button type="button" onClick={() => onNavigate('/')} className="flex items-center gap-1 text-[11px] text-white/60 hover:text-white transition-colors cursor-pointer font-medium">
+                        <span>Bosh sahifa</span><span className="opacity-40 mx-1">/</span><span className="text-amber-300 font-bold">Ko'chmas mulk</span>
+                      </button>
+                    </div>
+                    {/* Bottom */}
+                    <div className="absolute bottom-0 left-0 right-0 z-10 p-5 sm:p-6">
+                      <h2 className="text-2xl sm:text-3xl font-black text-white mb-3" style={{ textShadow: '0 2px 20px rgba(0,0,0,0.9)' }}>Ko'chmas mulk bozori</h2>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {[{icon:'🏢',label:'Kvartiralar'},{icon:'🏡',label:'Uylar'},{icon:'🏗️',label:'Yer uchastkalar'},{icon:'🔑',label:'Ijara'}].map(s => (
+                          <div key={s.label} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(8px)', border: '1px solid rgba(251,191,36,0.2)' }}>
+                            <span>{s.icon}</span>{s.label}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── ZAPCHASTLAR HERO: Rasm to'la + texnik grid overlay + markazda panel ── */}
+                {isParts && (
+                  <div className="relative w-full rounded-2xl overflow-hidden mb-5 min-h-[200px] sm:min-h-[280px]">
+                    <img src="/catalog-heroes/zapchast-hero.jpg" alt="Zapchastlar" className="absolute inset-0 w-full h-full object-cover" />
+                    <div className="absolute inset-0" style={{ background: 'rgba(12,4,0,0.74)' }} />
+                    {/* Texnik grid overlay */}
+                    <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: 'linear-gradient(rgba(251,146,60,0.07) 1px,transparent 1px),linear-gradient(90deg,rgba(251,146,60,0.07) 1px,transparent 1px)', backgroundSize: '40px 40px' }} />
+                    <div className="absolute top-0 left-0 right-0 h-px" style={{ background: 'linear-gradient(90deg,#ea580c,#f97316,#ea580c)' }} />
+                    {/* Corner glow */}
+                    <div className="absolute top-0 left-0 w-20 h-20 pointer-events-none" style={{ background: 'radial-gradient(circle at 0 0, rgba(234,88,12,0.35), transparent 70%)' }} />
+                    {/* Markazda kontent */}
+                    <div className="relative z-10 flex flex-col items-center justify-center text-center h-full min-h-[200px] sm:min-h-[280px] p-5">
+                      <div className="text-4xl mb-2">⚙️</div>
+                      <div className="text-orange-500 text-[10px] font-black uppercase tracking-[0.3em] mb-2">Ehtiyot qismlar markazi</div>
+                      <h2 className="text-2xl sm:text-3xl font-black text-white mb-2" style={{ letterSpacing: '-0.02em' }}>Avto Zapchastlar</h2>
+                      <p className="text-orange-300/60 text-sm">Original · Analog · Shinalar · Aksessuarlar</p>
+                      <button type="button" onClick={() => onNavigate('/')} className="mt-4 text-[10px] font-bold tracking-widest text-orange-500/50 hover:text-orange-300 transition-colors cursor-pointer uppercase">← Bosh sahifa</button>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── HUNARMANDLAR HERO: Rasm o'ngda, chap artisan floating card ── */}
+                {isHandmade && (
+                  <div className="relative w-full rounded-2xl overflow-hidden mb-5 min-h-[200px] sm:min-h-[280px]">
+                    <img src="/catalog-heroes/hunarmand-hero.jpg" alt="Hunarmandlar" className="absolute inset-0 w-full h-full object-cover" />
+                    <div className="absolute inset-0" style={{ background: 'rgba(10,5,2,0.42)' }} />
+                    {/* Floating artisan card — kattaroq, shisha (glass) + lupa effekti */}
+                    <div className="relative z-10 flex items-center h-full min-h-[220px] sm:min-h-[300px] p-4 sm:p-5">
+                      <div
+                        className="relative w-full sm:w-72 overflow-hidden rounded-2xl p-5 sm:p-6"
+                        style={{
+                          backdropFilter: 'blur(22px) saturate(150%)',
+                          WebkitBackdropFilter: 'blur(22px) saturate(150%)',
+                          background: 'rgba(20,10,4,0.32)',
+                          border: '1px solid rgba(255,245,235,0.22)',
+                          boxShadow: '0 14px 44px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.15)',
+                        }}
+                      >
+                        {/* Lupa: orqa rasmning yaqinlashtirilgan, xira qoplamasi */}
+                        <img
+                          src="/catalog-heroes/hunarmand-hero.jpg"
+                          alt=""
+                          aria-hidden
+                          className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-45 blur-[2px]"
+                          style={{ transform: 'scale(1.9)' }}
+                        />
+                        <div className="relative z-10">
+                          <div className="h-0.5 w-full rounded-full mb-4" style={{ background: 'linear-gradient(90deg, #c2410c, #b45309)' }} />
+                          <div className="text-3xl mb-2">🧵</div>
+                          <div className="text-[9px] font-black uppercase tracking-[0.25em] mb-2" style={{ color: '#fdba74' }}>Qo'l san'ati</div>
+                          <h2 className="text-2xl sm:text-[26px] font-black leading-tight mb-3" style={{ color: '#fff5eb', fontStyle: 'italic', textShadow: '0 2px 12px rgba(0,0,0,0.6)' }}>Milliy<br/>Hunarmandchilik</h2>
+                          <div className="space-y-1.5">
+                            {["Zardo'zlik","Kulolchilik","To'qimachilik","Yog'och o'ymakorligi"].map(c => (
+                              <div key={c} className="flex items-center gap-1.5 text-xs" style={{ color: '#fed7aa' }}>
+                                <span style={{ color: '#fb923c' }}>✦</span>{c}
+                              </div>
+                            ))}
+                          </div>
+                          <button type="button" onClick={() => onNavigate('/')} className="mt-5 self-start text-[10px] font-bold uppercase tracking-wider cursor-pointer" style={{ color: '#fb923c' }}>← Bosh sahifa</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── BOSHQA KATALOGLAR (generic) ── */}
+                {!isAvto && !isUylar && !isParts && !isHandmade && (
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <h2 className="text-base sm:text-lg font-extrabold text-[#172B4D] tracking-tight">
+                      {selectedCatalogName} — kategoriyalar
+                    </h2>
+                    <button type="button" onClick={() => onNavigate('/')}
+                      className="shrink-0 text-xs font-semibold text-[#1673E6] hover:underline cursor-pointer">
+                      Bosh sahifa
+                    </button>
+                  </div>
+                )}
+
+                {/* Kategoriyalar gridi */}
+                <TileGrid
+                  items={categories.filter((c) => !c.parent_id)}
+                  getKey={(c) => c.id}
+                  renderItem={(c, i) => (
+                    <CatalogTile
+                      label={c.name_uz}
+                      icon={c.icon}
+                      imgSrc={`/categories/${selectedCatalogId}/${c.id}.png`}
+                      tone={
+                        isAvto ? 'blue' :
+                        isUylar ? 'amber' :
+                        isParts ? 'orange' :
+                        isHandmade ? 'red' :
+                        CAT_TONE[selectedCatalogId ?? '']
+                      }
+                      index={i}
+                      count={c.active_count}
+                      onOpen={() => openCategoryTile(selectedCatalogId!, c.id)}
+                    />
+                  )}
+                />
+              </section>
+            );
+          })()}
 
           {/* Main Catalog Tabs — faqat kategoriya sahifasida (landing'da grid bor) */}
           {!isClean && (
@@ -1681,13 +1867,21 @@ export const HomePage: React.FC<HomePageProps> = ({
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-4">
-              {listings.map((listing) => (
-                <ListingCard
-                  key={listing.id}
-                  listing={listing}
-                  variant="grid"
-                  onClick={() => onOpenListing(listing.id)}
-                />
+              {listings.map((listing, idx) => (
+                <React.Fragment key={listing.id}>
+                  <ListingCard
+                    listing={listing}
+                    variant="grid"
+                    onClick={() => onOpenListing(listing.id)}
+                  />
+                  {(idx + 1) % inlineEvery === 0 && (
+                    <AdSlot
+                      placement="inline"
+                      variant="card"
+                      slotIndex={Math.floor((idx + 1) / inlineEvery) - 1}
+                    />
+                  )}
+                </React.Fragment>
               ))}
             </div>
           )}

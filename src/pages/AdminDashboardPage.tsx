@@ -30,6 +30,7 @@ import {
   Table2,
   Users2,
   Send,
+  Megaphone,
   X,
 } from 'lucide-react';
 import { formatDateAgo } from '../lib/utils.ts';
@@ -43,6 +44,7 @@ import { UserPassportModal } from '../components/admin/UserPassportModal.tsx';
 import { CategoryEditModal } from '../components/admin/CategoryEditModal.tsx';
 import { OrganizationEditModal } from '../components/admin/OrganizationEditModal.tsx';
 import { FiltersAdminSection } from '../components/admin/FiltersAdminSection.tsx';
+import { AdsManagerSection } from '../components/admin/AdsManagerSection.tsx';
 import { Category, Catalog } from '../types/index.ts';
 import { CategoryChip } from '../components/common/CategoryIcon.tsx';
 
@@ -59,7 +61,7 @@ interface AdminDashboardPageProps {
 
 export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNavigate }) => {
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'platform' | 'theme' | 'users' | 'organizations' | 'categories' | 'filters' | 'monetization' | 'data' | 'team' | 'messaging' | 'audit'
+    'overview' | 'platform' | 'theme' | 'users' | 'organizations' | 'categories' | 'filters' | 'monetization' | 'ads' | 'data' | 'team' | 'messaging' | 'audit'
   >('overview');
 
   // Stats
@@ -329,6 +331,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
           { id: 'categories', label: 'Kategoriyalar', icon: Layers },
           { id: 'filters', label: 'Filtrlar', icon: Filter },
           { id: 'monetization', label: 'Monetizatsiya', icon: DollarSign },
+          { id: 'ads', label: 'Reklamalar', icon: Megaphone },
           { id: 'data', label: 'Excel ma’lumotlar', icon: Table2 },
           { id: 'team', label: 'Jamoa / Moderatorlar', icon: Users2 },
           { id: 'messaging', label: 'Xabarlar', icon: Send },
@@ -1254,6 +1257,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
 
       {/* 6. Monetization Tab (Faza 4) */}
       {activeTab === 'monetization' && <MonetizationSettings />}
+
+      {/* 6c. Ichki Reklama menejeri */}
+      {activeTab === 'ads' && <AdsManagerSection />}
 
       {/* 6b. Excel Data I/O Tab (Faza 12) */}
       {activeTab === 'data' && <DataIOSection />}

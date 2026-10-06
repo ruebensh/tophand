@@ -130,6 +130,51 @@ export function getPublicMonetization(): Promise<PublicMonetization> {
   return apiRequest<PublicMonetization>('/api/monetization/public');
 }
 
+// ─── Ichki Reklama menejeri ──────────────────────────────────────────────
+import type { AdCampaign, AdCampaignBuckets } from '../types/index.ts';
+
+// Frontend: faqat aktiv kampaniyalar, slot bo'yicha guruhlangan.
+export function getActiveAds(): Promise<AdCampaignBuckets> {
+  return apiRequest<AdCampaignBuckets>('/api/ads/active');
+}
+
+// Beholta hisoblagich (impression/click) — xatolikni yashiramiz.
+export function trackAdEvent(id: string, event: 'impression' | 'click'): void {
+  const body = JSON.stringify({ id, event });
+  try {
+    if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+      const blob = new Blob([body], { type: 'application/json' });
+      navigator.sendBeacon('/api/ads/track', blob);
+      return;
+    }
+  } catch {
+    /* fallback quyida */
+  }
+  fetch('/api/ads/track', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+    keepalive: true,
+  }).catch(() => {});
+}
+
+// Admin CRUD.
+export function adminListAds(): Promise<AdCampaign[]> {
+  return apiRequest<AdCampaign[]>('/api/admin/ads');
+}
+
+export function adminCreateAd(data: Partial<AdCampaign>): Promise<AdCampaign> {
+  return apiRequest<AdCampaign>('/api/admin/ads', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function adminUpdateAd(id: string, data: Partial<AdCampaign>): Promise<AdCampaign> {
+  return apiRequest<AdCampaign>(`/api/admin/ads/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+}
+
+export function adminDeleteAd(id: string): Promise<{ success: boolean }> {
+  return apiRequest<{ success: boolean }>(`/api/admin/ads/${id}`, { method: 'DELETE' });
+}
+
 export interface WalletInfo {
   balance: number;
   currency: string;

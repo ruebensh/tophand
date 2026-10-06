@@ -395,8 +395,33 @@ export async function initDatabase() {
     )
   `);
 
+  // 22. ads — ichki Reklama menejeri kampaniyalari (rasm/matn/video)
+  await createTableIfNotExists(`
+    CREATE TABLE IF NOT EXISTS ads (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL CHECK(type IN ('image','text','video')),
+      title TEXT NOT NULL,
+      body TEXT,
+      image_url TEXT,
+      video_url TEXT,
+      link_url TEXT NOT NULL,
+      cta_label TEXT DEFAULT 'Batafsil',
+      placement TEXT NOT NULL CHECK(placement IN ('top','popular','inline','sidebar','all')),
+      active INTEGER DEFAULT 1,
+      priority INTEGER DEFAULT 0,
+      starts_at TEXT,
+      ends_at TEXT,
+      impressions INTEGER DEFAULT 0,
+      clicks INTEGER DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `
+  );
+
   // ─── Indexes ──────────────────────────────────────────────────────────
   const indexes = [
+    'CREATE INDEX IF NOT EXISTS idx_ads_active_placement ON ads(active, placement)',
     'CREATE INDEX IF NOT EXISTS idx_reviews_target_user ON reviews(target_user_id)',
     'CREATE INDEX IF NOT EXISTS idx_reviews_author ON reviews(author_user_id)',
     'CREATE INDEX IF NOT EXISTS idx_reviews_listing ON reviews(listing_id)',

@@ -17,6 +17,7 @@ import { getAdvancedAnalytics } from '../services/autoModerationService.ts';
 import { queryAll, queryOne, runQuery, persistDb } from '../db/database.ts';
 import { processAndStoreLogo } from '../services/storageService.ts';
 import { getMonetizationConfig, setSetting } from '../services/monetizationService.ts';
+import { listAllAds, createAd, updateAd, deleteAd, validateAd, getAdById, type AdInput } from '../services/adService.ts';
 import { isSupportedEntity, exportToXlsx, importFromXlsx } from '../services/exportService.ts';
 
 const router = Router();
@@ -945,6 +946,53 @@ router.put('/monetization', async (req: AuthRequest, res) => {
     await persistDb();
     const cfg = await getMonetizationConfig();
     res.json({ success: true, config: cfg, message: 'Monetizatsiya sozlamalari saqlandi' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Ichki Reklama menejeri — admin CRUD ────────────────────────────────
+router.get('/ads', async (_req, res) => {
+  try {
+    res.json(await listAllAds());
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/ads', async (req: AuthRequest, res) => {
+  try {
+    const input = (req.body || {}) as AdInput;
+    const invalid = validateAd(input);
+    if (invalid) return res.status(400).json({ error: invalid });
+    const ad = await createAd(input);
+    res.status(201).json(ad);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/ads/:id', async (req: AuthRequest, res) => {
+  try {
+    const input = (req.body || {}) as Partial<AdInput>;
+    const existing = await getAdById(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Reklama topilmadi' });
+    // Yakuniy holatni tekshiramiz — noto'g'ri bo'lsa, yozmaymiz.
+    const merged = { ...existing, ...input } as AdInput;
+    const invalid = validateAd(merged);
+    if (invalid) return res.status(400).json({ error: invalid });
+    const ad = await updateAd(req.params.id, input);
+    res.json(ad);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/ads/:id', async (req: AuthRequest, res) => {
+  try {
+    const ok = await deleteAd(req.params.id);
+    if (!ok) return res.status(404).json({ error: 'Reklama topilmadi' });
+    res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

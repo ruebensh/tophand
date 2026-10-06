@@ -360,7 +360,11 @@ export function CategoryBrowser(props: CategoryBrowserProps) {
                   <ListingCard listing={listing} variant="grid" onClick={() => onOpenListing(listing.id)} />
                   {/* E'lonlar orasida, xuddi e'lon kartidek reklama */}
                   {(idx + 1) % inlineEvery === 0 && (
-                    <AdSlot placement="inline" variant="card" />
+                    <AdSlot
+                      placement="inline"
+                      variant="card"
+                      slotIndex={Math.floor((idx + 1) / inlineEvery) - 1}
+                    />
                   )}
                 </Fragment>
               ))}

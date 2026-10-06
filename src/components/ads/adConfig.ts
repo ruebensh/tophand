@@ -39,5 +39,13 @@ export const AD_CONFIG: Record<AdPlacement, AdUnitConfig> = {
 // Grid ichida har nechta e'londan keyin bitta reklama kartasi qo'yilsin.
 export const INLINE_AD_EVERY = 7;
 
+// Har bir joylashuv bo'yicha reklamalarning almashish (rotatsiya) vaqti (millisekundda)
+export const AD_ROTATION_INTERVALS: Record<AdPlacement, number> = {
+  top: 20000,     // Header banner: 20 soniya
+  popular: 15000, // Mashxur qatori: 15 soniya
+  inline: 15000,  // E'lonlar orasidagi kartalar: 15 soniya
+  sidebar: 15000, // Filtr ostidagi blok: 15 soniya
+};
+
 // Placeholder ko'rinishda ko'rsatiladigan matn (tarmoq ulanmaganda).
 export const AD_PLACEHOLDER_LABEL = 'Reklama';
