@@ -398,8 +398,9 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
 
   const chooseType = (t: ListingType) => {
     setSelectedType(t);
-    setCategoryId('');
     setAttributes({});
+    // Jobsda kategoriya tur (scope) ga bog'liq — tur o'zgarsa kategoriya tozalanadi.
+    if (currentCatalogId === 'jobs') setCategoryId('');
   };
 
   const setAttr = (key: string, val: string | number | boolean | undefined) => {
@@ -656,6 +657,87 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
 
   const showForm = !!selectedCatalog && !!selectedType;
 
+  // Jobs katalogida kategoriyalar tur (scope) ga bog'liq — avval tur, keyin kategoriya.
+  // Boshqa kataloglarda: katalogdan keyin darhol kategoriya tanlash.
+  const needsTypeFirst = currentCatalogId === 'jobs';
+  const wantCategory = !categoryId && (needsTypeFirst ? !!selectedType : true);
+  const wantType = !selectedType && (needsTypeFirst ? true : !!categoryId);
+
+  const typeStep = selectedCatalog && (
+    <div className="space-y-6">
+      <button
+        type="button"
+        onClick={() => setSelectedCatalog(null)}
+        className="inline-flex items-center gap-1.5 text-xs font-bold text-gray-500 hover:text-blue-600 transition-colors cursor-pointer"
+      >
+        <ArrowLeft className="w-4 h-4" /> <span>Boshqa katalog</span>
+      </button>
+      <div className="text-center max-w-lg mx-auto">
+        <div className="flex items-center justify-center gap-2 mb-2">
+          <CategoryChip name={selectedCatalog.icon} tone={CAT_TONE[selectedCatalog.id]} size="md" />
+          <h1 className="text-xl sm:text-2xl font-black text-gray-900">{selectedCatalog.name_uz}</h1>
+        </div>
+        <p className="text-xs sm:text-sm text-gray-500 mt-1">Bu bo'limda qanday e'lon bermoqchisiz?</p>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+        {catalogTypes.map((t) => {
+          const meta = TYPE_META[t];
+          return (
+            <button
+              key={t}
+              type="button"
+              onClick={() => chooseType(t)}
+              className="p-5 rounded-2xl border-2 border-gray-100 bg-white hover:border-blue-500 hover:shadow-lg transition-all text-left group flex items-start gap-4 cursor-pointer"
+            >
+              <div className="text-2xl shrink-0">{meta.emoji}</div>
+              <div className="min-w-0">
+                <span className="font-bold text-sm text-gray-900 block group-hover:text-blue-600 transition-colors">{meta.label}</span>
+                <span className="text-xs text-gray-500 mt-1 block leading-relaxed">{meta.hint}</span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  const categoryStep = selectedCatalog && (
+    <div className="space-y-6">
+      <button
+        type="button"
+        onClick={() => (needsTypeFirst ? setSelectedType(null) : setSelectedCatalog(null))}
+        className="inline-flex items-center gap-1.5 text-xs font-bold text-gray-500 hover:text-blue-600 transition-colors cursor-pointer"
+      >
+        <ArrowLeft className="w-4 h-4" /> <span>{needsTypeFirst ? 'Boshqa tur' : 'Boshqa katalog'}</span>
+      </button>
+      <div className="text-center max-w-lg mx-auto">
+        <div className="flex items-center justify-center gap-2 mb-2">
+          <CategoryChip name={selectedCatalog.icon} tone={CAT_TONE[selectedCatalog.id]} size="md" />
+          <h1 className="text-xl sm:text-2xl font-black text-gray-900">{selectedCatalog.name_uz}</h1>
+        </div>
+        <p className="text-xs sm:text-sm text-gray-500 mt-1">Qaysi bo'lim (kategoriya) uchun joylaysiz?</p>
+      </div>
+      {parentCategories.length === 0 ? (
+        <div className="text-center text-xs text-gray-400 py-10">Kategoriyalar yuklanmoqda yoki mavjud emas…</div>
+      ) : (
+        <div className="rounded-2xl border border-gray-100 bg-white divide-y divide-gray-100 overflow-hidden">
+          {parentCategories.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => { setCategoryId(c.id); setAttributes({}); }}
+              className="w-full flex items-center gap-3 px-3.5 py-2.5 text-left hover:bg-blue-50/60 active:bg-blue-50 transition-colors group cursor-pointer"
+            >
+              <CategoryChip name={c.icon} tone={CAT_TONE[selectedCatalog.id]} size="sm" />
+              <span className="flex-1 min-w-0 font-bold text-[13px] text-gray-900 group-hover:text-blue-700 transition-colors leading-tight">{c.name_uz}</span>
+              <ChevronRight className="w-3.5 h-3.5 shrink-0 text-gray-400 group-hover:text-blue-600 group-hover:translate-x-0.5 transition-all" />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="max-w-3xl mx-auto px-3 sm:px-6 py-4 sm:py-10 pb-6">
       {isLoadingEdit ? (
@@ -674,60 +756,26 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
             <h1 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">Qaysi bo'limdan joylaysiz?</h1>
             <p className="text-xs sm:text-sm text-gray-500 mt-2">Katalogni tanlang — keyin tur va kategoriya taklif qilinadi.</p>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 pt-2">
+          {/* Kataloglar — ro'yxat ko'rinishi (card emas) */}
+          <div className="rounded-2xl border border-gray-100 bg-white divide-y divide-gray-100 overflow-hidden">
             {catalogs.map((cat) => (
               <button
                 key={cat.id}
                 type="button"
                 onClick={() => chooseCatalog(cat)}
-                className="p-4 rounded-2xl border-2 border-gray-100 bg-white hover:border-blue-500 hover:shadow-lg transition-all text-left group flex flex-col gap-2.5 cursor-pointer"
+                className="w-full flex items-center gap-3 px-3.5 py-2.5 text-left hover:bg-blue-50/60 active:bg-blue-50 transition-colors group cursor-pointer"
               >
-                <CategoryChip name={cat.icon} tone={CAT_TONE[cat.id]} size="lg" />
-                <span className="font-bold text-sm text-gray-900 group-hover:text-blue-600 transition-colors leading-tight">{cat.name_uz}</span>
-                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 group-hover:translate-x-1 transition-transform">
-                  Tanlash <ChevronRight className="w-3.5 h-3.5" />
-                </span>
+                <CategoryChip name={cat.icon} tone={CAT_TONE[cat.id]} size="sm" />
+                <span className="flex-1 min-w-0 font-bold text-[13px] text-gray-900 group-hover:text-blue-700 transition-colors leading-tight">{cat.name_uz}</span>
+                <ChevronRight className="w-3.5 h-3.5 shrink-0 text-gray-400 group-hover:text-blue-600 group-hover:translate-x-0.5 transition-all" />
               </button>
             ))}
           </div>
         </div>
-      ) : !selectedType ? (
-        /* ── STEP 2: Tur tanlash ── */
-        <div className="space-y-6">
-          <button
-            type="button"
-            onClick={() => setSelectedCatalog(null)}
-            className="inline-flex items-center gap-1.5 text-xs font-bold text-gray-500 hover:text-blue-600 transition-colors cursor-pointer"
-          >
-            <ArrowLeft className="w-4 h-4" /> <span>Boshqa katalog</span>
-          </button>
-          <div className="text-center max-w-lg mx-auto">
-            <div className="flex items-center justify-center gap-2 mb-2">
-              <CategoryChip name={selectedCatalog.icon} tone={CAT_TONE[selectedCatalog.id]} size="md" />
-              <h1 className="text-xl sm:text-2xl font-black text-gray-900">{selectedCatalog.name_uz}</h1>
-            </div>
-            <p className="text-xs sm:text-sm text-gray-500 mt-1">Bu bo'limda qanday e'lon bermoqchisiz?</p>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-            {catalogTypes.map((t) => {
-              const meta = TYPE_META[t];
-              return (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => chooseType(t)}
-                  className="p-5 rounded-2xl border-2 border-gray-100 bg-white hover:border-blue-500 hover:shadow-lg transition-all text-left group flex items-start gap-4 cursor-pointer"
-                >
-                  <div className="text-2xl shrink-0">{meta.emoji}</div>
-                  <div className="min-w-0">
-                    <span className="font-bold text-sm text-gray-900 block group-hover:text-blue-600 transition-colors">{meta.label}</span>
-                    <span className="text-xs text-gray-500 mt-1 block leading-relaxed">{meta.hint}</span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+      ) : wantCategory ? (
+        categoryStep
+      ) : wantType ? (
+        typeStep
       ) : (
         /* ── STEP 3: Forma ── */
         <div className="bg-white rounded-3xl border border-gray-100 p-5 sm:p-8 shadow-xs">
@@ -750,7 +798,7 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
               </button>
             )}
             <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-bold border border-blue-100 truncate max-w-[55%]">
-              {TYPE_META[selectedType].emoji} {selectedCatalog.name_uz} · {TYPE_META[selectedType].label}
+              {TYPE_META[selectedType!].emoji} {selectedCatalog.name_uz} · {TYPE_META[selectedType!].label}
             </span>
           </div>
 

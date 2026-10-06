@@ -23,6 +23,7 @@ import {
   ClipboardList,
   UserRound,
   ArrowUpDown,
+  ChevronLeft,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.tsx';
 import { useGeo } from '../context/GeoContext.tsx';
@@ -774,6 +775,107 @@ export const HomePage: React.FC<HomePageProps> = ({
           initialLocation={detectedLocation}
         />
       </>
+    );
+  }
+
+  // === OBUNALARIM ko'rinishi — Yoqtirilganlar (SavedListingsPage) sahifasi uslubida ===
+  // "Obunalarim" filtri yoqilganda sahifa filtrga to'langan bosh sahifa o'rniga,
+  // xuddi "Yoqtirilganlar" dagidek toza, yagona uslubdagi ro'yxat bo'ladi:
+  // sarlavha (orqaga tugmasi + ikonka + nom + soni) + kartalar grid'i.
+  if (onlyFollowed) {
+    return (
+      <div className="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 pb-2 sm:pb-6 min-h-[calc(100vh-140px)]">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-5 pb-4 border-b border-gray-200">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setOnlyFollowed(false)}
+              className="p-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-500 hover:text-gray-900 transition-colors cursor-pointer"
+              title="Barcha e'lonlarga qaytish"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-extrabold text-gray-900 flex items-center gap-2 tracking-tight">
+                <Users className="w-5 h-5 text-blue-600" />
+                <span>Obunalarim</span>
+              </h1>
+              <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
+                Obuna bo'lgan mutaxassislar va tashkilotlarning e'lonlari
+              </p>
+            </div>
+          </div>
+
+          {totalCount > 0 && (
+            <span className="text-xs font-bold text-gray-700 bg-gray-100 px-3 py-1.5 rounded-full">
+              {totalCount.toLocaleString()} ta e'lon
+            </span>
+          )}
+        </div>
+
+        {isLoading ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="bg-white rounded-2xl border border-gray-100 overflow-hidden animate-pulse">
+                <div className="w-full bg-gray-200" style={{ paddingBottom: '75%' }} />
+                <div className="p-3 space-y-2">
+                  <div className="w-1/2 h-4 bg-gray-200 rounded-md" />
+                  <div className="w-full h-3.5 bg-gray-100 rounded-md" />
+                  <div className="w-2/3 h-3.5 bg-gray-100 rounded-md" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : listings.length === 0 ? (
+          <div className="bg-white rounded-3xl border border-gray-100 p-6 sm:p-12 text-center max-w-md mx-auto my-6 shadow-2xs">
+            <div className="w-14 h-14 rounded-2xl bg-gray-50 text-gray-400 flex items-center justify-center mx-auto mb-3">
+              <Users className="w-7 h-7" />
+            </div>
+            <h3 className="font-bold text-base text-gray-900">Hozircha obunalar bo'yicha e'lon yo'q</h3>
+            <p className="text-xs text-gray-500 mt-1.5 mb-6 leading-relaxed">
+              Siz obuna bo'lgan usta, mutaxassis yoki tashkilotlar e'lon joylaganda ular shu yerda jamlanadi.
+            </p>
+            <button
+              onClick={() => setOnlyFollowed(false)}
+              className="px-6 py-2.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm transition-colors shadow-xs cursor-pointer inline-flex items-center gap-2"
+            >
+              <span>E'lonlarni ko'rish</span>
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-4">
+              {listings.map((listing) => (
+                <ListingCard
+                  key={listing.id}
+                  listing={listing}
+                  variant="grid"
+                  onClick={() => onOpenListing(listing.id)}
+                />
+              ))}
+            </div>
+            {currentPage < totalPages && (
+              <div className="py-10 flex justify-center">
+                <button
+                  onClick={handleLoadMore}
+                  disabled={isLoadingMore}
+                  className="bg-transparent border border-[#EBECF0] hover:border-[#1673E6] hover:bg-blue-50/20 px-8 py-3 rounded-xl text-[#1673E6] font-bold text-xs sm:text-sm transition-colors cursor-pointer flex items-center gap-2"
+                >
+                  <span>{isLoadingMore ? 'Yuklanmoqda...' : 'Yana yuklash'}</span>
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </>
+        )}
+
+        <NearbyMapModal
+          isOpen={isMapOpen}
+          onClose={() => setIsMapOpen(false)}
+          onOpenListing={onOpenListing}
+          initialLocation={detectedLocation}
+        />
+      </div>
     );
   }
 
