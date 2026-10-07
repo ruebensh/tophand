@@ -69,6 +69,7 @@ const ru = {
     notifications: 'Уведомления',
     markAllRead: 'Прочитать все',
     noNotifications: 'Пока нет уведомлений',
+    notifOpen: 'Открыть уведомление',
     moderatorPanel: 'Панель модератора',
     adminPanel: 'Панель администратора',
     catalog: 'Каталог',

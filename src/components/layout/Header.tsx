@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { useNotifications } from '../../context/NotificationContext.tsx';
 import {
@@ -19,7 +20,7 @@ import {
 } from 'lucide-react';
 import { formatDateAgo, isOfficialAccount, isStaffAccount } from '../../lib/utils.ts';
 import { getPublicMonetization, getCatalogs, getCategoryTree } from '../../lib/api.ts';
-import type { Catalog, Category } from '../../types/index.ts';
+import type { Catalog, Category, Notification } from '../../types/index.ts';
 import { TopHandLogo } from '../common/TopHandLogo.tsx';
 import { VerifiedBadge } from '../common/VerifiedBadge.tsx';
 import { CategoryChip } from '../common/CategoryIcon.tsx';
@@ -73,6 +74,8 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [notifPos, setNotifPos] = useState<{ top: number; right: number } | null>(null);
+  const [selectedNotif, setSelectedNotif] = useState<Notification | null>(null);
   const [isMegaOpen, setIsMegaOpen] = useState(false);
   const [isMapOpen, setIsMapOpen] = useState(false);
   const [catalogs, setCatalogs] = useState<Catalog[]>([]);
@@ -152,6 +155,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
 
   const userMenuRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
+  const notifPanelRef = useRef<HTMLDivElement>(null);
   const megaRef = useRef<HTMLDivElement>(null);
   const megaMobileRef = useRef<HTMLDivElement>(null);
 
@@ -159,7 +163,11 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) setIsUserMenuOpen(false);
-      if (notifRef.current && !notifRef.current.contains(e.target as Node)) setIsNotificationsOpen(false);
+      const notifTarget = e.target as Node;
+      const notifInside =
+        (notifRef.current && notifRef.current.contains(notifTarget)) ||
+        (notifPanelRef.current && notifPanelRef.current.contains(notifTarget));
+      if (!notifInside) setIsNotificationsOpen(false);
       const megaTarget = e.target as Node;
       const megaInside =
         (megaRef.current && megaRef.current.contains(megaTarget)) ||
@@ -167,7 +175,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
       if (!megaInside) setIsMegaOpen(false);
     };
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { setIsMegaOpen(false); setIsUserMenuOpen(false); setIsNotificationsOpen(false); }
+      if (e.key === 'Escape') { setIsMegaOpen(false); setIsUserMenuOpen(false); setIsNotificationsOpen(false); setSelectedNotif(null); }
     };
     document.addEventListener('mousedown', handleClickOutside);
     document.addEventListener('keydown', handleKey);
@@ -176,6 +184,28 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
       document.removeEventListener('keydown', handleKey);
     };
   }, []);
+
+  // Dropdown'ni portal orqali body'ga chiqaramiz — sticky toolbar (z-40) ortida
+  // qolmasligi uchun. Joylashuvni qo'ng'iroq tugmasi rect'idan hisoblaymiz.
+  const updateNotifPos = () => {
+    const el = notifRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setNotifPos({ top: r.bottom + 8, right: Math.max(8, window.innerWidth - r.right) });
+  };
+
+  useEffect(() => {
+    if (!isNotificationsOpen) return;
+    updateNotifPos();
+    const onMove = () => updateNotifPos();
+    window.addEventListener('scroll', onMove, true);
+    window.addEventListener('resize', onMove);
+    return () => {
+      window.removeEventListener('scroll', onMove, true);
+      window.removeEventListener('resize', onMove);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isNotificationsOpen]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -199,10 +229,10 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
     });
   };
 
-  const handleNotificationClick = (notif: any) => {
+  const handleNotificationClick = (notif: Notification) => {
     markAsRead(notif.id);
     setIsNotificationsOpen(false);
-    if (notif.link) onNavigate(notif.link);
+    setSelectedNotif(notif);
   };
 
   // Mega-menyu tanasi — desktop (dropdown) va mobil (to'liq ekran) uchun umumiy.
@@ -394,7 +424,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
             <div className="relative" ref={notifRef}>
               <button
                 type="button"
-                onClick={() => { if (!user) openLoginModal(); else setIsNotificationsOpen(!isNotificationsOpen); }}
+                onClick={() => { if (!user) openLoginModal(); else { const next = !isNotificationsOpen; setIsNotificationsOpen(next); if (next) updateNotifPos(); } }}
                 aria-label={t('nav.notifications')}
                 className="relative p-2 text-[#5E6C84] hover:text-[#1673E6] hover:bg-gray-50 rounded-lg transition-colors focus:outline-hidden cursor-pointer"
                 title={t('nav.notifications')}
@@ -407,8 +437,12 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
                 )}
               </button>
 
-              {isNotificationsOpen && (
-                <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl border border-gray-100 shadow-xl overflow-hidden z-50">
+              {isNotificationsOpen && createPortal(
+                <div
+                  ref={notifPanelRef}
+                  style={{ position: 'fixed', top: notifPos?.top ?? 0, right: notifPos?.right ?? 8, zIndex: 120 }}
+                  className="w-80 sm:w-96 bg-white rounded-2xl border border-gray-100 shadow-xl overflow-hidden"
+                >
                   <div className="p-3.5 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
                     <span className="font-bold text-sm text-gray-900">{t('nav.notifications')}</span>
                     {unreadCount > 0 && (
@@ -430,16 +464,52 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
                           <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${!n.read_at ? 'bg-[#1673E6]' : 'bg-transparent'}`} />
                           <div className="flex-1">
                             <p className="text-xs font-semibold text-gray-900">{n.title}</p>
-                            <p className="text-[11px] text-gray-500 mt-0.5">{n.body}</p>
+                            <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-2">{n.body}</p>
                             <span className="text-[10px] text-gray-400 mt-1 block">{formatDateAgo(n.created_at)}</span>
                           </div>
                         </div>
                       ))
                     )}
                   </div>
-                </div>
+                </div>,
+                document.body
               )}
             </div>
+
+            {selectedNotif && createPortal(
+              <div
+                className="fixed inset-0 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+                style={{ zIndex: 200 }}
+                onClick={() => setSelectedNotif(null)}
+              >
+                <div
+                  className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-gray-100">
+                    <span className="font-bold text-sm text-gray-900">{selectedNotif.title}</span>
+                    <button onClick={() => setSelectedNotif(null)} className="p-1.5 -mr-1.5 rounded-lg hover:bg-gray-100 text-gray-500 shrink-0 cursor-pointer">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="p-5">
+                    <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{selectedNotif.body}</p>
+                    <span className="mt-3 block text-[11px] text-gray-400">{formatDateAgo(selectedNotif.created_at)}</span>
+                  </div>
+                  {selectedNotif.link && (
+                    <div className="px-5 pb-5">
+                      <button
+                        onClick={() => { const link = selectedNotif.link; setSelectedNotif(null); setIsNotificationsOpen(false); if (link) onNavigate(link); }}
+                        className="w-full py-2.5 rounded-xl th-accent-bg text-white text-sm font-semibold hover:opacity-90 transition-opacity cursor-pointer"
+                      >
+                        {t('nav.notifOpen')}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>,
+              document.body
+            )}
 
             <button
               onClick={() => { if (!user) openLoginModal(() => onNavigate('/create')); else onNavigate('/create'); }}

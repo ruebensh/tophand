@@ -60,20 +60,21 @@ export const LogoProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const applyFavicon = (lightUrl: string, darkUrl: string, version: string) => {
     try {
       const sep = (u: string) => (u.includes('?') ? '&' : '?');
-      const ensure = (id: string, media: string, href: string) => {
-        let el = document.getElementById(id) as HTMLLinkElement | null;
-        if (!el) {
-          el = document.createElement('link');
-          el.id = id;
-          el.rel = 'icon';
-          el.type = 'image/png';
-          if (media) el.media = media;
-          document.head.appendChild(el);
-        }
+      // Mavjud <link> ni butunlay o'chirib, yangi nod sifatida qo'shamiz. Bu
+      // Chrome'da tab ikonkasini jonli qayta chizishni majburlaydi (faqat href
+      // o'zgartirish ba'zan repaint qilmaydi).
+      const swap = (id: string, media: string, href: string) => {
+        document.querySelectorAll(`link#${id}`).forEach((n) => n.remove());
+        const el = document.createElement('link');
+        el.id = id;
+        el.rel = 'icon';
+        el.type = 'image/png';
+        if (media) el.media = media;
         el.href = href;
+        document.head.appendChild(el);
       };
-      ensure('favicon-light', '(prefers-color-scheme: light)', `${lightUrl}${sep(lightUrl)}v=${version}`);
-      ensure('favicon-dark', '(prefers-color-scheme: dark)', `${darkUrl}${sep(darkUrl)}v=${version}`);
+      swap('favicon-light', '(prefers-color-scheme: light)', `${lightUrl}${sep(lightUrl)}v=${version}`);
+      swap('favicon-dark', '(prefers-color-scheme: dark)', `${darkUrl}${sep(darkUrl)}v=${version}`);
 
       let touch = document.querySelector("link[rel='apple-touch-icon']") as HTMLLinkElement | null;
       if (!touch) {

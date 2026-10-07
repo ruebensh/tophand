@@ -69,6 +69,7 @@ const en = {
     notifications: 'Notifications',
     markAllRead: 'Mark all as read',
     noNotifications: 'No notifications yet',
+    notifOpen: 'Open notification',
     moderatorPanel: 'Moderator panel',
     adminPanel: 'Admin panel',
     catalog: 'Catalog',

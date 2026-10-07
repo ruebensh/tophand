@@ -71,6 +71,7 @@ const uz = {
     notifications: 'Bildirishnomalar',
     markAllRead: "Barchasini o'qilgan qilish",
     noNotifications: 'Hozircha hech qanday bildirishnoma yo\'q',
+    notifOpen: 'Bildirishnomani ochish',
     moderatorPanel: 'Moderator paneli',
     adminPanel: 'Admin boshqaruvi',
     catalog: 'Katalog',
