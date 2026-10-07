@@ -15,7 +15,7 @@ import {
 } from '../services/moderationService.ts';
 import { getAdvancedAnalytics } from '../services/autoModerationService.ts';
 import { queryAll, queryOne, runQuery, persistDb } from '../db/database.ts';
-import { processAndStoreLogo } from '../services/storageService.ts';
+import { processAndStoreLogo, processAndStoreFavicon } from '../services/storageService.ts';
 import { getMonetizationConfig, setSetting } from '../services/monetizationService.ts';
 import { listAllAds, createAd, updateAd, deleteAd, validateAd, getAdById, type AdInput } from '../services/adService.ts';
 import { isSupportedEntity, exportToXlsx, importFromXlsx } from '../services/exportService.ts';
@@ -467,6 +467,158 @@ router.post('/logo', (req: AuthRequest, res, next) => {
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Logotipni saqlashda xatolik yuz berdi' });
+  }
+});
+
+// ── Favicon Management (light/dark, alohida — sayt logo'sidan mustaqil) ──
+// GET: hozirgi light va dark favicon holati
+router.get('/favicon', async (_req, res) => {
+  try {
+    const readKey = (key: string) =>
+      queryOne<{ value: string; updated_at: string; updated_by?: string }>(
+        'SELECT value, updated_at, updated_by FROM system_settings WHERE key = ?',
+        [key]
+      );
+    const [light, dark] = await Promise.all([readKey('favicon_light_url'), readKey('favicon_dark_url')]);
+
+    const metaOf = async (url?: string) => {
+      const out: { width?: number; height?: number; size?: number; hasAlpha?: boolean } = {};
+      if (!url) return out;
+      try {
+        let localPath = '';
+        if (url.startsWith('/uploads/')) localPath = path.resolve(process.cwd(), url.replace(/^\//, ''));
+        else if (url.startsWith('/')) localPath = path.resolve(process.cwd(), 'public', url.replace(/^\//, ''));
+        if (localPath && fs.existsSync(localPath)) {
+          const stats = await fs.promises.stat(localPath);
+          const meta = await sharp(localPath).metadata();
+          out.size = stats.size;
+          out.width = meta.width;
+          out.height = meta.height;
+          out.hasAlpha = meta.hasAlpha;
+        }
+      } catch (e) {
+        console.warn('Could not read favicon metadata:', e);
+      }
+      return out;
+    };
+
+    const lightUrl = light?.value || '/favicon-light.png';
+    const darkUrl = dark?.value || '/favicon-dark.png';
+
+    let updaterName = 'Tizim (Standart)';
+    const by = dark?.updated_by || light?.updated_by;
+    if (by) {
+      const user = await queryOne<{ name: string }>('SELECT name FROM users WHERE id = ?', [by]);
+      if (user) updaterName = user.name;
+    }
+
+    res.json({
+      light: {
+        url: lightUrl,
+        updated_at: light?.updated_at || null,
+        version: light?.updated_at ? new Date(light.updated_at).getTime().toString() : null,
+        ...(await metaOf(lightUrl)),
+      },
+      dark: {
+        url: darkUrl,
+        updated_at: dark?.updated_at || null,
+        version: dark?.updated_at ? new Date(dark.updated_at).getTime().toString() : null,
+        ...(await metaOf(darkUrl)),
+      },
+      updater_name: updaterName,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST: light yoki dark favicon'ni yuklash (variant = 'light' | 'dark')
+router.post('/favicon', (req: AuthRequest, res, next) => {
+  logoUpload.single('favicon')(req, res, (err: any) => {
+    if (err) {
+      return res.status(400).json({ error: err.message || 'Faylni yuklashda xatolik yuz berdi' });
+    }
+    next();
+  });
+}, async (req: AuthRequest, res) => {
+  try {
+    const variant = String(req.body?.variant || '').toLowerCase();
+    if (variant !== 'light' && variant !== 'dark') {
+      return res.status(400).json({ error: "'variant' qiymati 'light' yoki 'dark' bo'lishi kerak" });
+    }
+
+    const file = req.file;
+    if (!file) {
+      return res.status(400).json({ error: 'Hech qanday favicon fayli tanlanmadi' });
+    }
+
+    const MAX_SIZE = 5 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      return res.status(400).json({ error: 'Fayl hajmi 5 MB dan oshmasligi kerak' });
+    }
+    if (path.extname(file.originalname).toLowerCase() !== '.png') {
+      return res.status(400).json({ error: 'Faqat .png formatidagi fayllar qabul qilinadi.' });
+    }
+    if (file.mimetype !== 'image/png') {
+      return res.status(400).json({ error: "Noto'g'ri fayl formati. Faqat 'image/png' qabul qilinadi." });
+    }
+    if (
+      file.buffer.length < 8 ||
+      file.buffer[0] !== 0x89 || file.buffer[1] !== 0x50 || file.buffer[2] !== 0x4e || file.buffer[3] !== 0x47 ||
+      file.buffer[4] !== 0x0d || file.buffer[5] !== 0x0a || file.buffer[6] !== 0x1a || file.buffer[7] !== 0x0a
+    ) {
+      return res.status(400).json({ error: 'Fayl haqiqiy PNG imzolariga (magic bytes) ega emas.' });
+    }
+
+    let metadata;
+    try {
+      metadata = await sharp(file.buffer).metadata();
+    } catch {
+      return res.status(400).json({ error: 'Rasm maʼlumotlarini dekodlashda xatolik. Buzilmagan PNG yuklang.' });
+    }
+    if (metadata.format !== 'png') {
+      return res.status(400).json({ error: "Rasmning ichki formati PNG emas." });
+    }
+
+    const result = await processAndStoreFavicon(file.buffer, variant as 'light' | 'dark');
+    const settingKey = variant === 'light' ? 'favicon_light_url' : 'favicon_dark_url';
+    const now = new Date().toISOString();
+
+    await runQuery(
+      `INSERT INTO system_settings (key, value, updated_at, updated_by)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
+      [settingKey, result.url, now, req.user!.id]
+    );
+
+    const auditId = `audit_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
+    await runQuery(
+      `INSERT INTO audit_logs (id, actor_user_id, action, target_type, target_id, metadata, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        auditId,
+        req.user!.id,
+        'UPDATE_FAVICON',
+        'SYSTEM',
+        `favicon_${variant}`,
+        JSON.stringify({ variant, new_favicon_url: result.url, original_filename: file.originalname, width: metadata.width, height: metadata.height, has_alpha: metadata.hasAlpha }),
+        now,
+      ]
+    );
+
+    await persistDb();
+
+    res.json({
+      success: true,
+      variant,
+      url: result.url,
+      version: Date.now().toString(),
+      width: result.width,
+      height: result.height,
+      size: result.size,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Faviconni saqlashda xatolik yuz berdi' });
   }
 });
 

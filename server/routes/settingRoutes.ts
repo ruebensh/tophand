@@ -28,7 +28,7 @@ router.get('/logo', async (_req, res) => {
 // Public endpoint to retrieve active branding configuration
 router.get('/branding', async (_req, res) => {
   try {
-    const [brandSetting, logoSetting] = await Promise.all([
+    const [brandSetting, logoSetting, favLight, favDark] = await Promise.all([
       queryOne<{ value: string; updated_at: string }>(
         'SELECT value, updated_at FROM system_settings WHERE key = ?',
         ['platform_brand']
@@ -36,6 +36,14 @@ router.get('/branding', async (_req, res) => {
       queryOne<{ value: string; updated_at: string }>(
         'SELECT value, updated_at FROM system_settings WHERE key = ?',
         ['active_logo_url']
+      ),
+      queryOne<{ value: string }>(
+        'SELECT value FROM system_settings WHERE key = ?',
+        ['favicon_light_url']
+      ),
+      queryOne<{ value: string }>(
+        'SELECT value FROM system_settings WHERE key = ?',
+        ['favicon_dark_url']
       ),
     ]);
 
@@ -48,6 +56,8 @@ router.get('/branding', async (_req, res) => {
       domain_color: '#1673E6',
       tagline: 'Mahalliy Xizmatlar va Ish Bozori Platformasi',
       logo_url: logoSetting?.value || '/TOPHAND.uz (1).png',
+      favicon_light_url: favLight?.value || '/favicon-light.png',
+      favicon_dark_url: favDark?.value || '/favicon-dark.png',
     };
 
     if (brandSetting?.value) {
@@ -61,6 +71,9 @@ router.get('/branding', async (_req, res) => {
     if (logoSetting?.value) {
       brand.logo_url = logoSetting.value;
     }
+    // Favicon always comes from its own dedicated settings (independent of the site logo).
+    brand.favicon_light_url = favLight?.value || '/favicon-light.png';
+    brand.favicon_dark_url = favDark?.value || '/favicon-dark.png';
 
     res.json(brand);
   } catch (err: any) {

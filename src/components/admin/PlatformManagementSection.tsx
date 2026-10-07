@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { apiRequest } from '../../lib/api.ts';
 import { useLogo } from '../../context/LogoContext.tsx';
 import {
@@ -12,6 +12,7 @@ import {
   Type,
   Eye,
   Sliders,
+  Globe,
 } from 'lucide-react';
 import { useI18n } from '../../i18n/IntlContext.tsx';
 
@@ -37,6 +38,75 @@ export const PlatformManagementSection: React.FC = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+
+  // ── Favicon (light/dark) — sayt logo'sidan butunlay mustaqil ──
+  const [favFiles, setFavFiles] = useState<{ light: File | null; dark: File | null }>({ light: null, dark: null });
+  const [favPreviews, setFavPreviews] = useState<{ light: string | null; dark: string | null }>({ light: null, dark: null });
+  const [favInfo, setFavInfo] = useState<{ light: any; dark: any }>({ light: null, dark: null });
+  const [favBusy, setFavBusy] = useState<'light' | 'dark' | null>(null);
+  const [favErr, setFavErr] = useState<string | null>(null);
+  const [favOk, setFavOk] = useState<string | null>(null);
+
+  const fetchFavicon = useCallback(async () => {
+    try {
+      const d = await apiRequest<any>('/api/admin/favicon');
+      setFavInfo({ light: d?.light || null, dark: d?.dark || null });
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchFavicon();
+  }, [fetchFavicon]);
+
+  const pickFavicon = (variant: 'light' | 'dark', f?: File) => {
+    setFavErr(null);
+    setFavOk(null);
+    if (!f) return;
+    if (!f.name.toLowerCase().endsWith('.png')) {
+      setFavErr(t('admin.fmsFmtErr'));
+      return;
+    }
+    if (f.size > 5 * 1024 * 1024) {
+      setFavErr(t('admin.fmsSizeErr'));
+      return;
+    }
+    setFavFiles((p) => ({ ...p, [variant]: f }));
+    const reader = new FileReader();
+    reader.onloadend = () => setFavPreviews((p) => ({ ...p, [variant]: reader.result as string }));
+    reader.readAsDataURL(f);
+  };
+
+  const uploadFavicon = async (variant: 'light' | 'dark') => {
+    const f = favFiles[variant];
+    if (!f) return;
+    setFavBusy(variant);
+    setFavErr(null);
+    setFavOk(null);
+    try {
+      const fd = new FormData();
+      fd.append('favicon', f);
+      fd.append('variant', variant);
+      const token = localStorage.getItem('tophand_token');
+      const res = await fetch('/api/admin/favicon', {
+        method: 'POST',
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || t('admin.fmsErr'));
+      setFavOk(t('admin.fmsUploaded'));
+      setFavFiles((p) => ({ ...p, [variant]: null }));
+      setFavPreviews((p) => ({ ...p, [variant]: null }));
+      await refreshLogo();
+      await fetchFavicon();
+    } catch (e: any) {
+      setFavErr(e.message || t('admin.fmsErr'));
+    } finally {
+      setFavBusy(null);
+    }
+  };
 
   useEffect(() => {
     setPrefixText(branding.prefix_text || 'top');
@@ -443,6 +513,108 @@ export const PlatformManagementSection: React.FC = () => {
             </button>
           </div>
         )}
+      </div>
+
+      {/* 3. Favicon (light/dark) — sayt logo'sidan mustaqil brauzer ikonasi */}
+      <div className="bg-white rounded-3xl border border-gray-100 p-6 sm:p-8 shadow-xs">
+        <h3 className="text-lg font-extrabold text-gray-950 flex items-center gap-2 mb-2">
+          <Globe className="w-5 h-5 text-blue-600" />
+          <span>{t('admin.fmsTitle')}</span>
+        </h3>
+        <p className="text-xs text-gray-500 mb-6">{t('admin.fmsSubtitle')}</p>
+
+        {favErr && (
+          <div className="mb-4 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>{favErr}</span>
+          </div>
+        )}
+        {favOk && (
+          <div className="mb-4 p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{favOk}</span>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {(['light', 'dark'] as const).map((v) => {
+            const info = favInfo[v];
+            const currentSrc = info?.url
+              ? `${info.url}${info.url.includes('?') ? '&' : '?'}v=${info.version || 'x'}`
+              : null;
+            const shown = favPreviews[v] || currentSrc;
+            return (
+              <div key={v} className="p-5 rounded-2xl border border-gray-200 bg-gray-50/60">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-bold text-gray-700">
+                    {t(v === 'dark' ? 'admin.fmsDarkLabel' : 'admin.fmsLightLabel')}
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800">
+                    {t('admin.fmsActive')}
+                  </span>
+                </div>
+
+                <div
+                  className="relative w-full h-32 rounded-xl border border-gray-200 flex items-center justify-center p-4 overflow-hidden bg-white"
+                  style={{
+                    backgroundImage:
+                      'linear-gradient(45deg, #f3f4f6 25%, transparent 25%), linear-gradient(-45deg, #f3f4f6 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #f3f4f6 75%), linear-gradient(-45deg, transparent 75%, #f3f4f6 75%)',
+                    backgroundSize: '16px 16px',
+                    backgroundPosition: '0 0, 0 8px, 8px -8px, -8px 0px',
+                  }}
+                >
+                  {shown ? (
+                    <img src={shown} alt={`Favicon ${v}`} className="max-h-full max-w-full object-contain" />
+                  ) : (
+                    <span className="text-[11px] text-gray-400">{t('admin.fmsNone')}</span>
+                  )}
+                </div>
+
+                <input
+                  type="file"
+                  id={`fav-${v}-input`}
+                  accept=".png,image/png"
+                  onChange={(e) => pickFavicon(v, e.target.files?.[0])}
+                  className="hidden"
+                />
+
+                <div className="mt-4 flex items-center gap-2">
+                  <label
+                    htmlFor={`fav-${v}-input`}
+                    className="flex-1 cursor-pointer py-2.5 px-4 rounded-xl border border-gray-300 hover:bg-gray-100 text-gray-700 text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <Upload className="w-4 h-4" />
+                    <span>{favFiles[v] ? t('admin.mpsChooseOther') : t('admin.fmsChoose')}</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => uploadFavicon(v)}
+                    disabled={!favFiles[v] || favBusy === v}
+                    className="py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5 disabled:opacity-50"
+                  >
+                    {favBusy === v ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>{t('admin.fmsUploading')}</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>{t('admin.fmsUpload')}</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                <p className="mt-2 text-[11px] text-gray-400">{t('admin.fmsHint')}</p>
+              </div>
+            );
+          })}
+        </div>
+
+        <p className="mt-4 text-[11px] text-amber-600 flex items-center gap-1.5">
+          <Info className="w-3.5 h-3.5" />
+          <span>{t('admin.fmsNote')}</span>
+        </p>
       </div>
     </div>
   );

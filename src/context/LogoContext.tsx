@@ -10,6 +10,8 @@ export interface PlatformBranding {
   domain_color: string;
   tagline: string;
   logo_url: string;
+  favicon_light_url: string;
+  favicon_dark_url: string;
 }
 
 const DEFAULT_BRANDING: PlatformBranding = {
@@ -21,6 +23,8 @@ const DEFAULT_BRANDING: PlatformBranding = {
   domain_color: '#1673E6',
   tagline: 'Mahalliy Xizmatlar va Ish Bozori Platformasi',
   logo_url: '/TOPHAND.uz (1).png',
+  favicon_light_url: '/favicon-light.png',
+  favicon_dark_url: '/favicon-dark.png',
 };
 
 interface LogoContextType {
@@ -51,12 +55,33 @@ export const LogoProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [version, setVersion] = useState<string>(() => Date.now().toString());
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  const syncFavicon = (urlWithVersion: string) => {
+  // Favicon — sayt logo'sidan MUSTAQIL. Ikkita variantni prefers-color-scheme
+  // media-query orqali qo'llaymiz: yorug' tab uchun light, qorong'i tab uchun dark.
+  const applyFavicon = (lightUrl: string, darkUrl: string, version: string) => {
     try {
-      const iconLink = document.querySelector("link[rel='icon']") as HTMLLinkElement;
-      if (iconLink) iconLink.href = urlWithVersion;
-      const touchIconLink = document.querySelector("link[rel='apple-touch-icon']") as HTMLLinkElement;
-      if (touchIconLink) touchIconLink.href = urlWithVersion;
+      const sep = (u: string) => (u.includes('?') ? '&' : '?');
+      const ensure = (id: string, media: string, href: string) => {
+        let el = document.getElementById(id) as HTMLLinkElement | null;
+        if (!el) {
+          el = document.createElement('link');
+          el.id = id;
+          el.rel = 'icon';
+          el.type = 'image/png';
+          if (media) el.media = media;
+          document.head.appendChild(el);
+        }
+        el.href = href;
+      };
+      ensure('favicon-light', '(prefers-color-scheme: light)', `${lightUrl}${sep(lightUrl)}v=${version}`);
+      ensure('favicon-dark', '(prefers-color-scheme: dark)', `${darkUrl}${sep(darkUrl)}v=${version}`);
+
+      let touch = document.querySelector("link[rel='apple-touch-icon']") as HTMLLinkElement | null;
+      if (!touch) {
+        touch = document.createElement('link');
+        touch.rel = 'apple-touch-icon';
+        document.head.appendChild(touch);
+      }
+      touch.href = `${lightUrl}${sep(lightUrl)}v=${version}`;
     } catch {
       // Ignored
     }
@@ -69,10 +94,14 @@ export const LogoProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setBranding((prev) => ({ ...prev, ...data }));
         if (data.logo_url) {
           setLogoUrl(data.logo_url);
-          const v = Date.now().toString();
-          setVersion(v);
-          syncFavicon(`${data.logo_url}?v=${v}`);
+          setVersion(Date.now().toString());
         }
+        // Favicon sayt logo'sidan mustaqil — light/dark variantlarni qo'llaymiz.
+        applyFavicon(
+          data.favicon_light_url || DEFAULT_BRANDING.favicon_light_url,
+          data.favicon_dark_url || DEFAULT_BRANDING.favicon_dark_url,
+          Date.now().toString()
+        );
       }
     } catch (err) {
       console.warn('Could not fetch branding from server:', err);
@@ -90,7 +119,7 @@ export const LogoProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setBranding((prev) => ({ ...prev, logo_url: newUrl }));
     const newVersion = updatedAt ? new Date(updatedAt).getTime().toString() : Date.now().toString();
     setVersion(newVersion);
-    syncFavicon(`${newUrl}?v=${newVersion}`);
+    // Eslatma: sayt logosi endi favicon'ga ta'sir QILMAYDI — favicon alohida boshqariladi.
   }, []);
 
   const updateBranding = useCallback((newBranding: Partial<PlatformBranding>) => {

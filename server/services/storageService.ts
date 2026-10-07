@@ -194,6 +194,77 @@ export async function processAndStoreLogo(
 }
 
 /**
+ * Optimizes and stores a favicon PNG (transparency preserved) under the `favicon/` folder.
+ * `variant` is 'light' (for light browser/tab background) or 'dark' (for dark background).
+ * Separate from the site logo — the favicon is its own asset.
+ */
+export async function processAndStoreFavicon(
+  inputBuffer: Buffer,
+  variant: 'light' | 'dark'
+): Promise<UploadResult> {
+  const processedBuffer = await sharp(inputBuffer)
+    .rotate()
+    .resize({
+      width: 512,
+      height: 512,
+      fit: 'inside',
+      withoutEnlargement: true,
+    })
+    .png({ compressionLevel: 9 })
+    .toBuffer();
+
+  const processedMeta = await sharp(processedBuffer).metadata();
+  const uniqueId = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+  const filename = `favicon-${variant}-${uniqueId}.png`;
+  const storageKey = `favicon/${filename}`;
+
+  if (r2Client) {
+    await r2Client.send(
+      new PutObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: storageKey,
+        Body: processedBuffer,
+        ContentType: 'image/png',
+        CacheControl: 'public, max-age=31536000, immutable',
+      })
+    );
+
+    const publicUrl = process.env.R2_PUBLIC_URL
+      ? `${process.env.R2_PUBLIC_URL.replace(/\/$/, '')}/${storageKey}`
+      : `/api/storage/${storageKey}`;
+
+    return {
+      url: publicUrl,
+      key: storageKey,
+      size: processedBuffer.length,
+      width: processedMeta.width,
+      height: processedMeta.height,
+      mimetype: 'image/png',
+      storage: 'r2',
+    };
+  }
+
+  // Local fallback
+  const faviconDir = path.join(UPLOAD_DIR, 'favicon');
+  if (!fs.existsSync(faviconDir)) {
+    fs.mkdirSync(faviconDir, { recursive: true });
+  }
+
+  const localPath = path.join(faviconDir, filename);
+  await fs.promises.writeFile(localPath, processedBuffer);
+
+  return {
+    url: `/uploads/favicon/${filename}`,
+    key: storageKey,
+    size: processedBuffer.length,
+    width: processedMeta.width,
+    height: processedMeta.height,
+    mimetype: 'image/png',
+    storage: 'local',
+  };
+}
+
+/**
  * Stores a raw video file (mp4/webm) in Cloudflare R2 or local disk.
  * Faza 13 — video media for listings.
  */
