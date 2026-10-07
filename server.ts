@@ -40,6 +40,25 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 // Trust the first proxy (Render/Cloudflare) so req.ip / X-Forwarded-For is correct.
 app.set('trust proxy', 1);
 
+// ── Canonical host: www → apex 301 ──
+// Bitta kanonik domen (SITE_URL host, masalan tophand.uz). www varianti kelsa,
+// doimiy 301 bilan apex'ga qaytariladi — shunda Google bitta entity ko'radi.
+const CANON_HOST = (() => {
+  try {
+    return new URL(process.env.SITE_URL || 'https://tophand.uz').host.replace(/^www\./, '');
+  } catch {
+    return 'tophand.uz';
+  }
+})();
+app.use((req, res, next) => {
+  const host = (req.headers['x-forwarded-host'] as string) || req.headers.host || '';
+  if (host.startsWith('www.') && host.slice(4) === CANON_HOST) {
+    const proto = (req.headers['x-forwarded-proto'] as string) || req.protocol || 'https';
+    return res.redirect(301, `${proto}://${CANON_HOST}${req.originalUrl}`);
+  }
+  next();
+});
+
 // Body parser
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
