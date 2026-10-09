@@ -4,6 +4,7 @@
 // empty env (silently falling back to the insecure dev secret).
 import 'dotenv/config';
 import express from 'express';
+import crypto from 'crypto';
 import path from 'path';
 import fs from 'fs';
 import { initDatabase } from './server/db/init.ts';
@@ -36,7 +37,8 @@ import adsRoutes from './server/routes/adsRoutes.ts';
 import seoRoutes from './server/routes/seoRoutes.ts';
 import translateRoutes from './server/routes/translateRoutes.ts';
 import verifyMediaRoutes from './server/routes/verifyMediaRoutes.ts';
-import { EXPOSED } from './server/lib/envSecurity.ts';
+import { EXPOSED, LOCAL_DEV } from './server/lib/envSecurity.ts';
+import { MEDIA_SIGNING_ENABLED } from './server/lib/signedUrl.ts';
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
@@ -106,8 +108,13 @@ function rateLimit(opts: { windowMs: number; max: number; message: string }) {
   if (typeof sweeper.unref === 'function') sweeper.unref();
 
   return (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || 'unknown';
-    const key = `${ip}|${req.baseUrl}${req.path}`;
+    // P2-4: do NOT hand-parse X-Forwarded-For (spoofable). Express `trust proxy`
+    // is configured above, so req.ip is the verified client IP. We also fold in a
+    // short hash of the bearer token so a single user (not just an IP) gets their
+    // own bucket — per-user + per-IP limiting without decoding auth at this layer.
+    const authHeader = req.headers.authorization || '';
+    const tokenTag = authHeader ? crypto.createHash('sha1').update(authHeader).digest('hex').slice(0, 12) : '';
+    const key = `${req.ip || 'unknown'}|${tokenTag}|${req.baseUrl}${req.path}`;
     const now = Date.now();
     let rec = hits.get(key);
     if (!rec || now > rec.reset) {
@@ -144,7 +151,15 @@ const contentLimiter = mutateLimiter({ windowMs: 15 * 60 * 1000, max: 60, messag
 const chatLimiter = mutateLimiter({ windowMs: 60 * 1000, max: 60, message: "Juda ko'p xabar. Biroz kuting." });
 const aiLimiter = mutateLimiter({ windowMs: 60 * 60 * 1000, max: 120, message: "AI chegarasi oshdi. Birozdan so'ng urinib ko'ring." });
 const uploadLimiter = mutateLimiter({ windowMs: 15 * 60 * 1000, max: 120, message: "Yuklash chegarasi oshdi. Birozdan so'ng urinib ko'ring." });
-const exportLimiter = mutateLimiter({ windowMs: 60 * 60 * 1000, max: 20, message: "Eksport chegarasi oshdi. Birozdan so'ng urinib ko'ring." });
+// P2-4: general mutation guard for the previously-uncovered write route groups
+// (users, saved, notifications, push, moderation, messaging, admin, settings,
+// theme, ads). NOTE (infra): this store is process-local (in-memory Map). For
+// multi-instance deployments a shared Redis store + trusted edge/WAF is required
+// so counters are global — see report item #5 (deferred, needs infra).
+const mutateGuard = mutateLimiter({ windowMs: 15 * 60 * 1000, max: 120, message: "Juda ko'p amallar. Birozdan so'ng urinib ko'ring." });
+// P2-4: admin export is a GET but expensive (full-table XLSX). Use a GET-counting
+// rateLimit (NOT the mutation-only limiter, which skips GETs) keyed by ip+token.
+const exportLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 20, message: "Eksport chegarasi oshdi. Birozdan so'ng urinib ko'ring." });
 
 // Static assets with permissive CORS & Cross-Origin-Resource-Policy for browser
 // image loading. Scoped to NON-/api paths only (L-04): the API is same-origin and
@@ -194,29 +209,29 @@ app.use('/api/auth/forgot-password', codeLimiter);
 app.use('/api/auth', authLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/verification-photo', verifyMediaRoutes);
-app.use('/api/users', userRoutes);
+app.use('/api/users', mutateGuard, userRoutes);
 app.use('/api/listings', contentLimiter, listingRoutes);
 app.use('/api/chat', chatLimiter, chatRoutes);
-app.use('/api/saved-listings', savedRoutes);
+app.use('/api/saved-listings', mutateGuard, savedRoutes);
 app.use('/api/locations', locationRoutes);
 app.use('/api/catalogs', catalogRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/ai', aiLimiter, aiRoutes);
 app.use('/api/organizations', contentLimiter, organizationRoutes);
-app.use('/api/notifications', notificationRoutes);
-app.use('/api/push', pushRoutes);
-app.use('/api/moderation', moderationRoutes);
-app.use('/api/messaging', messagingRoutes);
+app.use('/api/notifications', mutateGuard, notificationRoutes);
+app.use('/api/push', mutateGuard, pushRoutes);
+app.use('/api/moderation', mutateGuard, moderationRoutes);
+app.use('/api/messaging', mutateGuard, messagingRoutes);
 app.use('/api/admin/export', exportLimiter);
-app.use('/api/admin', adminRoutes);
+app.use('/api/admin', mutateGuard, adminRoutes);
 app.use('/api/upload', uploadLimiter, uploadRoutes);
 app.use('/api/storage', uploadLimiter, uploadRoutes);
-app.use('/api/settings', settingRoutes);
-app.use('/api/theme', themeRoutes);
+app.use('/api/settings', mutateGuard, settingRoutes);
+app.use('/api/theme', mutateGuard, themeRoutes);
 app.use('/api/reviews', contentLimiter, reviewRoutes);
 app.use('/api/wallet', contentLimiter, walletRoutes);
 app.use('/api/monetization', contentLimiter, monetizationRoutes);
-app.use('/api/ads', adsRoutes);
+app.use('/api/ads', mutateGuard, adsRoutes);
 app.use('/api/translate', translateLimiter, translateRoutes);
 
 // Health check endpoint
@@ -249,6 +264,15 @@ async function startServer() {
       const hasGoogle = Boolean(GOOGLE_CLIENT_ID_FOR_STARTUP);
       if (!hasMail) console.warn("⚠️  [exposed] Email provider YO'Q — ro'yxatdan o'tish/parol tiklash ishlamaydi (BREVO_API_KEY yoki SMTP).");
       if (!hasGoogle) console.warn("⚠️  [exposed] GOOGLE_CLIENT_ID YO'Q — Google login fail-closed bo'ladi.");
+      // P2-1: verification-media signing needs a strong secret. In an exposed env
+      // JWT_SECRET is already mandatory, but a short one disables signed serving.
+      if (!MEDIA_SIGNING_ENABLED) {
+        console.warn("⚠️  [exposed] Verification-media imzolash O'CHIQ (JWT_SECRET/VERIFICATION_MEDIA_SECRET kamida 16 belgi bo'lishi kerak) — tasdiq rasmlari ko'rsatilmaydi.");
+      }
+      // P1-1: warn if verifications may still be publicly reachable on R2.
+      if (process.env.R2_PUBLIC_URL && !process.env.R2_PRIVATE_BUCKET_NAME) {
+        console.warn("⚠️  [exposed] R2_PUBLIC_URL sozlangan, lekin R2_PRIVATE_BUCKET_NAME yo'q — `verifications/*` prefix'ida public read O'CHIRILGANligini Cloudflare/R2 tomonida MAJBURIY tekshiring.");
+      }
     }
 
     // 1. Initialize PostgreSQL database & seed data
@@ -257,8 +281,12 @@ async function startServer() {
     // 2. Start background cron for listing lifecycle (configurable active-days) & notifications
     startExpirationCron();
 
-    // 3. Vite development middleware or static production build
-    const isDev = process.env.NODE_ENV !== 'production';
+    // 3. Vite development middleware or static production build.
+    // SECURITY (P1-3): the Vite dev middleware binds 0.0.0.0 and exposes source,
+    // HMR and unbundled modules — it must NEVER run in an internet-exposed env
+    // (staging/preview/unset/production). It is gated ONLY on explicit LOCAL_DEV=1
+    // (set by `npm run dev`), not on NODE_ENV. Any other mode serves the built dist/.
+    const isDev = LOCAL_DEV;
 
     if (isDev) {
       const { createServer: createViteServer } = await import('vite');

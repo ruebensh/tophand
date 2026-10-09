@@ -1,3 +1,4 @@
+import { serverError } from '../lib/error.ts';
 import { Router } from 'express';
 import { queryAll, queryOne, runQuery } from '../db/database.ts';
 import { AuthRequest, requireAuth, requireRole } from '../auth/telegram.ts';
@@ -55,7 +56,7 @@ router.get('/', async (req, res) => {
     const categories = await queryAll(sql, params);
     res.json(categories);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -111,7 +112,7 @@ router.get('/tree', async (req, res) => {
 
     res.json(tree);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -152,7 +153,7 @@ router.get('/:id', async (req, res) => {
       subs,
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -193,7 +194,7 @@ router.get('/:id/attributes', async (req, res) => {
     }));
     res.json(parsed);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -279,7 +280,7 @@ router.get('/:id/popular', async (req, res) => {
 
     res.json({ key: popularAttr.key, label: popularAttr.label_uz, items });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -312,7 +313,7 @@ router.post('/', requireAuth, requireRole(['ADMIN']), async (req: AuthRequest, r
     const created = await queryOne('SELECT * FROM categories WHERE id = ?', [id]);
     res.status(201).json(created);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -348,7 +349,7 @@ router.put('/:id', requireAuth, requireRole(['ADMIN']), async (req: AuthRequest,
     const updated = await queryOne('SELECT * FROM categories WHERE id = ?', [req.params.id]);
     res.json(updated);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -389,7 +390,7 @@ router.delete('/:id', requireAuth, requireRole(['ADMIN']), async (req: AuthReque
 
     res.json({ success: true, message: 'Kategoriya va uning subkategoriyalari muvaffaqiyatli o‘chirildi' });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 

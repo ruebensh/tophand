@@ -144,6 +144,27 @@ export async function initDatabase() {
     END $$;
   `);
 
+  // 4b. verification_uploads (P1-2): server-side binding of a verification
+  //     passport/selfie object to its OWNER. The client never supplies a raw URL;
+  //     it receives an opaque upload_id, and the object_key is generated here.
+  //     Moderation + signed serving resolve the object via this row (owner check).
+  await createTableIfNotExists(`
+    CREATE TABLE IF NOT EXISTS verification_uploads (
+      id TEXT PRIMARY KEY,
+      owner_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      purpose TEXT NOT NULL DEFAULT 'verification',
+      object_key TEXT NOT NULL,
+      media_type TEXT NOT NULL DEFAULT 'image/webp',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await pool.query(
+    'CREATE INDEX IF NOT EXISTS idx_verification_uploads_owner ON verification_uploads(owner_user_id)'
+  );
+  await pool.query(
+    'ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_upload_id TEXT'
+  );
+
   // 5. organizations
   await createTableIfNotExists(`
     CREATE TABLE IF NOT EXISTS organizations (

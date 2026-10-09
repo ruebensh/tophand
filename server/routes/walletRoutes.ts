@@ -1,3 +1,4 @@
+import { serverError } from '../lib/error.ts';
 import { Router, Response } from 'express';
 import { requireAuth, AuthRequest } from '../auth/telegram.ts';
 import { getBalance, topUp, listTransactions } from '../services/walletService.ts';
@@ -12,7 +13,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res: Response) => {
     const transactions = await listTransactions(req.user!.id, 30);
     res.json({ balance, currency: 'UZS', transactions });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -23,21 +24,21 @@ router.get('/transactions', requireAuth, async (req: AuthRequest, res: Response)
     const transactions = await listTransactions(req.user!.id, limit);
     res.json({ transactions });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
 // POST /api/wallet/topup — add funds.
-// SECURITY (H-05): this is a demo stub that mints balance with NO verified
-// payment. It must never be reachable in an internet-exposed env. We hard-disable
-// it unless running in an explicit local dev/test env (LOCAL_DEV / NODE_ENV=
-// development|test) OR an operator explicitly sets ALLOW_DEMO_TOPUP=1. Staging/
-// preview/unset NODE_ENV are now disabled too (previously only production was).
-// The real path is a verified payment-provider webhook that calls topUp() with
-// an exact amount/currency, ownership, idempotency and provider transaction id.
+// SECURITY (H-05 / P1-3): this is a demo stub that mints balance with NO verified
+// payment. It must never be reachable in an internet-exposed env. It is enabled
+// ONLY under an explicit LOCAL_DEV=1. The ALLOW_DEMO_TOPUP=1 override is NOT
+// honored when exposed (staging/preview/unset/production) — a stray env var on a
+// public host can no longer re-open free balance. Real path = verified payment-
+// provider webhook calling topUp() with exact amount/currency, ownership,
+// idempotency and provider transaction id.
 router.post('/topup', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const demoAllowed = INSECURE_ALLOWED || process.env.ALLOW_DEMO_TOPUP === '1';
+    const demoAllowed = INSECURE_ALLOWED;
     if (!demoAllowed) {
       return res.status(503).json({
         error: "To'lov tizimi ulanmagan — balans to'ldirish vaqtincha o'chirilgan.",

@@ -1,11 +1,27 @@
+import { serverError } from '../lib/error.ts';
 import { Router } from 'express';
+import multer from 'multer';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { requireAuth, optionalAuth, AuthRequest } from '../auth/telegram.ts';
 import { queryOne, queryAll, runQuery } from '../db/database.ts';
 import { sanitizeUserUrl } from '../lib/urlSecurity.ts';
+import { processAndStoreVerificationImage } from '../services/storageService.ts';
+import { signVerificationPhotoUrl } from '../lib/signedUrl.ts';
 
 const router = Router();
+
+// P1-1/P1-2: dedicated, authenticated verification-image upload. Memory storage,
+// strict single raster MIME + explicit multipart limits (mirrors uploadRoutes).
+const verificationUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 15 * 1024 * 1024, files: 1, fieldSize: 16 * 1024, parts: 4 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/jpg', 'image/pjpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (allowed.includes(file.mimetype.toLowerCase())) cb(null, true);
+    else cb(new Error('Faqat rasm fayllari (JPEG, PNG, WebP, GIF) yuklanishi mumkin'));
+  },
+});
 
 // Public user profile
 router.get('/:id', optionalAuth, async (req: AuthRequest, res) => {
@@ -62,7 +78,7 @@ router.get('/:id', optionalAuth, async (req: AuthRequest, res) => {
 
     res.json(user);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -84,7 +100,7 @@ router.get('/:id/phone', requireAuth, async (req: AuthRequest, res) => {
       warning: "Shaxsiy ma’lumotlaringizni ulashishdan oldin ehtiyot bo‘ling. TopHand orqali yozish — xavfsizroq aloqa usuli.",
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -126,7 +142,7 @@ router.put('/me', requireAuth, async (req: AuthRequest, res) => {
     const updated = await queryOne('SELECT * FROM users WHERE id = ?', [req.user!.id]);
     res.json({ success: true, user: updated });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -175,13 +191,41 @@ router.post('/change-password', requireAuth, async (req: AuthRequest, res) => {
     // Xavfsizlik: parol/esh hech qachon logga yoki javobga chiqmaydi.
     res.json({ success: true, password_set: true, created: !hasPassword });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
 // ─── Tasdiq nishoni (Verified badge): user self-service request ─────────────
-// Foydalanuvchi pasport ma'lumoti + rasmini yuboradi → status PENDING
-// (keyin moderator/admin tomonidan ko'rib chiqiladi).
+// P1-1/P1-2 flow:
+//   1) upload the passport/selfie via /me/verification/upload → stored PRIVATELY,
+//      returns an opaque upload_id (never a raw public URL);
+//   2) submit the application referencing ONLY that upload_id.
+// The client can never inject an arbitrary photo URL, and ownership is enforced
+// server-side (the object row must belong to the submitting user).
+
+// 1) Verification image upload — authenticated, private storage → upload_id.
+router.post('/me/verification/upload', requireAuth, verificationUpload.single('image'), async (req: AuthRequest, res) => {
+  try {
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ error: 'Rasm fayli tanlanmadi' });
+    }
+    const stored = await processAndStoreVerificationImage(req.file.buffer);
+    const uploadId = `vup_${crypto.randomUUID().replace(/-/g, '').slice(0, 20)}`;
+    const createdAt = new Date().toISOString();
+    await runQuery(
+      `INSERT INTO verification_uploads (id, owner_user_id, purpose, object_key, media_type, created_at)
+       VALUES (?, ?, 'verification', ?, 'image/webp', ?)`,
+      [uploadId, req.user!.id, stored.objectKey, createdAt]
+    );
+    // Short-lived, owner-bound signed preview (proxy re-checks ownership on serve).
+    const previewUrl = signVerificationPhotoUrl(stored.filename, req.user!.id);
+    res.json({ upload_id: uploadId, preview_url: previewUrl });
+  } catch (err: any) {
+    serverError(res, err, 'Tasdiq rasmini yuklashda xatolik yuz berdi');
+  }
+});
+
+// 2) Submit the verification application (references an owned upload_id only).
 router.post('/me/verification', requireAuth, async (req: AuthRequest, res) => {
   try {
     const {
@@ -192,6 +236,7 @@ router.post('/me/verification', requireAuth, async (req: AuthRequest, res) => {
       pinfl,
       passport_issued_by,
       passport_issued_date,
+      verification_upload_id,
       verification_photo_url,
     } = req.body || {};
 
@@ -210,8 +255,21 @@ router.post('/me/verification', requireAuth, async (req: AuthRequest, res) => {
     if (!cleanPinfl || cleanPinfl.length !== 14 || /\D/.test(cleanPinfl)) {
       return res.status(400).json({ error: "PINFL 14 ta raqamdan iborat bo'lishi kerak" });
     }
-    if (!verification_photo_url) {
+    // P1-2: refuse any client-supplied photo URL — only an upload_id obtained
+    // from /me/verification/upload is accepted.
+    if (verification_photo_url != null && String(verification_photo_url).trim() !== '') {
+      return res.status(400).json({ error: 'verification_photo_url qabul qilinmaydi — rasmni /me/verification/upload orqali yuklang' });
+    }
+    if (!verification_upload_id) {
       return res.status(400).json({ error: "Pasport rasmini (yoki o'zingizning selfie suratni) yuklang" });
+    }
+    // Ownership: the referenced upload must exist AND belong to this user.
+    const upload = await queryOne<any>(
+      `SELECT object_key FROM verification_uploads WHERE id = ? AND owner_user_id = ?`,
+      [verification_upload_id, req.user!.id]
+    );
+    if (!upload || !upload.object_key) {
+      return res.status(403).json({ error: 'Yuklangan rasm topilmadi yoki sizga tegishli emas' });
     }
 
     const current = await queryOne<any>('SELECT verification_status FROM users WHERE id = ?', [req.user!.id]);
@@ -232,6 +290,7 @@ router.post('/me/verification', requireAuth, async (req: AuthRequest, res) => {
         pinfl = ?,
         passport_issued_by = ?,
         passport_issued_date = ?,
+        verification_upload_id = ?,
         verification_photo_url = ?,
         verification_status = 'PENDING',
         verification_rejection_reason = NULL,
@@ -245,7 +304,10 @@ router.post('/me/verification', requireAuth, async (req: AuthRequest, res) => {
         cleanPinfl,
         (passport_issued_by || '').trim() || null,
         (passport_issued_date || '').trim() || null,
-        sanitizeUserUrl(verification_photo_url),
+        verification_upload_id,
+        // Private object-key reference (NOT a servable public URL); serving goes
+        // exclusively through the owner-bound signed proxy.
+        upload.object_key,
         now,
         req.user!.id,
       ]
@@ -254,7 +316,7 @@ router.post('/me/verification', requireAuth, async (req: AuthRequest, res) => {
     const updated = await queryOne('SELECT * FROM users WHERE id = ?', [req.user!.id]);
     res.json({ success: true, user: updated });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -311,7 +373,7 @@ router.post('/:id/follow', requireAuth, async (req: AuthRequest, res) => {
       return res.json({ followed: true });
     }
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -360,7 +422,7 @@ router.get('/:id/followers', optionalAuth, async (req: AuthRequest, res) => {
 
     res.json(result);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -409,7 +471,7 @@ router.get('/:id/following', optionalAuth, async (req: AuthRequest, res) => {
 
     res.json(result);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -472,7 +534,7 @@ router.get('/:id/listings', optionalAuth, async (req: AuthRequest, res) => {
       }))
     );
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 

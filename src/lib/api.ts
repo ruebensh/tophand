@@ -88,6 +88,29 @@ export async function uploadImageFile(file: File, folder?: string): Promise<stri
   return data.url as string;
 }
 
+// P1-1/P1-2: verification passport/selfie upload — PRIVATE storage. Returns an
+// opaque upload_id (never a raw public URL) plus a short-lived owner-bound signed
+// preview for showing the just-uploaded image before submission.
+export async function uploadVerificationImageFile(
+  file: File
+): Promise<{ upload_id: string; preview_url: string | null }> {
+  const token = getStoredToken();
+  const formData = new FormData();
+  formData.append('image', file);
+
+  const response = await fetch('/api/users/me/verification/upload', {
+    method: 'POST',
+    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: formData,
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error || 'Tasdiq rasmini yuklashda xatolik');
+  }
+  return { upload_id: data.upload_id as string, preview_url: (data.preview_url as string) ?? null };
+}
+
 // Faza 13 — upload a listing video (mp4/webm), returns its URL.
 export async function uploadVideoFile(file: File): Promise<string> {
   const token = getStoredToken();

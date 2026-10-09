@@ -1,3 +1,4 @@
+import { serverError } from '../lib/error.ts';
 import { Router } from 'express';
 import { pool, queryAll } from '../db/database.ts';
 import { UZBEKISTAN_DISTRICTS } from '../db/districtsData.ts';
@@ -9,7 +10,7 @@ router.get('/regions', async (_req, res) => {
     const regions = await queryAll('SELECT * FROM regions ORDER BY sort_order ASC');
     res.json(regions);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -100,7 +101,7 @@ router.get('/detect', async (req, res) => {
       lon: nearest.lon,
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -159,7 +160,7 @@ router.get('/nearby-listings', async (req, res) => {
     const result = await pool.query(sql, nearbyDistrictIds);
     res.json({ items: result.rows });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -187,7 +188,7 @@ router.get('/all-listings', async (_req, res) => {
     const result = await pool.query(sql);
     res.json({ items: result.rows });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 

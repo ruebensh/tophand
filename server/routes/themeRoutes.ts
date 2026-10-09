@@ -1,3 +1,4 @@
+import { serverError } from '../lib/error.ts';
 import { Router } from 'express';
 import { queryOne, runQuery } from '../db/database.ts';
 import { requireAuth, AuthRequest } from '../auth/telegram.ts';
@@ -57,7 +58,7 @@ router.get('/config', async (_req, res) => {
       regionThemesEnabled: regionEnabledRaw === null ? true : regionEnabledRaw === 'true',
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -72,7 +73,7 @@ router.put('/holidays', requireAuth, async (req: AuthRequest, res) => {
     await setSetting('holidays', JSON.stringify(list), req.user!.id);
     res.json({ success: true, count: list.length });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -84,7 +85,7 @@ router.put('/region-themes/enabled', requireAuth, async (req: AuthRequest, res) 
     await setSetting('region_themes_enabled', enabled ? 'true' : 'false', req.user!.id);
     res.json({ success: true, enabled });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -99,7 +100,7 @@ router.put('/region-themes', requireAuth, async (req: AuthRequest, res) => {
     await setSetting('region_themes', JSON.stringify(themes), req.user!.id);
     res.json({ success: true });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -122,7 +123,7 @@ router.put('/override', requireAuth, async (req: AuthRequest, res) => {
     );
     res.json({ success: true, override: { type: override.type, id: override.id } });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 

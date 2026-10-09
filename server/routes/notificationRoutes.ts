@@ -1,3 +1,4 @@
+import { serverError } from '../lib/error.ts';
 import { Router } from 'express';
 import { requireAuth, AuthRequest } from '../auth/telegram.ts';
 import { queryAll, queryOne, runQuery } from '../db/database.ts';
@@ -22,7 +23,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
       unread_count: unreadCountRes?.count || 0,
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -36,7 +37,7 @@ router.post('/read-all', requireAuth, async (req: AuthRequest, res) => {
     ]);
     res.json({ success: true });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -51,7 +52,7 @@ router.post('/:id/read', requireAuth, async (req: AuthRequest, res) => {
     ]);
     res.json({ success: true });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 

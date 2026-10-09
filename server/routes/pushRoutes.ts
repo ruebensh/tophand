@@ -1,3 +1,4 @@
+import { serverError } from '../lib/error.ts';
 import { Router, Response } from 'express';
 import { requireAuth, AuthRequest } from '../auth/telegram.ts';
 import {
@@ -22,7 +23,7 @@ router.get('/status', requireAuth, async (req: AuthRequest, res: Response) => {
     const subscribed = await hasSubscription(req.user!.id);
     res.json({ subscribed, enabled: isPushConfigured() });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 

@@ -1,3 +1,4 @@
+import { serverError } from '../lib/error.ts';
 import { Router } from 'express';
 import { requireAuth, AuthRequest } from '../auth/telegram.ts';
 import { queryAll } from '../db/database.ts';
@@ -53,7 +54,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
 
     res.json(result);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 

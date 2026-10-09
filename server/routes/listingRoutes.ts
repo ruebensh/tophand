@@ -1,3 +1,4 @@
+import { serverError } from '../lib/error.ts';
 import { Router, Response } from 'express';
 import crypto from 'crypto';
 import { sanitizeUserUrlList } from '../lib/urlSecurity.ts';
@@ -101,7 +102,7 @@ router.get('/', optionalAuth, async (req: AuthRequest, res) => {
     res.json(results);
   } catch (err: any) {
     console.error('Listings search error:', err);
-    res.status(500).json({ error: err.message || 'E’lonlarni yuklashda xatolik yuz berdi' });
+    serverError(res, err, 'E’lonlarni yuklashda xatolik yuz berdi');
   }
 });
 
@@ -129,7 +130,7 @@ router.get('/:id', optionalAuth, async (req: AuthRequest, res) => {
 
     res.json(listing);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -283,7 +284,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
     res.status(201).json(listing);
   } catch (err: any) {
     console.error('Error creating listing:', err);
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -407,7 +408,7 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res) => {
     const updated = await getListingById(listingId, req.user!.id);
     res.json(updated);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -484,7 +485,7 @@ router.post('/:id/complete', requireAuth, async (req: AuthRequest, res) => {
     res.json({ success: true, status: 'COMPLETED' });
   } catch (err: any) {
     console.error('Complete listing error:', err);
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -515,7 +516,7 @@ const contactHandler = async (req: AuthRequest, res: Response) => {
     }
     res.json({ phone: owner.phone });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 };
 router.get('/:id/contact', requireAuth, contactHandler);
@@ -536,7 +537,7 @@ router.get('/:id/stats', requireAuth, async (req: AuthRequest, res) => {
     const stats = await getListingStats(req.params.id);
     res.json(stats);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -556,7 +557,7 @@ router.post('/:id/toggle-hide', requireAuth, async (req: AuthRequest, res) => {
 
     res.json({ success: true, status: newStatus });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -604,7 +605,7 @@ router.delete('/:id', requireAuth, async (req: AuthRequest, res) => {
 
     res.json({ success: true, message: 'E’lon olib tashlandi' });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -635,7 +636,7 @@ router.post('/:id/save', requireAuth, async (req: AuthRequest, res) => {
       return res.json({ saved: true });
     }
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 

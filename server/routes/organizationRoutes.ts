@@ -1,3 +1,4 @@
+import { serverError } from '../lib/error.ts';
 import { Router } from 'express';
 import crypto from 'crypto';
 import { requireAuth, optionalAuth, AuthRequest } from '../auth/telegram.ts';
@@ -59,7 +60,7 @@ router.get('/:id', optionalAuth, async (req: AuthRequest, res) => {
 
     res.json(org);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -105,7 +106,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
     const created = await queryOne('SELECT * FROM organizations WHERE id = ?', [id]);
     res.status(201).json(created);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -122,7 +123,7 @@ router.get('/my/list', requireAuth, async (req: AuthRequest, res) => {
     );
     res.json(orgs);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 

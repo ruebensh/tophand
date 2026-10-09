@@ -19,18 +19,55 @@ if (!fs.existsSync(UPLOAD_DIR)) {
 // UPLOAD_DIR so nothing can ever be written outside it.
 const SAFE_FOLDER_RE = /^[a-z0-9][a-z0-9_-]{0,31}$/;
 
-// SECURITY (M-04): resource-exhaustion / decompression-bomb guards for the image
-// decoder. We bound total input pixels, per-side dimensions, disable animated
-// multi-frame decoding, fail on any corrupt pixel data, and cap decode/encode
-// wall-clock time so a hostile image can't pin the event loop or exhaust RAM.
-const MAX_INPUT_PIXELS = 40_000_000; // ~40MP total
-const MAX_INPUT_DIM = 10_000;        // max any single side (px)
+// SECURITY (M-04 / P2-2): resource-exhaustion / decompression-bomb guards for the
+// image decoder. We bound total input pixels, per-side dimensions, disable
+// animated multi-frame decoding, fail on any corrupt pixel data, and cap
+// decode/encode wall-clock time so a hostile image can't pin the event loop or
+// exhaust RAM. Listing images resize down to 1280px, so a 20MP / 6000px per-side
+// input ceiling is far above any legitimate photo while curbing 40MP bursts.
+const MAX_INPUT_PIXELS = 20_000_000; // ~20MP total (P2-2: lowered from 40MP)
+const MAX_INPUT_DIM = 6_000;         // max any single side (px) (P2-2: 10k → 6k)
 const DECODE_TIMEOUT_MS = 20_000;    // hard cap for one image pipeline
+// P2-2: bound how many native Sharp/libvips decodes run at once. A promise
+// timeout alone does NOT cancel libvips work, so parallel hostile uploads could
+// still pile up CPU/RAM after their responses have "timed out". A hard semaphore
+// caps concurrency; the queue is capped too, and over-cap requests fail fast
+// (503) instead of growing memory without bound.
+const MAX_CONCURRENT_IMAGE_PIPELINES = 2;
+const MAX_IMAGE_QUEUE = 24;
 const SHARP_INPUT_OPTS = {
   limitInputPixels: MAX_INPUT_PIXELS,
   failOn: 'error' as const,
   animated: false,
 };
+
+// Simple async counting semaphore with a bounded wait queue.
+let activeImagePipelines = 0;
+const imageWaiters: Array<() => void> = [];
+async function acquireImageSlot(): Promise<void> {
+  if (activeImagePipelines < MAX_CONCURRENT_IMAGE_PIPELINES) {
+    activeImagePipelines++;
+    return;
+  }
+  if (imageWaiters.length >= MAX_IMAGE_QUEUE) {
+    throw Object.assign(new Error('Rasm yuklari navbati to‘lgan — birozdan so‘ng qayta urinib ko‘ring'), { status: 503 });
+  }
+  await new Promise<void>((resolve) => imageWaiters.push(resolve));
+  activeImagePipelines++;
+}
+function releaseImageSlot(): void {
+  activeImagePipelines--;
+  const next = imageWaiters.shift();
+  if (next) next();
+}
+async function withImageSlot<T>(fn: () => Promise<T>): Promise<T> {
+  await acquireImageSlot();
+  try {
+    return await fn();
+  } finally {
+    releaseImageSlot();
+  }
+}
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -50,7 +87,30 @@ function assertSafeDimensions(meta: { width?: number; height?: number }): void {
   const w = meta.width || 0;
   const h = meta.height || 0;
   if (w > MAX_INPUT_DIM || h > MAX_INPUT_DIM || w * h > MAX_INPUT_PIXELS) {
-    throw Object.assign(new Error("Rasm o'lchami juda katta (ruxsat etilgan maksimum ~40MP)"), { status: 400 });
+    throw Object.assign(new Error("Rasm o'lchami juda katta (ruxsat etilgan maksimum ~20MP)"), { status: 400 });
+  }
+}
+
+// SECURITY (P2-3): real image-format magic-byte check. Accept ONLY the raster
+// formats the product needs (JPEG/PNG/GIF/WebP). SVG, SVGZ, HTML or plain text
+// files masquerading as images are rejected BEFORE Sharp parses them.
+// Exported for the security regression suite (scripts/test-security.ts).
+export function sniffImageSignature(buf: Buffer): boolean {
+  if (buf.length < 12) return false;
+  // JPEG: FF D8 FF
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return true;
+  // PNG: 89 50 4E 47 0D 0A 1A 0A
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return true;
+  // GIF: 'GIF87a' / 'GIF89a'
+  if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x38) return true;
+  // WEBP: 'RIFF' .... 'WEBP'
+  if (buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46 &&
+      buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50) return true;
+  return false;
+}
+function assertSafeImageMagic(buf: Buffer): void {
+  if (!sniffImageSignature(buf)) {
+    throw Object.assign(new Error('Fayl haqiqiy rasm emas (faqat JPEG, PNG, GIF yoki WebP qabul qilinadi)'), { status: 400 });
   }
 }
 function sanitizeFolder(folder: string | undefined, fallback: string): string {
@@ -93,6 +153,17 @@ export const r2Client = isR2Enabled
 
 export const BUCKET_NAME = process.env.R2_BUCKET_NAME || 'tophand-media';
 
+// SECURITY (P1-1): verification passport/selfie images are personal data and are
+// stored under a dedicated `verifications/` prefix in a PRIVATE bucket. If the
+// operator provisions R2_PRIVATE_BUCKET_NAME (recommended — no public dev URL /
+// no CDN public bucket) it is used; otherwise we fall back to the main bucket
+// prefix but STILL never return a public URL and force private/no-store caching.
+// NOTE (infra): the R2 bucket (or its `verifications/*` prefix) must have public
+// read DISABLED at the provider level; blocking the app's /uploads + /api/storage
+// paths does not stop a direct hit on a public R2/CDN domain.
+const VERIFICATION_PREFIX = 'verifications';
+const PRIVATE_BUCKET_NAME = process.env.R2_PRIVATE_BUCKET_NAME || BUCKET_NAME;
+
 export interface UploadResult {
   url: string;
   key: string;
@@ -113,26 +184,36 @@ export async function processAndStoreImage(
 ): Promise<UploadResult> {
   const { maxWidth = 1280, maxHeight = 1280, quality = 82 } = options;
   folder = sanitizeFolder(folder, 'photos');
+  // P2-3: verify the REAL raster signature before touching the decoder. Client
+  // MIME is untrusted; this also rejects SVG/SVGZ/HTML/text masquerading as an
+  // image (Sharp would otherwise rasterize SVG via libxml — an XXE/bomb vector).
+  assertSafeImageMagic(inputBuffer);
 
-  // 1. Optimize image using Sharp: convert to WebP, resize if large, keep aspect ratio
-  const sharpInstance = sharp(inputBuffer, SHARP_INPUT_OPTS).rotate(); // auto-rotates based on EXIF
-  const metadata = await sharpInstance.metadata();
-  assertSafeDimensions(metadata);
-
-  const processedBuffer = await withTimeout(
-    sharp(inputBuffer, SHARP_INPUT_OPTS)
-      .rotate()
-      .resize({
-        width: maxWidth,
-        height: maxHeight,
-        fit: 'inside',
-        withoutEnlargement: true,
-      })
-      .webp({ quality, effort: 4 })
-      .toBuffer(),
-    DECODE_TIMEOUT_MS,
-    'Rasm ishlov'
-  );
+  // 1. Optimize image using Sharp: convert to WebP, resize if large, keep aspect
+  //    ratio. The whole decode (metadata + re-encode) runs inside a bounded
+  //    concurrency slot and a wall-clock deadline (P2-2).
+  const processedBuffer = await withImageSlot(async () => {
+    const metadata = await withTimeout(
+      sharp(inputBuffer, SHARP_INPUT_OPTS).rotate().metadata(),
+      DECODE_TIMEOUT_MS,
+      'Rasm metadata'
+    );
+    assertSafeDimensions(metadata);
+    return withTimeout(
+      sharp(inputBuffer, SHARP_INPUT_OPTS)
+        .rotate()
+        .resize({
+          width: maxWidth,
+          height: maxHeight,
+          fit: 'inside',
+          withoutEnlargement: true,
+        })
+        .webp({ quality, effort: 4 })
+        .toBuffer(),
+      DECODE_TIMEOUT_MS,
+      'Rasm ishlov'
+    );
+  });
 
   const processedMeta = await sharp(processedBuffer).metadata();
   const uniqueId = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
@@ -193,25 +274,30 @@ export async function processAndStoreLogo(
   inputBuffer: Buffer,
   originalFilename?: string
 ): Promise<UploadResult> {
-  const sharpInstance = sharp(inputBuffer, SHARP_INPUT_OPTS).rotate();
-  const metadata = await sharpInstance.metadata();
-  assertSafeDimensions(metadata);
-
-  // Resize logo if overly huge (e.g. > 1024px) but preserve transparency
-  const processedBuffer = await withTimeout(
-    sharp(inputBuffer, SHARP_INPUT_OPTS)
-      .rotate()
-      .resize({
-        width: 1024,
-        height: 1024,
-        fit: 'inside',
-        withoutEnlargement: true,
-      })
-      .png({ quality: 90, compressionLevel: 8 })
-      .toBuffer(),
-    DECODE_TIMEOUT_MS,
-    'Logo ishlov'
-  );
+  // Resize logo if overly huge (e.g. > 1024px) but preserve transparency. Bounded
+  // concurrency + deadline (P2-2), metadata inside the deadline.
+  const processedBuffer = await withImageSlot(async () => {
+    const metadata = await withTimeout(
+      sharp(inputBuffer, SHARP_INPUT_OPTS).rotate().metadata(),
+      DECODE_TIMEOUT_MS,
+      'Logo metadata'
+    );
+    assertSafeDimensions(metadata);
+    return withTimeout(
+      sharp(inputBuffer, SHARP_INPUT_OPTS)
+        .rotate()
+        .resize({
+          width: 1024,
+          height: 1024,
+          fit: 'inside',
+          withoutEnlargement: true,
+        })
+        .png({ quality: 90, compressionLevel: 8 })
+        .toBuffer(),
+      DECODE_TIMEOUT_MS,
+      'Logo ishlov'
+    );
+  });
 
   const processedMeta = await sharp(processedBuffer).metadata();
   const uniqueId = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
@@ -273,19 +359,21 @@ export async function processAndStoreFavicon(
   inputBuffer: Buffer,
   variant: 'light' | 'dark'
 ): Promise<UploadResult> {
-  const processedBuffer = await withTimeout(
-    sharp(inputBuffer, SHARP_INPUT_OPTS)
-      .rotate()
-      .resize({
-        width: 512,
-        height: 512,
-        fit: 'inside',
-        withoutEnlargement: true,
-      })
-      .png({ compressionLevel: 9 })
-      .toBuffer(),
-    DECODE_TIMEOUT_MS,
-    'Favicon ishlov'
+  const processedBuffer = await withImageSlot(() =>
+    withTimeout(
+      sharp(inputBuffer, SHARP_INPUT_OPTS)
+        .rotate()
+        .resize({
+          width: 512,
+          height: 512,
+          fit: 'inside',
+          withoutEnlargement: true,
+        })
+        .png({ compressionLevel: 9 })
+        .toBuffer(),
+      DECODE_TIMEOUT_MS,
+      'Favicon ishlov'
+    )
   );
 
   const processedMeta = await sharp(processedBuffer).metadata();
@@ -422,4 +510,97 @@ export async function getR2ObjectStream(key: string) {
   );
 
   return response;
+}
+
+export interface VerificationUploadResult {
+  filename: string;   // basename, e.g. `1700000000-ab12cd34.webp`
+  objectKey: string;  // `verifications/<filename>`
+  size: number;
+  width?: number;
+  height?: number;
+  storage: 'r2' | 'local';
+}
+
+/**
+ * SECURITY (P1-1 / P1-2): private verification image store — SEPARATE from the
+ * public `processAndStoreImage` path. Re-encodes to WebP (drops EXIF/metadata),
+ * writes to the private bucket/prefix, NEVER returns a public URL, and uses
+ * private/no-store cache directives. Returns only the object key so the caller
+ * can bind it to an owner row server-side (see verification_uploads table).
+ */
+export async function processAndStoreVerificationImage(
+  inputBuffer: Buffer
+): Promise<VerificationUploadResult> {
+  // P2-3: enforce real raster signature before decode (same as listing images).
+  assertSafeImageMagic(inputBuffer);
+  const processedBuffer = await withImageSlot(async () => {
+    const metadata = await withTimeout(
+      sharp(inputBuffer, SHARP_INPUT_OPTS).rotate().metadata(),
+      DECODE_TIMEOUT_MS,
+      'Verification metadata'
+    );
+    assertSafeDimensions(metadata);
+    return withTimeout(
+      sharp(inputBuffer, SHARP_INPUT_OPTS)
+        .rotate()
+        .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
+        .webp({ quality: 80, effort: 4 })
+        .toBuffer(),
+      DECODE_TIMEOUT_MS,
+      'Verification rasm ishlov'
+    );
+  });
+
+  const processedMeta = await sharp(processedBuffer).metadata();
+  const uniqueId = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}`;
+  const filename = `${uniqueId}.webp`;
+  const objectKey = `${VERIFICATION_PREFIX}/${filename}`;
+
+  if (r2Client) {
+    await r2Client.send(
+      new PutObjectCommand({
+        Bucket: PRIVATE_BUCKET_NAME,
+        Key: objectKey,
+        Body: processedBuffer,
+        ContentType: 'image/webp',
+        // Private, never cached — the object must not be public or CDN-storable.
+        CacheControl: 'private, no-store, max-age=0',
+      })
+    );
+    return {
+      filename,
+      objectKey,
+      size: processedBuffer.length,
+      width: processedMeta.width,
+      height: processedMeta.height,
+      storage: 'r2',
+    };
+  }
+
+  // Local fallback: under uploads/verifications (blocked from public static).
+  const targetDir = resolveUploadDir(VERIFICATION_PREFIX);
+  if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
+  await fs.promises.writeFile(path.join(targetDir, filename), processedBuffer);
+  return {
+    filename,
+    objectKey,
+    size: processedBuffer.length,
+    width: processedMeta.width,
+    height: processedMeta.height,
+    storage: 'local',
+  };
+}
+
+/**
+ * Reads a private verification object (for the signed proxy only). Never exposed
+ * as a public URL; the caller must have validated ownership + signature.
+ */
+export async function getVerificationObjectStream(filename: string) {
+  if (!r2Client) throw new Error('R2 is not configured');
+  return r2Client.send(
+    new GetObjectCommand({
+      Bucket: PRIVATE_BUCKET_NAME,
+      Key: `${VERIFICATION_PREFIX}/${filename}`,
+    })
+  );
 }

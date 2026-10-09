@@ -1,3 +1,4 @@
+import { serverError } from '../lib/error.ts';
 import { Router, Response } from 'express';
 import { getActiveAds, incrementImpression, incrementClick, type Ad } from '../services/adService.ts';
 
@@ -22,7 +23,7 @@ router.get('/active', async (_req, res: Response) => {
     }
     res.json(buckets);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 

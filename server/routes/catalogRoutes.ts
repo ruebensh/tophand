@@ -1,3 +1,4 @@
+import { serverError } from '../lib/error.ts';
 import { Router } from 'express';
 import { queryAll, queryOne, runQuery } from '../db/database.ts';
 import { AuthRequest, requireAuth, requireRole } from '../auth/telegram.ts';
@@ -26,7 +27,7 @@ router.get('/', async (_req, res) => {
 
     res.json(catalogs);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -42,7 +43,7 @@ router.get('/:id', async (req, res) => {
     }
     res.json(catalog);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -75,7 +76,7 @@ router.post('/', requireAuth, requireRole(['ADMIN']), async (req: AuthRequest, r
     const created = await queryOne('SELECT * FROM catalogs WHERE id = ?', [id]);
     res.status(201).json(created);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -109,7 +110,7 @@ router.put('/:id', requireAuth, requireRole(['ADMIN']), async (req: AuthRequest,
     const updated = await queryOne('SELECT * FROM catalogs WHERE id = ?', [req.params.id]);
     res.json(updated);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -129,7 +130,7 @@ router.delete('/:id', requireAuth, requireRole(['ADMIN']), async (req: AuthReque
     await runQuery('DELETE FROM catalogs WHERE id = ?', [catalogId]);
     res.json({ success: true, message: 'Katalog butunlay o‘chirildi' });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 

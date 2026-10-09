@@ -1,3 +1,4 @@
+import { serverError } from '../lib/error.ts';
 import { Router } from 'express';
 import { requireAuth, AuthRequest } from '../auth/telegram.ts';
 import {
@@ -17,7 +18,7 @@ router.get('/conversations', requireAuth, async (req: AuthRequest, res) => {
     const list = await getUserConversations(req.user!.id);
     res.json(list);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 

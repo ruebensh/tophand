@@ -1,3 +1,4 @@
+import { serverError } from '../lib/error.ts';
 import { Router } from 'express';
 import { GoogleGenAI } from '@google/genai';
 import { queryAll } from '../db/database.ts';
@@ -155,7 +156,7 @@ Javobni FAQAT quyidagi JSON formatda qaytaring (hech qanday qo'shimcha matnsiz y
 
     res.json(aiResult);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 

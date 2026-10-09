@@ -1,3 +1,4 @@
+import { serverError } from '../lib/error.ts';
 import { Router } from 'express';
 import type { Response } from 'express';
 import crypto from 'crypto';
@@ -51,7 +52,7 @@ router.get('/overview', async (_req, res) => {
     const stats = await getAdminOverview();
     res.json(stats);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -67,7 +68,7 @@ router.post('/i18n/backfill-taxonomy', async (req, res) => {
     const result = await backfillTaxonomyTranslations(force);
     res.json(result);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -109,7 +110,7 @@ router.get('/users', async (req, res) => {
     const users = await queryAll(sql, params);
     res.json(users);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -160,7 +161,7 @@ router.post('/organizations/:id/verify', async (req: AuthRequest, res) => {
     const result = await adminVerifyOrganization(req.user!.id, req.params.id, Boolean(verify));
     res.json(result);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -175,7 +176,7 @@ router.get('/organizations', async (_req, res) => {
     );
     res.json(orgs);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -199,7 +200,7 @@ router.post('/categories', async (req: AuthRequest, res) => {
     const created = await queryOne('SELECT * FROM categories WHERE id = ?', [id]);
     res.status(201).json(created);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -236,7 +237,7 @@ router.put('/categories/:id', async (req: AuthRequest, res) => {
     const updated = await queryOne('SELECT * FROM categories WHERE id = ?', [req.params.id]);
     res.json(updated);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -251,7 +252,7 @@ router.get('/audit-logs', async (_req, res) => {
     );
     res.json(logs);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -306,7 +307,7 @@ router.get('/logo', async (_req, res) => {
       last_audit: lastAudit || null,
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -466,7 +467,7 @@ router.post('/logo', (req: AuthRequest, res, next) => {
       size: file.size,
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Logotipni saqlashda xatolik yuz berdi' });
+    serverError(res, err, 'Logotipni saqlashda xatolik yuz berdi');
   }
 });
 
@@ -528,7 +529,7 @@ router.get('/favicon', async (_req, res) => {
       updater_name: updaterName,
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -618,7 +619,7 @@ router.post('/favicon', (req: AuthRequest, res, next) => {
       size: result.size,
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Faviconni saqlashda xatolik yuz berdi' });
+    serverError(res, err, 'Faviconni saqlashda xatolik yuz berdi');
   }
 });
 
@@ -628,7 +629,7 @@ router.get('/analytics', async (_req, res) => {
     const data = await getAdvancedAnalytics();
     res.json(data);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -692,7 +693,7 @@ router.put('/users/:id/verification', async (req: AuthRequest, res) => {
     await persistDb();
     res.json({ success: true, user: updated });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -747,7 +748,7 @@ router.put('/users/:id/passport', async (req: AuthRequest, res) => {
     await persistDb();
     res.json({ success: true, user: updated });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -812,7 +813,7 @@ router.post('/organizations', async (req: AuthRequest, res) => {
     await persistDb();
     res.status(201).json(created);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -866,7 +867,7 @@ router.put('/organizations/:id', async (req: AuthRequest, res) => {
     await persistDb();
     res.json(updated);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -878,7 +879,7 @@ router.delete('/organizations/:id', async (req: AuthRequest, res) => {
     await persistDb();
     res.json({ success: true, message: 'Tashkilot muvaffaqiyatli o‘chirildi' });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -890,7 +891,7 @@ router.delete('/categories/:id', async (req: AuthRequest, res) => {
     await persistDb();
     res.json({ success: true, message: 'Kategoriya muvaffaqiyatli o‘chirildi' });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -921,7 +922,7 @@ router.delete('/listings/:id', async (req: AuthRequest, res) => {
     await persistDb();
     res.json({ success: true, message: 'E’lon tizimdan to‘liq va butunlay o‘chirib tashlandi' });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -964,7 +965,7 @@ router.get('/branding', async (_req, res) => {
 
     res.json(brand);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -1038,7 +1039,7 @@ router.put('/branding', async (req: AuthRequest, res) => {
     await persistDb();
     res.json({ success: true, brand: brandData, message: 'Platforma nomi, ranglari va logotipi yangilandi' });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -1048,7 +1049,7 @@ router.get('/monetization', async (_req, res) => {
     const cfg = await getMonetizationConfig();
     res.json(cfg);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -1117,7 +1118,7 @@ router.put('/monetization', async (req: AuthRequest, res) => {
     const cfg = await getMonetizationConfig();
     res.json({ success: true, config: cfg, message: 'Monetizatsiya sozlamalari saqlandi' });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -1126,7 +1127,7 @@ router.get('/ads', async (_req, res) => {
   try {
     res.json(await listAllAds());
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -1138,7 +1139,7 @@ router.post('/ads', async (req: AuthRequest, res) => {
     const ad = await createAd(input);
     res.status(201).json(ad);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -1154,7 +1155,7 @@ router.put('/ads/:id', async (req: AuthRequest, res) => {
     const ad = await updateAd(req.params.id, input);
     res.json(ad);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -1164,7 +1165,7 @@ router.delete('/ads/:id', async (req: AuthRequest, res) => {
     if (!ok) return res.status(404).json({ error: 'Reklama topilmadi' });
     res.json({ success: true });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -1202,7 +1203,7 @@ router.get('/export/:entity', async (req, res: Response) => {
     res.setHeader('Content-Disposition', `attachment; filename="tophand-${entity}-${Date.now()}.xlsx"`);
     res.send(buffer);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -1225,7 +1226,7 @@ router.post('/import/:entity', excelUpload.single('file'), async (req: AuthReque
     );
     res.json(report);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -1286,7 +1287,7 @@ router.get('/categories/:id/attributes', async (req: AuthRequest, res) => {
     );
     res.json(attrs.map(parseAttrRow));
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -1320,7 +1321,7 @@ router.post('/categories/:id/attributes', async (req: AuthRequest, res) => {
     const created = await queryOne('SELECT * FROM category_attributes WHERE category_id = ? AND key = ?', [categoryId, c.key]);
     res.status(201).json(parseAttrRow(created));
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -1351,7 +1352,7 @@ router.put('/attributes/:attrId', async (req: AuthRequest, res) => {
     const updated = await queryOne('SELECT * FROM category_attributes WHERE id = ?', [newId]);
     res.json(parseAttrRow(updated));
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -1362,7 +1363,7 @@ router.delete('/attributes/:attrId', async (req: AuthRequest, res) => {
     if (!r.changes) return res.status(404).json({ error: 'Filtr topilmadi' });
     res.json({ success: true, message: 'Filtr o‘chirildi' });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -1380,7 +1381,7 @@ router.post('/categories/:id/attributes/reorder', async (req: AuthRequest, res) 
     }
     res.json({ success: true });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 

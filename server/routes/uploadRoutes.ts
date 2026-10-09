@@ -16,11 +16,14 @@ const upload = multer({
     parts: 8,                    // M-04: bound multipart parts to curb abuse
   },
   fileFilter: (_req, file, cb) => {
-    const allowedMime = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg', 'image/gif', 'image/heic'];
-    if (allowedMime.includes(file.mimetype.toLowerCase()) || file.mimetype.startsWith('image/')) {
+    // P2-3: explicit raster MIME allowlist (no `image/*` wildcard, no SVG). The
+    // real magic-byte check in storageService is the authoritative gate; this is
+    // just a cheap first pass so garbage never reaches the decoder.
+    const allowedMime = ['image/jpeg', 'image/jpg', 'image/pjpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (allowedMime.includes(file.mimetype.toLowerCase())) {
       cb(null, true);
     } else {
-      cb(new Error('Faqat rasm fayllari (JPEG, PNG, WebP) yuklanishi mumkin'));
+      cb(new Error('Faqat rasm fayllari (JPEG, PNG, WebP, GIF) yuklanishi mumkin'));
     }
   },
 });
@@ -33,6 +36,12 @@ router.post('/', requireAuth, upload.single('image'), async (req, res) => {
     }
 
     const folder = (req.query.folder as string) || 'listings';
+    // P1-1: verification images must go through the dedicated PRIVATE endpoint
+    // (/api/users/me/verification/upload). The generic path writes public, long-
+    // cache objects, so it must never accept the `verifications` folder.
+    if (folder === 'verifications') {
+      return res.status(400).json({ error: 'Tasdiq rasmi uchun /api/users/me/verification/upload ishlatiladi' });
+    }
     const result = await processAndStoreImage(req.file.buffer, folder);
 
     res.json({

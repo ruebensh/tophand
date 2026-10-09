@@ -1,3 +1,4 @@
+import { serverError } from '../lib/error.ts';
 import { Router } from 'express';
 import { queryOne } from '../db/database.ts';
 
@@ -21,7 +22,7 @@ router.get('/logo', async (_req, res) => {
       version,
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -77,7 +78,7 @@ router.get('/branding', async (_req, res) => {
 
     res.json(brand);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 

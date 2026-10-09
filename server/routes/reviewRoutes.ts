@@ -1,3 +1,4 @@
+import { serverError } from '../lib/error.ts';
 import { Router } from 'express';
 import crypto from 'crypto';
 import { requireAuth, optionalAuth, AuthRequest } from '../auth/telegram.ts';
@@ -60,7 +61,7 @@ router.get('/target/:userId', optionalAuth, async (req: AuthRequest, res) => {
     });
   } catch (err: any) {
     console.error('Error fetching reviews:', err);
-    res.status(500).json({ error: err.message || 'Sharhlarni yuklashda xatolik yuz berdi' });
+    serverError(res, err, 'Sharhlarni yuklashda xatolik yuz berdi');
   }
 });
 
@@ -152,7 +153,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
     res.status(201).json(createdReview);
   } catch (err: any) {
     console.error('Error creating review:', err);
-    res.status(500).json({ error: err.message || 'Sharh yuborishda xatolik yuz berdi' });
+    serverError(res, err, 'Sharh yuborishda xatolik yuz berdi');
   }
 });
 
@@ -218,7 +219,7 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res) => {
     res.json(updated);
   } catch (err: any) {
     console.error('Error updating review:', err);
-    res.status(500).json({ error: err.message || 'Sharhni yangilashda xatolik yuz berdi' });
+    serverError(res, err, 'Sharhni yangilashda xatolik yuz berdi');
   }
 });
 
@@ -273,7 +274,7 @@ router.delete('/:id', requireAuth, async (req: AuthRequest, res) => {
     res.json({ success: true, message: 'Sharh muvaffaqiyatli o‘chirildi' });
   } catch (err: any) {
     console.error('Error deleting review:', err);
-    res.status(500).json({ error: err.message || 'Sharhni o‘chirishda xatolik yuz berdi' });
+    serverError(res, err, 'Sharhni o‘chirishda xatolik yuz berdi');
   }
 });
 
@@ -358,7 +359,7 @@ router.post('/:id/reply', requireAuth, async (req: AuthRequest, res) => {
     res.json(updated);
   } catch (err: any) {
     console.error('Error replying to review:', err);
-    res.status(500).json({ error: err.message || 'Javob berishda xatolik yuz berdi' });
+    serverError(res, err, 'Javob berishda xatolik yuz berdi');
   }
 });
 
@@ -395,7 +396,7 @@ router.delete('/:id/reply', requireAuth, async (req: AuthRequest, res) => {
     res.json({ success: true, message: 'Javob o‘chirildi' });
   } catch (err: any) {
     console.error('Error deleting reply:', err);
-    res.status(500).json({ error: err.message || 'Javobni o‘chirishda xatolik yuz berdi' });
+    serverError(res, err, 'Javobni o‘chirishda xatolik yuz berdi');
   }
 });
 

@@ -1,3 +1,4 @@
+import { serverError } from '../lib/error.ts';
 import { Router, Response, NextFunction } from 'express';
 import { requireAuth, requireMinLevel, AuthRequest } from '../auth/telegram.ts';
 import { sendStaffMessage, getMessagingHistory, canUserMessage, listSelectableUsers } from '../services/messagingService.ts';
@@ -40,7 +41,7 @@ router.post('/send', requireAuth, requireMessaging, async (req: AuthRequest, res
     });
     res.json(result);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -49,7 +50,7 @@ router.get('/templates', requireAuth, requireMinLevel('INTERN_MOD'), async (_req
   try {
     res.json(await listCannedResponses());
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -59,7 +60,7 @@ router.get('/users', requireAuth, requireMessaging, async (req: AuthRequest, res
     const search = req.query.search as string | undefined;
     res.json(await listSelectableUsers(search));
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -69,7 +70,7 @@ router.get('/history', requireAuth, requireMinLevel('INTERN_MOD'), async (req: A
     const isAdmin = req.user!.role === 'ADMIN' || req.user!.role === 'SUPER_ADMIN';
     res.json(await getMessagingHistory(isAdmin ? undefined : req.user!.id));
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 

@@ -1,3 +1,4 @@
+import { serverError } from '../lib/error.ts';
 import { Router } from 'express';
 import crypto from 'crypto';
 import { requireAuth, requireMinLevel, AuthRequest } from '../auth/telegram.ts';
@@ -34,16 +35,17 @@ import {
 
 const router = Router();
 
-// SECURITY (H-07): verification passport/selfie rasmlari endi faqat qisqa
-// muddatli, imzolangan URL orqali beriladi. Ommaviy `/uploads/verifications/*`
-// bloklangan; shu sababli DB'dagi xom URL o'rniga signed URL qaytaramiz.
-function toSignedVerifyUrl(url: unknown): string | null {
-  if (url == null) return null;
-  if (typeof url !== 'string' || !url.trim()) return null;
-  const m = url.match(/verifications\/([^/?#]+)/);
-  const fn = m ? m[1] : (url.split('/').pop() || '').replace(/[?#].*$/, '');
-  if (!fn || !/\.(webp|png|jpe?g|gif)$/i.test(fn)) return null;
-  return signVerificationPhotoUrl(fn);
+// SECURITY (H-07 / P1-1 / P1-2): verification passport/selfie rasmlari endi faqat
+// qisqa muddatli, IMZOLANGAN URL orqali beriladi. Obyekt kaliti foydalanuvchi
+// kiritgan URL'dan PARSE QILINMAYDI — u server yaratgan verification_uploads
+// yozuvidan (owner bilan bog'langan) olinadi. Imzo payloadi egasi (userId) +
+// obyekt bazasini bog'laydi.
+function signVerifyObject(userId: unknown, objectKey: unknown): string | null {
+  if (userId == null) return null;
+  if (typeof objectKey !== 'string' || !objectKey.trim()) return null; // legacy rows w/o upload → no URL
+  const base = objectKey.split('/').pop() || '';
+  if (!base || /\?|#/.test(base) || !/\.(webp|png|jpe?g|gif)$/i.test(base)) return null;
+  return signVerificationPhotoUrl(base, String(userId));
 }
 
 // File a report (Any authenticated user)
@@ -63,7 +65,7 @@ router.post('/reports', requireAuth, async (req: AuthRequest, res) => {
 
     res.status(201).json(report);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -74,7 +76,7 @@ router.get('/reports', requireAuth, requireMinLevel('MODERATOR'), async (req: Au
     const reports = await getReports(status);
     res.json(reports);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -97,7 +99,7 @@ router.post('/action', requireAuth, requireMinLevel('MODERATOR'), async (req: Au
 
     res.json(result);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -108,7 +110,7 @@ router.get('/auto-flagged', requireAuth, requireMinLevel('MODERATOR'), async (re
     const items = await getAutoFlaggedContent(status);
     res.json(items);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -129,7 +131,7 @@ router.post('/auto-flagged/:id/action', requireAuth, requireMinLevel('MODERATOR'
     );
     res.json(result);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -139,7 +141,7 @@ router.get('/profanity-words', requireAuth, requireMinLevel('MODERATOR'), async 
     const words = await getProfanityWords();
     res.json(words);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -160,7 +162,7 @@ router.delete('/profanity-words/:id', requireAuth, requireMinLevel('MODERATOR'),
     const result = await deleteProfanityWord(req.params.id);
     res.json(result);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -170,7 +172,7 @@ router.get('/queue/mine', requireAuth, requireMinLevel('INTERN_MOD'), async (req
   try {
     res.json(await getMyQueue(req.user!.id));
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -179,7 +181,7 @@ router.get('/queue/pool', requireAuth, requireMinLevel('INTERN_MOD'), async (req
   try {
     res.json(await getPool(req.user!.id));
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -224,7 +226,7 @@ router.get('/notes/:userId', requireAuth, requireMinLevel('INTERN_MOD'), async (
   try {
     res.json(await getTargetNotes(req.params.userId));
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 router.post('/notes', requireAuth, requireMinLevel('INTERN_MOD'), async (req: AuthRequest, res) => {
@@ -233,7 +235,7 @@ router.post('/notes', requireAuth, requireMinLevel('INTERN_MOD'), async (req: Au
     if (!target_user_id || !note) return res.status(400).json({ error: 'target_user_id va note talab qilinadi' });
     res.json(await addTargetNote(req.user!.id, target_user_id, note));
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -242,7 +244,7 @@ router.get('/canned', requireAuth, requireMinLevel('INTERN_MOD'), async (_req, r
   try {
     res.json(await listCannedResponses());
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 router.post('/canned', requireAuth, requireMinLevel('MODERATOR'), async (req: AuthRequest, res) => {
@@ -251,14 +253,14 @@ router.post('/canned', requireAuth, requireMinLevel('MODERATOR'), async (req: Au
     if (!title || !body) return res.status(400).json({ error: 'title va body talab qilinadi' });
     res.status(201).json(await createCannedResponse(req.user!.id, title, body));
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 router.delete('/canned/:id', requireAuth, requireMinLevel('LEAD_MOD'), async (req: AuthRequest, res) => {
   try {
     res.json(await deleteCannedResponse(req.params.id));
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -269,14 +271,14 @@ router.post('/appeals', requireAuth, async (req: AuthRequest, res) => {
     if (!reason) return res.status(400).json({ error: 'Sabab ko\u2018rsatilishi shart' });
     res.status(201).json(await createAppeal(req.user!.id, { report_id, listing_id, reason }));
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 router.get('/appeals', requireAuth, requireMinLevel('LEAD_MOD'), async (req: AuthRequest, res) => {
   try {
     res.json(await listAppeals(req.query.status as string));
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 router.post('/appeals/:id/resolve', requireAuth, requireMinLevel('LEAD_MOD'), async (req: AuthRequest, res) => {
@@ -284,7 +286,7 @@ router.post('/appeals/:id/resolve', requireAuth, requireMinLevel('LEAD_MOD'), as
     const { approve, note } = req.body;
     res.json(await resolveAppeal(req.params.id, req.user!.id, !!approve, note || ''));
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -300,18 +302,20 @@ router.get('/verifications', requireAuth, requireMinLevel('MODERATOR'), async (r
               u.pinfl, u.passport_series, u.passport_number, u.passport_issued_by,
               u.passport_issued_date, u.verification_photo_url, u.verification_status,
               u.verification_rejection_reason, u.verified_at, u.created_at,
+              vu.object_key as verification_object_key,
               r.name_uz as region_name,
               (SELECT COUNT(*) FROM listings l WHERE l.owner_user_id = u.id AND l.status = 'ACTIVE') as active_listing_count
        FROM users u
        LEFT JOIN regions r ON u.region_id = r.id
+       LEFT JOIN verification_uploads vu ON vu.id = u.verification_upload_id
        WHERE u.verification_status = ?
        ORDER BY u.updated_at DESC
        LIMIT 200`,
       [safeStatus]
     );
-    res.json(rows.map((r) => ({ ...r, verification_photo_url: toSignedVerifyUrl(r.verification_photo_url) })));
+    res.json(rows.map((r) => ({ ...r, verification_photo_url: signVerifyObject(r.id, r.verification_object_key) })));
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -319,15 +323,17 @@ router.get('/verifications', requireAuth, requireMinLevel('MODERATOR'), async (r
 router.get('/verifications/:userId', requireAuth, requireMinLevel('MODERATOR'), async (req: AuthRequest, res) => {
   try {
     const row = await queryOne<any>(
-      `SELECT u.*, r.name_uz as region_name
-       FROM users u LEFT JOIN regions r ON u.region_id = r.id
+      `SELECT u.*, vu.object_key as verification_object_key, r.name_uz as region_name
+       FROM users u
+       LEFT JOIN regions r ON u.region_id = r.id
+       LEFT JOIN verification_uploads vu ON vu.id = u.verification_upload_id
        WHERE u.id = ?`,
       [req.params.userId]
     );
     if (!row) return res.status(404).json({ error: 'Foydalanuvchi topilmadi' });
-    res.json({ ...row, verification_photo_url: toSignedVerifyUrl(row.verification_photo_url) });
+    res.json({ ...row, verification_photo_url: signVerifyObject(row.id, row.verification_object_key) });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -381,7 +387,7 @@ router.post('/verifications/:userId/action', requireAuth, requireMinLevel('MODER
     const updated = await queryOne('SELECT * FROM users WHERE id = ?', [targetUserId]);
     res.json({ success: true, user: updated });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -390,14 +396,14 @@ router.get('/moderators', requireAuth, requireMinLevel('ADMIN'), async (_req, re
   try {
     res.json(await listModerators());
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 router.get('/moderators/stats', requireAuth, requireMinLevel('ADMIN'), async (_req, res) => {
   try {
     res.json(await getTeamStats());
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 router.put('/moderators/:userId', requireAuth, requireMinLevel('ADMIN'), async (req: AuthRequest, res) => {
@@ -406,7 +412,7 @@ router.put('/moderators/:userId', requireAuth, requireMinLevel('ADMIN'), async (
     const updated = await updateModeratorProfile(req.params.userId, req.body || {});
     res.json(updated);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 

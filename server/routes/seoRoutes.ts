@@ -1,3 +1,4 @@
+import { serverError } from '../lib/error.ts';
 import { Router } from 'express';
 import { queryAll } from '../db/database.ts';
 import { resolveLanding, regionIdToSlug } from '../services/seoService.ts';
@@ -44,7 +45,7 @@ router.get('/api/seo/landing', async (req, res) => {
 
     res.json({ ...data, listings: result.items, total: result.pagination.total });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 

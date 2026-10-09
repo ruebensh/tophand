@@ -49,8 +49,9 @@ export interface AuthRequest extends Request {
  */
 export function verifyTelegramAuth(data: Record<string, any>): boolean {
   if (!TELEGRAM_BOT_TOKEN) {
-    // If bot token is not configured in local environment, allow verified simulation in dev
-    return process.env.NODE_ENV !== 'production';
+    // Bot token sozlanmagan: simulyatsiyaga ruxsat FAQAT aniq LOCAL_DEV=1'da.
+    // Ochiq muhitda (staging/preview/unset/production) bu fail-closed → false.
+    return INSECURE_ALLOWED;
   }
 
   const { hash, ...dataToCheck } = data;

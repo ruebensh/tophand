@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ShieldCheck, Upload, Loader2, Check, Image as ImageIcon, Lock } from 'lucide-react';
 import { Modal } from '../common/Modal.tsx';
-import { apiRequest, uploadImageFile } from '../../lib/api.ts';
+import { apiRequest, uploadVerificationImageFile } from '../../lib/api.ts';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { useI18n } from '../../i18n/IntlContext.tsx';
 
@@ -27,6 +27,7 @@ export const VerifyRequestModal: React.FC<VerifyRequestModalProps> = ({ isOpen, 
   const [issuedBy, setIssuedBy] = useState('');
   const [issuedDate, setIssuedDate] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
+  const [uploadId, setUploadId] = useState('');
 
   const [isUploading, setIsUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -43,7 +44,10 @@ export const VerifyRequestModal: React.FC<VerifyRequestModalProps> = ({ isOpen, 
     setNumber(user?.passport_number || '');
     setIssuedBy(user?.passport_issued_by || '');
     setIssuedDate(user?.passport_issued_date || '');
-    setPhotoUrl(user?.verification_photo_url || '');
+    // P1-1: the stored value is now a private object key, not a public URL, so we
+    // don't prefill the preview from it. The user re-uploads to change the photo.
+    setPhotoUrl('');
+    setUploadId('');
     setError('');
     setIsSuccess(false);
     setIsSubmitting(false);
@@ -56,8 +60,9 @@ export const VerifyRequestModal: React.FC<VerifyRequestModalProps> = ({ isOpen, 
     setError('');
     setIsUploading(true);
     try {
-      const url = await uploadImageFile(file, 'verifications');
-      setPhotoUrl(url);
+      const { upload_id, preview_url } = await uploadVerificationImageFile(file);
+      setUploadId(upload_id);
+      setPhotoUrl(preview_url || '');
     } catch (err: any) {
       setError(err.message || t('profile.errPhoto'));
     } finally {
@@ -82,7 +87,7 @@ export const VerifyRequestModal: React.FC<VerifyRequestModalProps> = ({ isOpen, 
       setError(t('profile.vrErrPassport'));
       return;
     }
-    if (!photoUrl) {
+    if (!uploadId) {
       setError(t('profile.vrErrPhoto'));
       return;
     }
@@ -99,7 +104,7 @@ export const VerifyRequestModal: React.FC<VerifyRequestModalProps> = ({ isOpen, 
           passport_number: number.trim(),
           passport_issued_by: issuedBy.trim() || undefined,
           passport_issued_date: issuedDate.trim() || undefined,
-          verification_photo_url: photoUrl,
+          verification_upload_id: uploadId,
         }),
       });
       await refreshUser();

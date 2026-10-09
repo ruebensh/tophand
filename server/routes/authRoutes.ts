@@ -1,3 +1,4 @@
+import { serverError } from '../lib/error.ts';
 import { Router } from 'express';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
@@ -321,7 +322,7 @@ async function loginHandler(req: any, res: any) {
     res.json({ token, user: serializeUser(user), is_admin: user.role === 'ADMIN' });
   } catch (err: any) {
     console.error('Login error:', err);
-    res.status(500).json({ error: err.message || 'Tizimga kirishda xatolik yuz berdi' });
+    serverError(res, err, 'Tizimga kirishda xatolik yuz berdi');
   }
 }
 
@@ -365,7 +366,7 @@ router.post('/register/send-code', async (req, res) => {
     });
   } catch (err: any) {
     console.error('Register send-code error:', err);
-    res.status(500).json({ error: err.message || 'Kodni yuborishda xatolik yuz berdi' });
+    serverError(res, err, 'Kodni yuborishda xatolik yuz berdi');
   }
 });
 
@@ -421,7 +422,7 @@ router.post('/register', async (req, res) => {
     res.status(201).json({ token, user: serializeUser(newUser), is_new: true });
   } catch (err: any) {
     console.error('Register error:', err);
-    res.status(500).json({ error: err.message || "Ro'yxatdan o'tishda xatolik yuz berdi" });
+    serverError(res, err, "Ro'yxatdan o'tishda xatolik yuz berdi");
   }
 });
 
@@ -458,7 +459,7 @@ router.post('/forgot-password', async (req, res) => {
     });
   } catch (err: any) {
     console.error('Forgot password error:', err);
-    res.status(500).json({ error: err.message || 'Kodni yuborishda xatolik yuz berdi' });
+    serverError(res, err, 'Kodni yuborishda xatolik yuz berdi');
   }
 });
 
@@ -499,7 +500,7 @@ router.post('/reset-password', async (req, res) => {
     res.json({ success: true, message: "Parol muvaffaqiyatli yangilandi! Yangi parol bilan kiring." });
   } catch (err: any) {
     console.error('Reset password error:', err);
-    res.status(500).json({ error: err.message || 'Parolni yangilashda xatolik yuz berdi' });
+    serverError(res, err, 'Parolni yangilashda xatolik yuz berdi');
   }
 });
 
@@ -584,7 +585,7 @@ router.post('/google', async (req, res) => {
     res.json({ token, user: safe, is_new: created, needs_profile: !safe.is_profile_complete, is_admin: user.role === 'ADMIN' });
   } catch (err: any) {
     console.error('Google login error:', err);
-    res.status(500).json({ error: err.message || 'Google orqali kirishda xatolik' });
+    serverError(res, err, 'Google orqali kirishda xatolik');
   }
 });
 
@@ -610,7 +611,7 @@ router.get('/me', requireAuth, async (req: AuthRequest, res) => {
 
     res.json(serializeUser(user));
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -635,7 +636,7 @@ router.post('/onboarding', requireAuth, async (req: AuthRequest, res) => {
     const updatedUser = await queryOne('SELECT * FROM users WHERE id = ?', [req.user!.id]);
     res.json({ success: true, user: serializeUser(updatedUser) });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -685,7 +686,7 @@ router.post('/profile/complete', requireAuth, async (req: AuthRequest, res) => {
     res.json({ success: true, user: serializeUser(updated) });
   } catch (err: any) {
     console.error('Profile complete error:', err);
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -707,7 +708,7 @@ router.post('/email/send-code', requireAuth, async (req: AuthRequest, res) => {
     res.json({ success: true, message: 'Tasdiqlash kodi emailingizga yuborildi', simulated, demo_code: demoCode(simulated, code) });
   } catch (err: any) {
     console.error('Link email send-code error:', err);
-    res.status(500).json({ error: err.message || 'Kodni yuborishda xatolik yuz berdi' });
+    serverError(res, err, 'Kodni yuborishda xatolik yuz berdi');
   }
 });
 
@@ -735,7 +736,7 @@ router.post('/email/verify', requireAuth, async (req: AuthRequest, res) => {
     res.json({ success: true, user: serializeUser(updated) });
   } catch (err: any) {
     console.error('Link email verify error:', err);
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -768,7 +769,7 @@ router.post('/google/link', requireAuth, async (req: AuthRequest, res) => {
     res.json({ success: true, user: serializeUser(updated) });
   } catch (err: any) {
     console.error('Link google error:', err);
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
