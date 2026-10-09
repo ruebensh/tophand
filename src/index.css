@@ -1,4 +1,5 @@
-@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap");
+/* QA-01: Google Fonts endi index.html'da <link rel="preconnect"> + <link
+   rel="stylesheet"> orqali yuklanadi (CSS @import render-bloklashchi edi). */
 @import "tailwindcss";
 @import "leaflet/dist/leaflet.css";
 

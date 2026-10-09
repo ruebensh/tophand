@@ -1111,16 +1111,22 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               </h3>
 
               <form onSubmit={handleChangePassword} className="space-y-3">
-                <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1">{t('profile.currentPass')}</label>
-                  <input
-                    type="password"
-                    required
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-gray-200 text-sm font-medium focus:border-[#1673E6] focus:bg-white outline-none transition"
-                  />
-                </div>
+                {currentUser?.has_password ? (
+                  <div>
+                    <label className="block text-xs font-bold text-gray-600 mb-1">{t('profile.currentPass')}</label>
+                    <input
+                      type="password"
+                      required
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-gray-200 text-sm font-medium focus:border-[#1673E6] focus:bg-white outline-none transition"
+                    />
+                  </div>
+                ) : (
+                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                    {t('profile.noPassHint')}
+                  </p>
+                )}
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -1758,16 +1764,22 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 </h3>
 
                 <form onSubmit={handleChangePassword} className="space-y-3.5">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-600 mb-1">{t('profile.currentPass')}</label>
-                    <input
-                      type="password"
-                      required
-                      value={currentPassword}
-                      onChange={(e) => setCurrentPassword(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium focus:border-[#1673E6] focus:bg-white outline-none transition"
-                    />
-                  </div>
+                  {currentUser?.has_password ? (
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">{t('profile.currentPass')}</label>
+                      <input
+                        type="password"
+                        required
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium focus:border-[#1673E6] focus:bg-white outline-none transition"
+                      />
+                    </div>
+                  ) : (
+                    <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                      {t('profile.noPassHint')}
+                    </p>
+                  )}
 
                   <div>
                     <label className="block text-xs font-bold text-slate-600 mb-1">{t('profile.newPass')}</label>

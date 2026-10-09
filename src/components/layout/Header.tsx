@@ -538,9 +538,13 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
                   <div className="absolute right-0 mt-2 w-60 bg-white rounded-2xl border border-gray-100 shadow-xl py-1.5 z-50 divide-y divide-gray-100">
                     <div className="p-3">
                       <p className="font-bold text-xs text-gray-900 truncate">{user.name}</p>
-                      <p className="text-[11px] text-gray-400 truncate">
-                        {user.telegram_username ? `@${user.telegram_username}` : `ID: ${user.telegram_id}`}
-                      </p>
+                      {/* QA-06: Telegram username bo'lmasa — email ko'rsatamiz; u ham
+                          bo'lmasa qatorni yashiramiz (ichki ID raqamini ochmaymiz). */}
+                      {user.telegram_username ? (
+                        <p className="text-[11px] text-gray-400 truncate">@{user.telegram_username}</p>
+                      ) : user.email ? (
+                        <p className="text-[11px] text-gray-400 truncate">{user.email}</p>
+                      ) : null}
                       <div className="mt-1 flex items-center gap-1">
                         <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-[10px] font-bold">{user.role}</span>
                         {isOfficialAccount(user) ? (

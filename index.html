@@ -12,6 +12,12 @@
     <link id="favicon-dark" rel="icon" type="image/png" media="(prefers-color-scheme: dark)" href="/favicon-dark.png" />
     <link rel="apple-touch-icon" href="/favicon-light.png" />
 
+    <!-- QA-01: Brend shriftini preconnect + stylesheet bilan oldindan bog'laymiz
+         (sobiq CSS @import render-bloklashchi edi). -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" />
+
     <!-- ─── SEO: asosiy kalit so'zlar (O'zbekiston bozori) ─── -->
     <title>TopHand — O'zbekistonda ko'p tarmoqli bozor: xizmatlar, tovarlar, ko'chmas mulk, transport va ish e'lonlari</title>
     <meta
@@ -143,19 +149,19 @@
             "@type": "ItemList",
             "name": "TopHand kataloglari (bo'limlari)",
             "itemListElement": [
-              { "@type": "ListItem", "position": 1, "name": "Xizmatlar va ustalar", "url": "https://www.tophand.uz/categories" },
-              { "@type": "ListItem", "position": 2, "name": "Ish e'lonlari (vakansiyalar va rezumelar)", "url": "https://www.tophand.uz/categories" },
-              { "@type": "ListItem", "position": 3, "name": "Ko'chmas mulk (uy, kvartira, ijara, tijorat)", "url": "https://www.tophand.uz/categories" },
-              { "@type": "ListItem", "position": 4, "name": "Transport (avto, moto, yuk, suv transporti)", "url": "https://www.tophand.uz/categories" },
-              { "@type": "ListItem", "position": 5, "name": "Elektronika (telefon, kompyuter, audio-video)", "url": "https://www.tophand.uz/categories" },
-              { "@type": "ListItem", "position": 6, "name": "Ehtiyot qismlar va aksessuarlar", "url": "https://www.tophand.uz/categories" },
-              { "@type": "ListItem", "position": 7, "name": "Uy va dacha (mebel, maishiy texnika)", "url": "https://www.tophand.uz/categories" },
-              { "@type": "ListItem", "position": 8, "name": "Shaxsiy buyumlar (kiyim, poyabzal, bolalar)", "url": "https://www.tophand.uz/categories" },
-              { "@type": "ListItem", "position": 9, "name": "Hobbi va dam olish", "url": "https://www.tophand.uz/categories" },
-              { "@type": "ListItem", "position": 10, "name": "Hayvonlar", "url": "https://www.tophand.uz/categories" },
-              { "@type": "ListItem", "position": 11, "name": "Biznes va uskunalar", "url": "https://www.tophand.uz/categories" },
-              { "@type": "ListItem", "position": 12, "name": "Biznes 360 (B2B)", "url": "https://www.tophand.uz/categories" },
-              { "@type": "ListItem", "position": 13, "name": "Hunarmandlar / Qo'l mehnat", "url": "https://www.tophand.uz/categories" }
+              { "@type": "ListItem", "position": 1, "name": "Xizmatlar va ustalar", "url": "https://www.tophand.uz/?catalog=services" },
+              { "@type": "ListItem", "position": 2, "name": "Ish e'lonlari (vakansiyalar va rezumelar)", "url": "https://www.tophand.uz/?catalog=jobs" },
+              { "@type": "ListItem", "position": 3, "name": "Ko'chmas mulk (uy, kvartira, ijara, tijorat)", "url": "https://www.tophand.uz/?catalog=realty" },
+              { "@type": "ListItem", "position": 4, "name": "Transport (avto, moto, yuk, suv transporti)", "url": "https://www.tophand.uz/?catalog=transport" },
+              { "@type": "ListItem", "position": 5, "name": "Elektronika (telefon, kompyuter, audio-video)", "url": "https://www.tophand.uz/?catalog=electronics" },
+              { "@type": "ListItem", "position": 6, "name": "Ehtiyot qismlar va aksessuarlar", "url": "https://www.tophand.uz/?catalog=parts" },
+              { "@type": "ListItem", "position": 7, "name": "Uy va dacha (mebel, maishiy texnika)", "url": "https://www.tophand.uz/?catalog=home-dacha" },
+              { "@type": "ListItem", "position": 8, "name": "Shaxsiy buyumlar (kiyim, poyabzal, bolalar)", "url": "https://www.tophand.uz/?catalog=personal" },
+              { "@type": "ListItem", "position": 9, "name": "Hobbi va dam olish", "url": "https://www.tophand.uz/?catalog=hobby" },
+              { "@type": "ListItem", "position": 10, "name": "Hayvonlar", "url": "https://www.tophand.uz/?catalog=animals" },
+              { "@type": "ListItem", "position": 11, "name": "Biznes va uskunalar", "url": "https://www.tophand.uz/?catalog=business" },
+              { "@type": "ListItem", "position": 12, "name": "Biznes 360 (B2B)", "url": "https://www.tophand.uz/?catalog=business360" },
+              { "@type": "ListItem", "position": 13, "name": "Hunarmandlar / Qo'l mehnat", "url": "https://www.tophand.uz/?catalog=handmade" }
             ]
           },
           {

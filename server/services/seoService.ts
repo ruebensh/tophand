@@ -178,14 +178,42 @@ async function buildListingMeta(id: string): Promise<SeoMeta | null> {
   };
 }
 
-// ─── Kategoriyalar sahifasi ──────────────────────────────────────────────
-function buildCategoriesMeta(): SeoMeta {
-  const base = siteBase();
-  return {
-    title: 'Barcha kategoriyalar — xizmatlar va ish e\'lonlari | TopHand',
+// ─── Axborot/huquqiy sahifalar meta (QA-05) ─────────────────────────────
+// E'lon va hudud landing'dan tashqari, /about /terms /privacy /contact sahifalari
+// ham client-side (LegalPage) render qilinadi. Ularga alohida meta/canonical
+// bermasak, server statik index.html'ni (kanonik = bosh sahifa) yuboradi va
+// Google har bir legal sahifani bosh sahifa deb indekslab qo'yadi (QA-05).
+const LEGAL_PAGES: Record<string, { title: string; description: string }> = {
+  '/about': {
+    title: "Biz haqimizda — TopHand jamoasi va missiyasi | TopHand",
     description:
-      'TopHand kategoriyalari: ta\'mirsalash, qurilish, transport, tibbiyot, IT, dizayn, tikuvchilik, oziq-ovqat, o\'quv kurslari va yuzlab boshqa xizmatlar hamda vakansiyalar. Kerakli xizmatni toping yoki bepul e\'lon joylang.',
-    canonical: `${base}/categories`,
+      "TopHand — O'zbekistondagi ko'p tarmoqli onlayn bozor. Missiyamiz: mahalliy xizmatlar, tovarlar va ish e'lonlarini bitta platformada yig'ib, odamlar va ustalar o'rtasidagi ishonchni oshirish.",
+  },
+  '/terms': {
+    title: "Foydalanish shartlari | TopHand",
+    description:
+      "TopHand'dan foydalanish qoidalari: e'lon joylash tartibi, foydalanuvchi majburiyatlari, mas'uliyat va shartnoma shartlari.",
+  },
+  '/privacy': {
+    title: "Maxfiylik siyosati | TopHand",
+    description:
+      "TopHand shaxsiy ma'lumotlarni yig'ish, ishlatish va himoya qilish siyosati. Foydalanuvchi huquqlari va ma'lumotlar xavfsizligi.",
+  },
+  '/contact': {
+    title: "Aloqa — TopHand bilan bog'lanish | TopHand",
+    description:
+      "TopHand jamoasi bilan bog'laning: yordam, hamkorlik, shikoyat va savollar uchun aloqa kanallari.",
+  },
+};
+
+function buildLegalMeta(pathKey: string): SeoMeta | null {
+  const base = siteBase();
+  const info = LEGAL_PAGES[pathKey];
+  if (!info) return null;
+  return {
+    title: info.title,
+    description: info.description,
+    canonical: `${base}${pathKey}`,
     ogType: 'website',
   };
 }
@@ -262,7 +290,13 @@ export async function getSeoMeta(path: string): Promise<SeoMeta | null> {
     return meta;
   }
 
-  if (/^\/categories/.test(clean)) return buildCategoriesMeta();
+  // /categories sahifasi App.tsx'da OLIB TASHLANGAN (QA-04) — kategoriyalar
+  // Header mega-menyu orqali ko'rsatiladi. Shuning uchun bu yo'l uchun alohida
+  // meta YO'Q; /categories HomePage'ga tushadi va statik kanonik (/) qaytadi.
+
+  // Axborot/huquqiy sahifalar (QA-05): /about /terms /privacy /contact
+  const legalKey = clean.replace(/\/+$/, '');
+  if (legalKey in LEGAL_PAGES) return buildLegalMeta(legalKey);
 
   // Hudud landing: /hudud/:regionSlug/:categorySlug? (kesh bilan)
   const hududMatch = clean.match(/^\/hudud\/([^/]+)(?:\/([^/]+))?\/?$/);

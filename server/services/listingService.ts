@@ -427,17 +427,29 @@ export async function searchListings(filter: ListingFilter) {
   }
 
   // Sorting:
-  if (filter.sort_by === 'price_asc') {
+  // Narx saralashi izchil komparator bilan (QA-02):
+  //  - price_type='FREE' → 0 (eng arzon, ascending'da birinchi, descending'da oxirgi).
+  //  - FIXED/FROM/RANGE → price_min (yo'q bo'lsa price_max), agar narx bo'sh bo'lsa
+  //    salary_min → salary_max qadaridan ishlatamiz.
+  //  - NEGOTIABLE / umuman son bermagan → null → QANDAY yo'nalishda bo'lmasin OXIRGA
+  //    suriladi (shunda sonli narxlar tartibi buzilmaydi).
+  const sortPriceOf = (item: any): number | null => {
+    if (item.price_type === 'FREE') return 0;
+    const raw = item.price_min ?? item.price_max ?? item.salary_min ?? item.salary_max ?? null;
+    if (raw === null || raw === undefined || raw === '') return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  };
+  if (filter.sort_by === 'price_asc' || filter.sort_by === 'price_desc') {
+    const dir = filter.sort_by === 'price_asc' ? 1 : -1;
     filteredScored.sort((a, b) => {
-      const priceA = a.price_min ?? a.salary_min ?? a.price_max ?? a.salary_max ?? 999999999;
-      const priceB = b.price_min ?? b.salary_min ?? b.price_max ?? b.salary_max ?? 999999999;
-      return priceA - priceB;
-    });
-  } else if (filter.sort_by === 'price_desc') {
-    filteredScored.sort((a, b) => {
-      const priceA = a.price_max ?? a.salary_max ?? a.price_min ?? a.salary_min ?? 0;
-      const priceB = b.price_max ?? b.salary_max ?? b.price_min ?? b.salary_min ?? 0;
-      return priceB - priceA;
+      const pa = sortPriceOf(a);
+      const pb = sortPriceOf(b);
+      // null (negotiable / no numeric price) har doim oxirga.
+      if (pa === null && pb === null) return 0;
+      if (pa === null) return 1;
+      if (pb === null) return -1;
+      return (pa - pb) * dir;
     });
   } else if (filter.sort_by === 'rating_desc') {
     filteredScored.sort((a, b) => (b.employer_rating || 0) - (a.employer_rating || 0));

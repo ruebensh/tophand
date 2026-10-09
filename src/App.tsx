@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { IntlProvider, useI18n } from './i18n/IntlContext.tsx';
 import { AuthProvider, useAuth } from './context/AuthContext.tsx';
 import { NotificationProvider } from './context/NotificationContext.tsx';
@@ -11,18 +11,23 @@ import { MobileNav } from './components/layout/MobileNav.tsx';
 import { Footer } from './components/layout/Footer.tsx';
 
 // Pages
+// QA-01: HomePage kritik yo'lda (bosh sahifa LCP) — statik qoladi. Qolgan
+// og'ir/kam ishlatiladigan sahifalarni React.lazy bilan route-level bo'lamiz,
+// shunda dastlabki JS chunk kichrayadi va bosh sahifa tezroq ko'rinadi.
 import { HomePage } from './pages/HomePage.tsx';
-import { ListingDetailPage } from './pages/ListingDetailPage.tsx';
-import { CreateListingPage } from './pages/CreateListingPage.tsx';
-import { ProfilePage } from './pages/ProfilePage.tsx';
-import { ChatPage } from './pages/ChatPage.tsx';
-import { SavedListingsPage } from './pages/SavedListingsPage.tsx';
-import { WalletPage } from './pages/WalletPage.tsx';
-import { OrganizationPage } from './pages/OrganizationPage.tsx';
-import { ModeratorDashboardPage } from './pages/ModeratorDashboardPage.tsx';
-import { AdminDashboardPage } from './pages/AdminDashboardPage.tsx';
-import { RegionCategoryPage } from './pages/RegionCategoryPage.tsx';
-import { LegalPage, type LegalKind } from './pages/LegalPage.tsx';
+import type { LegalKind } from './pages/LegalPage.tsx';
+
+const ListingDetailPage = lazy(() => import('./pages/ListingDetailPage.tsx').then((m) => ({ default: m.ListingDetailPage })));
+const CreateListingPage = lazy(() => import('./pages/CreateListingPage.tsx').then((m) => ({ default: m.CreateListingPage })));
+const ProfilePage = lazy(() => import('./pages/ProfilePage.tsx').then((m) => ({ default: m.ProfilePage })));
+const ChatPage = lazy(() => import('./pages/ChatPage.tsx').then((m) => ({ default: m.ChatPage })));
+const SavedListingsPage = lazy(() => import('./pages/SavedListingsPage.tsx').then((m) => ({ default: m.SavedListingsPage })));
+const WalletPage = lazy(() => import('./pages/WalletPage.tsx').then((m) => ({ default: m.WalletPage })));
+const OrganizationPage = lazy(() => import('./pages/OrganizationPage.tsx').then((m) => ({ default: m.OrganizationPage })));
+const ModeratorDashboardPage = lazy(() => import('./pages/ModeratorDashboardPage.tsx').then((m) => ({ default: m.ModeratorDashboardPage })));
+const AdminDashboardPage = lazy(() => import('./pages/AdminDashboardPage.tsx').then((m) => ({ default: m.AdminDashboardPage })));
+const RegionCategoryPage = lazy(() => import('./pages/RegionCategoryPage.tsx').then((m) => ({ default: m.RegionCategoryPage })));
+const LegalPage = lazy(() => import('./pages/LegalPage.tsx').then((m) => ({ default: m.LegalPage })));
 
 // Global Modals
 import { GoogleLoginModal } from './components/modals/GoogleLoginModal.tsx';
@@ -280,10 +285,21 @@ const AppContent: React.FC = () => {
         currentRoute={currentRoute}
       />
 
-      {/* Main Content Area — mobil pastki bar (MobileNav) hamma sahifada turadi,
-          shuning uchun kontent ostida bar balandligi kadar joy ochamiz (bar kartalar
-          ustidan mingib qolmasligi uchun). */}
-      <main className="relative z-10 flex-1 pb-[calc(var(--mobile-nav-h)+8px+env(safe-area-inset-bottom))] sm:pb-0">{renderRoute()}</main>
+      {/* Main Content Area — mobil pastki bar (MobileNav) `md:hidden`, ya'ni <768px'da
+          ko'rinadi. Shuning uchun ajratiladigan pastki joy ham aynan shu `md`
+          breakpointgacha bo'lishi kerak (QA-03: 640–767px oralig'ida bar bor, lekin
+          `sm:pb-0` paddingni olib qo'yib, kartalar ustiga mingib qolar edi). */}
+      <main className="relative z-10 flex-1 pb-[calc(var(--mobile-nav-h)+8px+env(safe-area-inset-bottom))] md:pb-0">
+        <Suspense
+          fallback={
+            <div className="flex items-center justify-center min-h-[60vh]">
+              <div className="w-8 h-8 rounded-full border-2 border-[#1673E6] border-t-transparent animate-spin" />
+            </div>
+          }
+        >
+          {renderRoute()}
+        </Suspense>
+      </main>
 
       {/* Global Footer (conditionally hidden on mobile devices) */}
       <div className="hidden md:block">

@@ -73,10 +73,15 @@ router.get('/sitemap.xml', async (req, res) => {
     const base = siteBase(req);
     const now = new Date().toISOString();
 
-    // Statik/yuqori ustuvorlikli sahifalar
+    // Statik/yuqori ustuvorlikli sahifalar.
+    // E'LT: /categories yo'q — sahifa App.tsx'da olib tashlangan (QA-04),
+    // kategoriyalar Header mega-menyu orqali. Axborot/legal sahifalar indekslansin.
     const staticUrls: { loc: string; priority: string; changefreq: string; lastmod?: string }[] = [
       { loc: `${base}/`, priority: '1.0', changefreq: 'hourly', lastmod: now },
-      { loc: `${base}/categories`, priority: '0.8', changefreq: 'daily' },
+      { loc: `${base}/about`, priority: '0.4', changefreq: 'monthly' },
+      { loc: `${base}/contact`, priority: '0.4', changefreq: 'monthly' },
+      { loc: `${base}/terms`, priority: '0.3', changefreq: 'yearly' },
+      { loc: `${base}/privacy`, priority: '0.3', changefreq: 'yearly' },
     ];
 
     // Faol (ACTIVE) e'lonlar — Google indekslashi uchun
