@@ -2,6 +2,7 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import { requireAuth, optionalAuth, AuthRequest } from '../auth/telegram.ts';
 import { queryOne, queryAll, runQuery } from '../db/database.ts';
+import { sanitizeUserUrl, sanitizeUserUrlLoose } from '../lib/urlSecurity.ts';
 
 const router = Router();
 
@@ -81,10 +82,10 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
       [
         id,
         name.trim(),
-        logo_url || null,
+        sanitizeUserUrl(logo_url) || null,
         description ? description.trim() : null,
         phone || null,
-        website || null,
+        sanitizeUserUrlLoose(website) || null,
         region_id || null,
         district_id || null,
         address || null,

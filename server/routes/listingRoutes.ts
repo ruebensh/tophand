@@ -1,5 +1,6 @@
 import { Router, Response } from 'express';
 import crypto from 'crypto';
+import { sanitizeUserUrlList } from '../lib/urlSecurity.ts';
 import { requireAuth, optionalAuth, isStaffRole, hasMinLevel, AuthRequest } from '../auth/telegram.ts';
 import {
   searchListings,
@@ -376,8 +377,8 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res) => {
 
     // Update media (images + videos) if either provided
     if (Array.isArray(images) || Array.isArray(videos)) {
-      const imageList = Array.isArray(images) ? images : [];
-      const videoList = Array.isArray(videos) ? videos : [];
+      const imageList = Array.isArray(images) ? sanitizeUserUrlList(images, 8) : [];
+      const videoList = Array.isArray(videos) ? sanitizeUserUrlList(videos, 2) : [];
       const media = [...imageList.slice(0, 8), ...videoList.slice(0, 2)];
       await runQuery('DELETE FROM listing_images WHERE listing_id = ?', [listingId]);
       for (let i = 0; i < media.length; i++) {

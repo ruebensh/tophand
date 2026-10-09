@@ -75,6 +75,20 @@ function stripHtml(s: string): string {
   return (s || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+// SECURITY (H-08): JSON.stringify does NOT escape `<` `>` `&` or the JS line
+// separators U+2028/U+2029. A listing title containing `</script>` would break
+// out of the inline <script type="application/ld+json"> block → stored XSS.
+// We keep it valid JSON but escape those code points so the value can never
+// terminate the script context. JSON.parse reads the \u escapes back verbatim.
+function safeJsonScript(value: unknown): string {
+  return JSON.stringify(value)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+}
+
 function formatUz(n: number): string {
   return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 }
@@ -354,7 +368,7 @@ export function injectSeo(html: string, meta: SeoMeta): string {
     );
   }
   if (meta.jsonLd) {
-    const ld = `<script type="application/ld+json">${JSON.stringify(meta.jsonLd)}</script>`;
+    const ld = `<script type="application/ld+json">${safeJsonScript(meta.jsonLd)}</script>`;
     out = out.replace('</head>', `${ld}\n  </head>`);
   }
   return out;

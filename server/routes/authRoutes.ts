@@ -2,12 +2,86 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { generateToken, requireAuth, verifyTelegramAuth, AuthRequest } from '../auth/telegram.ts';
-import { queryOne, runQuery, queryAll } from '../db/database.ts';
+import { queryOne, runQuery, queryAll, runTransaction } from '../db/database.ts';
 import { sendVerificationCodeEmail } from '../services/emailService.ts';
 import { reqLang, type MsgLocale } from '../i18n/messages.ts';
 import { notifyWelcome } from '../services/notificationService.ts';
+import { sanitizeUserUrl } from '../lib/urlSecurity.ts';
 
 const router = Router();
+
+// ─── SECURITY (C-01): server-side Google ID-token verification ───────────
+// The client (Google Identity Services) hands us an ID token (`credential`).
+// We MUST verify it against Google before trusting any identity claim. Never
+// take googleId/email/name/picture from the request body as authoritative —
+// an attacker could forge them to take over any account. Here we validate the
+// token via Google's tokeninfo endpoint (signature/iss/exp checked by Google)
+// and pin `aud` to our own OAuth client id. For very high login volume,
+// switch to local JWKS verification (google-auth-library) to avoid the extra
+// network call, but the trust model stays identical: identity comes ONLY from
+// the verified token payload.
+const GOOGLE_CLIENT_ID = (process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || '').trim();
+
+interface VerifiedGoogleIdentity {
+  sub: string;
+  email: string;
+  emailVerified: boolean;
+  name: string;
+  picture: string | null;
+}
+
+async function verifyGoogleIdToken(credential: unknown): Promise<VerifiedGoogleIdentity> {
+  if (!credential || typeof credential !== 'string') {
+    throw Object.assign(new Error('Google credential topilmadi'), { status: 400 });
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10000);
+  let payload: any;
+  try {
+    const r = await fetch(
+      `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`,
+      { signal: controller.signal }
+    );
+    if (!r.ok) {
+      throw Object.assign(new Error('Google token yaroqsiz yoki muddati o\'tgan'), { status: 401 });
+    }
+    payload = await r.json();
+  } finally {
+    clearTimeout(timer);
+  }
+
+  const iss = payload?.iss;
+  if (iss !== 'https://accounts.google.com' && iss !== 'accounts.google.com') {
+    throw Object.assign(new Error('Google token iss noto\'g\'ri'), { status: 401 });
+  }
+  if (!payload?.exp || Number(payload.exp) * 1000 < Date.now()) {
+    throw Object.assign(new Error('Google token muddati o\'tgan'), { status: 401 });
+  }
+  if (GOOGLE_CLIENT_ID) {
+    if (payload.aud !== GOOGLE_CLIENT_ID) {
+      throw Object.assign(new Error('Google token aud mos emas'), { status: 401 });
+    }
+  } else if (process.env.NODE_ENV === 'production') {
+    // Fail closed: without a pinned client id we cannot bind the audience.
+    throw Object.assign(new Error('GOOGLE_CLIENT_ID sozlanmagan — production\'da Google login o\'chirilgan'), { status: 500 });
+  }
+  if (!payload?.sub) {
+    throw Object.assign(new Error('Google token sub yo\'q'), { status: 401 });
+  }
+
+  const emailVerified = payload.email_verified === true || String(payload.email_verified) === 'true';
+  if (process.env.NODE_ENV === 'production' && !emailVerified) {
+    throw Object.assign(new Error('Google email tasdiqlanmagan'), { status: 401 });
+  }
+
+  return {
+    sub: String(payload.sub),
+    email: (payload.email || '').trim().toLowerCase(),
+    emailVerified,
+    name: payload.name || (payload.email ? String(payload.email).split('@')[0] : 'Foydalanuvchi'),
+    picture: payload.picture || null,
+  };
+}
 
 // ─── Default cover gradients (same 10 pastel presets as frontend COVER_GRADIENTS) ──
 const COVER_GRADIENT_STYLES = [
@@ -31,9 +105,26 @@ function randomGradient(): string {
 // ─── Auth helpers (email codes + profile state) ─────────────────────────
 const EMAIL_CODE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
-/** Generate a 6-digit code, persist it and email it to the address. */
+// H-01: never expose a verification/reset code in the API response in
+// production, even if the email layer somehow reports `simulated`.
+function demoCode(simulated: boolean | undefined, code: string): string | undefined {
+  return simulated && process.env.NODE_ENV !== 'production' ? code : undefined;
+}
+
+// SECURITY (M-01/L-02): OTP is generated with a CSPRNG, stored ONLY as a
+// SHA-256 hash (never plaintext), bound to a purpose `type`, guarded by a
+// per-code failed-attempt counter + temporary lockout, and atomically consumed
+// on success so a code can never be replayed.
+const OTP_MAX_ATTEMPTS = 5;
+const OTP_LOCK_MS = 15 * 60 * 1000; // lock 15 minutes after too many failures
+
+function hashOtp(code: string): string {
+  return crypto.createHash('sha256').update(code).digest('hex');
+}
+
+/** Generate a 6-digit code, persist its hash and email the plaintext. */
 async function issueEmailCode(email: string, type: string, subject: string, lang: MsgLocale = 'uz') {
-  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  const code = crypto.randomInt(100000, 1000000).toString();
   const codeId = `otp_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
   const now = new Date();
   const expiresAt = new Date(now.getTime() + EMAIL_CODE_TTL_MS).toISOString();
@@ -42,25 +133,80 @@ async function issueEmailCode(email: string, type: string, subject: string, lang
   await runQuery(
     `INSERT INTO email_verification_codes (id, email, code, type, expires_at, created_at)
      VALUES (?, ?, ?, ?, ?, ?)`,
-    [codeId, email, code, type, expiresAt, now.toISOString()]
+    [codeId, email, hashOtp(code), type, expiresAt, now.toISOString()]
   );
 
   const emailRes = await sendVerificationCodeEmail(email, code, subject, lang);
   return { code, simulated: Boolean(emailRes.simulated) };
 }
 
-/** Validate a pending code (does not delete it). */
-async function matchEmailCode(email: string, code: string, type: string) {
-  return queryOne<any>(
-    `SELECT * FROM email_verification_codes
-     WHERE email = ? AND code = ? AND type = ? AND expires_at > NOW()
-     ORDER BY created_at DESC LIMIT 1`,
-    [email, code.trim(), type]
-  );
+export interface OtpVerifyResult {
+  ok: boolean;
+  reason?: 'invalid' | 'locked';
+  retry_after_ms?: number;
+}
+
+// Verify + atomically consume a code for (email, type). L-02: strictly bound to
+// `type` so a code issued for one flow can never satisfy another. M-01: counts
+// failed attempts within a row lock and temporarily locks after the limit.
+async function consumeEmailCode(email: string, plainCode: string, type: string): Promise<OtpVerifyResult> {
+  const code = (plainCode || '').trim();
+  if (!/^\d{6}$/.test(code)) return { ok: false, reason: 'invalid' };
+  const codeHash = hashOtp(code);
+
+  let result: OtpVerifyResult = { ok: false, reason: 'invalid' };
+  await runTransaction(async (client) => {
+    const sel = await client.query(
+      `SELECT id, code, attempt_count,
+              (locked_until IS NOT NULL AND locked_until > NOW()) AS is_locked,
+              GREATEST(0, EXTRACT(EPOCH FROM (locked_until - NOW())))::bigint AS lock_remaining_s
+       FROM email_verification_codes
+       WHERE email = $1 AND type = $2 AND expires_at > NOW()
+       ORDER BY created_at DESC LIMIT 1
+       FOR UPDATE`,
+      [email, type]
+    );
+    const row = sel.rows[0];
+    if (!row) { result = { ok: false, reason: 'invalid' }; return; }
+
+    if (row.is_locked) {
+      result = { ok: false, reason: 'locked', retry_after_ms: Number(row.lock_remaining_s || 0) * 1000 };
+      return;
+    }
+
+    if (row.code === codeHash) {
+      // Success → consume all codes for this email+type (one-time use).
+      await client.query('DELETE FROM email_verification_codes WHERE email = $1 AND type = $2', [email, type]);
+      result = { ok: true };
+      return;
+    }
+
+    const attempts = Number(row.attempt_count || 0) + 1;
+    if (attempts >= OTP_MAX_ATTEMPTS) {
+      await client.query(
+        'UPDATE email_verification_codes SET attempt_count = $1, locked_until = NOW() + make_interval(secs => $2::int) WHERE id = $3',
+        [attempts, Math.floor(OTP_LOCK_MS / 1000), row.id]
+      );
+      result = { ok: false, reason: 'locked', retry_after_ms: OTP_LOCK_MS };
+    } else {
+      await client.query('UPDATE email_verification_codes SET attempt_count = $1 WHERE id = $2', [attempts, row.id]);
+      result = { ok: false, reason: 'invalid' };
+    }
+  });
+  return result;
 }
 
 async function clearEmailCodes(email: string, type: string) {
   await runQuery('DELETE FROM email_verification_codes WHERE email = ? AND type = ?', [email, type]);
+}
+
+// User-facing message for a failed OTP verify (distinguishes temporary lockout).
+function otpMessage(r: OtpVerifyResult): string {
+  if (r.reason === 'locked') {
+    const mins = Math.max(1, Math.ceil((r.retry_after_ms || OTP_LOCK_MS) / 60000));
+    return `Juda ko'p noto'g'ri urinish. Qayta urinish uchun ${mins} daqiqa kuting.`;
+  }
+  return "Tasdiqlash kodi noto'g'ri yoki uning muddati o'tgan";
 }
 
 /** Mandatory profile = real name + phone + region + district (photo is optional). */
@@ -94,6 +240,10 @@ router.get('/config', (_req, res) => {
 });
 
 // Checks if credentials match the .env Admin account, otherwise checks DB user account
+// M-02: a fixed dummy hash so we always run exactly one bcrypt.compare, keeping
+// response timing constant whether or not the email exists.
+const DUMMY_HASH = bcrypt.hashSync(crypto.randomUUID(), 10);
+
 async function loginHandler(req: any, res: any) {
   try {
     const { email, password } = req.body;
@@ -136,22 +286,12 @@ async function loginHandler(req: any, res: any) {
     }
 
     // 2. Regular User Login from DB
+    // M-02: identical status/body whether the email is unknown, is a Google-only
+    // account (no password) or the password is wrong — blocks enumeration.
     const user = await queryOne<any>('SELECT * FROM users WHERE LOWER(email) = ?', [cleanEmail]);
-    if (!user) {
-      return res.status(401).json({
-        error: "Ushbu email bilan hisob topilmadi. Avval ro'yxatdan o'ting.",
-        not_registered: true,
-      });
-    }
-
-    if (!user.password_hash) {
-      return res.status(400).json({
-        error: "Ushbu hisob Google orqali ochilgan. Iltimos, Google orqali kiring yoki parolni tiklang.",
-      });
-    }
-
-    const isMatch = await bcrypt.compare(password, user.password_hash);
-    if (!isMatch) {
+    const storedHash = user && user.password_hash ? user.password_hash : DUMMY_HASH;
+    const isMatch = await bcrypt.compare(password, storedHash);
+    if (!user || !user.password_hash || !isMatch) {
       return res.status(401).json({ error: "Email yoki parol noto'g'ri" });
     }
 
@@ -194,27 +334,30 @@ router.post('/register/send-code', async (req, res) => {
 
     const cleanEmail = email.trim().toLowerCase();
     const adminEmail = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
-    if (cleanEmail === adminEmail) {
-      return res.status(400).json({ error: "Ushbu email tizim ma'muri uchun band qilingan" });
-    }
 
+    // M-02: do NOT reveal whether this email is already registered (or reserved
+    // for the admin). Always respond with the SAME generic success; a code is only
+    // actually issued/sent when no account exists yet. The real "already exists"
+    // check happens at /register (after email possession is proven by the code).
     const existing = await queryOne<any>('SELECT id FROM users WHERE LOWER(email) = ?', [cleanEmail]);
-    if (existing) {
-      return res.status(400).json({ error: 'Ushbu email bilan hisob allaqachon mavjud. Tizimga kiring.' });
-    }
 
-    const { code, simulated } = await issueEmailCode(
-      cleanEmail,
-      'EMAIL_VERIFICATION',
-      "TopHand - Ro'yxatdan o'tish tasdiqlash kodi",
-      reqLang(req)
-    );
+    let regCode: string | undefined;
+    let simulated = false;
+    if (!existing && cleanEmail !== adminEmail) {
+      const issued = await issueEmailCode(
+        cleanEmail,
+        'EMAIL_VERIFICATION',
+        "TopHand - Ro'yxatdan o'tish tasdiqlash kodi",
+        reqLang(req)
+      );
+      regCode = issued.code;
+      simulated = issued.simulated;
+    }
 
     res.json({
       success: true,
-      message: 'Tasdiqlash kodi emailingizga yuborildi',
-      simulated,
-      demo_code: simulated ? code : undefined,
+      message: "Agar ushbu email ro'yxatdan o'tmagan bo'lsa, tasdiqlash kodi yuborildi.",
+      demo_code: demoCode(simulated, regCode || ''),
     });
   } catch (err: any) {
     console.error('Register send-code error:', err);
@@ -241,9 +384,14 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'Ushbu email bilan hisob allaqachon mavjud' });
     }
 
-    const codeRecord = await matchEmailCode(cleanEmail, code, 'EMAIL_VERIFICATION');
-    if (!codeRecord) {
-      return res.status(400).json({ error: "Tasdiqlash kodi noto'g'ri yoki uning muddati o'tgan" });
+    // Reserved admin email is managed via .env, never via self-registration.
+    if (cleanEmail === (process.env.ADMIN_EMAIL || '').trim().toLowerCase()) {
+      return res.status(400).json({ error: "Ushbu email bilan hisob yaratib bo'lmaydi" });
+    }
+
+    const otp = await consumeEmailCode(cleanEmail, code, 'EMAIL_VERIFICATION');
+    if (!otp.ok) {
+      return res.status(otp.reason === 'locked' ? 429 : 400).json({ error: otpMessage(otp) });
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
@@ -284,42 +432,25 @@ router.post('/forgot-password', async (req, res) => {
     const cleanEmail = email.trim().toLowerCase();
     const adminEmail = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
 
-    if (cleanEmail === adminEmail) {
-      return res.status(400).json({
-        error: "Bosh administrator paroli serverning xavfsiz .env konfiguratsiyasida saqlanadi va u orqali boshqariladi.",
-      });
+    // M-02: never reveal whether an email is registered (or the reserved admin).
+    // Always return the SAME generic success; a code is only actually sent when a
+    // matching, non-admin account exists. L-02: code is bound to PASSWORD_RESET.
+    const user = adminEmail && cleanEmail === adminEmail
+      ? null
+      : await queryOne<any>('SELECT id FROM users WHERE LOWER(email) = ?', [cleanEmail]);
+
+    let issuedCode: string | undefined;
+    let simulated = false;
+    if (user) {
+      const issued = await issueEmailCode(cleanEmail, 'PASSWORD_RESET', 'TopHand - Parolni tiklash kodi', reqLang(req));
+      issuedCode = issued.code;
+      simulated = issued.simulated;
     }
-
-    const user = await queryOne<any>('SELECT id, name FROM users WHERE LOWER(email) = ?', [cleanEmail]);
-    if (!user) {
-      return res.status(404).json({ error: "Ushbu email bilan hisob topilmadi" });
-    }
-
-    // Generate 6-digit verification code
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    const codeId = `otp_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + 15 * 60 * 1000).toISOString(); // 15 minutes
-
-    // Delete any old pending codes for this email
-    await runQuery('DELETE FROM email_verification_codes WHERE email = ?', [cleanEmail]);
-
-    // Save new code
-    await runQuery(
-      `INSERT INTO email_verification_codes (id, email, code, type, expires_at, created_at)
-       VALUES (?, ?, ?, 'PASSWORD_RESET', ?, ?)`,
-      [codeId, cleanEmail, code, expiresAt, now.toISOString()]
-    );
-
-    // Send code to email
-    const emailRes = await sendVerificationCodeEmail(cleanEmail, code, 'TopHand - Parolni tiklash kodi', reqLang(req));
 
     res.json({
       success: true,
-      message: 'Tasdiqlash kodi emailingizga yuborildi',
-      simulated: emailRes.simulated,
-      // For easy demo/development testing if SMTP credentials aren't set
-      demo_code: emailRes.simulated ? code : undefined,
+      message: "Agar ushbu email bilan hisob mavjud bo'lsa, parolni tiklash kodi yuborildi.",
+      demo_code: demoCode(simulated, issuedCode || ''),
     });
   } catch (err: any) {
     console.error('Forgot password error:', err);
@@ -343,16 +474,11 @@ router.post('/reset-password', async (req, res) => {
     const cleanEmail = email.trim().toLowerCase();
     const cleanCode = code.trim();
 
-    // Verify code
-    const codeRecord = await queryOne<any>(
-      `SELECT * FROM email_verification_codes 
-       WHERE email = ? AND code = ? AND expires_at > NOW() 
-       ORDER BY created_at DESC LIMIT 1`,
-      [cleanEmail, cleanCode]
-    );
-
-    if (!codeRecord) {
-      return res.status(400).json({ error: "Tasdiqlash kodi noto'g'ri yoki uning muddati o'tgan" });
+    // Verify + atomically consume a PASSWORD_RESET code (L-02 purpose binding,
+    // M-01 attempt limit + one-time use).
+    const otp = await consumeEmailCode(cleanEmail, cleanCode, 'PASSWORD_RESET');
+    if (!otp.ok) {
+      return res.status(otp.reason === 'locked' ? 429 : 400).json({ error: otpMessage(otp) });
     }
 
     // Hash new password and update user
@@ -364,8 +490,7 @@ router.post('/reset-password', async (req, res) => {
       [newHash, now, cleanEmail]
     );
 
-    // Delete used verification code
-    await runQuery('DELETE FROM email_verification_codes WHERE email = ?', [cleanEmail]);
+    // Reset codes were consumed atomically above (consumeEmailCode deletes them).
 
     res.json({ success: true, message: "Parol muvaffaqiyatli yangilandi! Yangi parol bilan kiring." });
   } catch (err: any) {
@@ -377,18 +502,25 @@ router.post('/reset-password', async (req, res) => {
 // ─── Google OAuth Login ─────────────────────────────────────────────────
 router.post('/google', async (req, res) => {
   try {
-    const { credential, name, email, picture, googleId } = req.body;
+    const { credential } = req.body;
 
-    if (!googleId && !email) {
-      return res.status(400).json({ error: "Google ma'lumotlari noto'g'ri" });
+    // C-01: verify the Google ID token server-side and derive identity ONLY
+    // from the verified payload. Client-supplied googleId/email/name/picture
+    // are ignored as an identity source.
+    let guser: VerifiedGoogleIdentity;
+    try {
+      guser = await verifyGoogleIdToken(credential);
+    } catch (e: any) {
+      return res.status(e?.status || 401).json({ error: e?.message || 'Google tokenini tasdiqlab bo\'lmadi' });
     }
 
-    const googleUserId = googleId || `google_${crypto.createHash('md5').update(email).digest('hex').slice(0, 16)}`;
-    const displayName = name || email?.split('@')[0] || 'Foydalanuvchi';
-    const photoUrl = picture || null;
-    const cleanEmail = email ? email.trim().toLowerCase() : null;
+    const googleUserId = guser.sub;
+    const displayName = guser.name;
+    const photoUrl = guser.picture;
+    // Only trust an email when Google reports it as verified.
+    const cleanEmail = guser.emailVerified && guser.email ? guser.email : null;
 
-    // Find or create user by Google ID or Email
+    // Find or create user by Google ID or (verified) Email
     const lookupId = `google:${googleUserId}`;
     let user = await queryOne<any>(
       'SELECT * FROM users WHERE telegram_id = ? OR (email IS NOT NULL AND email = ?)',
@@ -541,7 +673,7 @@ router.post('/profile/complete', requireAuth, async (req: AuthRequest, res) => {
            bio = COALESCE(?, bio), latitude = COALESCE(?, latitude), longitude = COALESCE(?, longitude),
            updated_at = ?
        WHERE id = ?`,
-      [fullName, cleanPhone, profile_photo_url || null, region_id, district_id, (bio || '').trim() || null,
+      [fullName, cleanPhone, sanitizeUserUrl(profile_photo_url) || null, region_id, district_id, (bio || '').trim() || null,
         latitude || null, longitude || null, now, req.user!.id]
     );
 
@@ -568,7 +700,7 @@ router.post('/email/send-code', requireAuth, async (req: AuthRequest, res) => {
     }
 
     const { code, simulated } = await issueEmailCode(cleanEmail, 'EMAIL_VERIFICATION', 'TopHand - Email tasdiqlash kodi', reqLang(req));
-    res.json({ success: true, message: 'Tasdiqlash kodi emailingizga yuborildi', simulated, demo_code: simulated ? code : undefined });
+    res.json({ success: true, message: 'Tasdiqlash kodi emailingizga yuborildi', simulated, demo_code: demoCode(simulated, code) });
   } catch (err: any) {
     console.error('Link email send-code error:', err);
     res.status(500).json({ error: err.message || 'Kodni yuborishda xatolik yuz berdi' });
@@ -584,9 +716,9 @@ router.post('/email/verify', requireAuth, async (req: AuthRequest, res) => {
     }
     const cleanEmail = email.trim().toLowerCase();
 
-    const codeRecord = await matchEmailCode(cleanEmail, code, 'EMAIL_VERIFICATION');
-    if (!codeRecord) {
-      return res.status(400).json({ error: "Tasdiqlash kodi noto'g'ri yoki uning muddati o'tgan" });
+    const otp = await consumeEmailCode(cleanEmail, code, 'EMAIL_VERIFICATION');
+    if (!otp.ok) {
+      return res.status(otp.reason === 'locked' ? 429 : 400).json({ error: otpMessage(otp) });
     }
 
     const now = new Date().toISOString();
@@ -606,11 +738,15 @@ router.post('/email/verify', requireAuth, async (req: AuthRequest, res) => {
 // ─── Link a Google account to the current (e.g. email) account ──────────
 router.post('/google/link', requireAuth, async (req: AuthRequest, res) => {
   try {
-    const { googleId, email, picture } = req.body;
-    if (!googleId && !email) {
-      return res.status(400).json({ error: "Google ma'lumotlari noto'g'ri" });
+    const { credential, picture } = req.body;
+    // C-01: verify the token; identity comes from the verified sub, never the body.
+    let guser: VerifiedGoogleIdentity;
+    try {
+      guser = await verifyGoogleIdToken(credential);
+    } catch (e: any) {
+      return res.status(e?.status || 401).json({ error: e?.message || 'Google tokenini tasdiqlab bo\'lmadi' });
     }
-    const googleUserId = googleId || `google_${crypto.createHash('md5').update(email).digest('hex').slice(0, 16)}`;
+    const googleUserId = guser.sub;
     const lookupId = `google:${googleUserId}`;
 
     const already = await queryOne<any>('SELECT id FROM users WHERE telegram_id = ? AND id <> ?', [lookupId, req.user!.id]);
@@ -621,7 +757,7 @@ router.post('/google/link', requireAuth, async (req: AuthRequest, res) => {
     const now = new Date().toISOString();
     await runQuery(
       `UPDATE users SET telegram_id = ?, profile_photo_url = COALESCE(profile_photo_url, ?), updated_at = ? WHERE id = ?`,
-      [lookupId, picture || null, now, req.user!.id]
+      [lookupId, guser.picture || picture || null, now, req.user!.id]
     );
 
     const updated = await queryOne<any>('SELECT * FROM users WHERE id = ?', [req.user!.id]);

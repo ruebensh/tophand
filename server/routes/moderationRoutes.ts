@@ -322,7 +322,8 @@ router.get('/verifications/:userId', requireAuth, requireMinLevel('MODERATOR'), 
 router.post('/verifications/:userId/action', requireAuth, requireMinLevel('MODERATOR'), async (req: AuthRequest, res) => {
   try {
     const { action, rejection_reason } = req.body || {};
-    const targetUserId = req.params.id;
+    // L-03: the route param is :userId (was reading req.params.id → undefined).
+    const targetUserId = req.params.userId;
     if (!['APPROVE', 'REJECT'].includes(action)) {
       return res.status(400).json({ error: 'Amal noto\u2018g\u2018ri (APPROVE yoki REJECT)' });
     }

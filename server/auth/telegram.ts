@@ -3,11 +3,24 @@ import jwt from 'jsonwebtoken';
 import { Request, Response, NextFunction } from 'express';
 import { queryOne } from '../db/database.ts';
 
-// SECURITY: never fall back to a known secret in production. If JWT_SECRET is
-// missing while NODE_ENV=production, fail fast so the server refuses to boot
-// (otherwise every token would be signed with a guessable, shared secret).
-if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
-  throw new Error('FATAL: JWT_SECRET muhit o‘zgaruvchisi qo‘yilmagan — production da ishga tushirish taqiqlanadi.');
+// SECURITY (H-02): never fall back to a known secret in a real deployment.
+// Previously only NODE_ENV==='production' was rejected, so staging / preview /
+// a mislabelled production silently used the hardcoded fallback below — letting
+// anyone who reads the repo forge tokens for arbitrary user IDs and roles.
+// We now fail closed for ANY environment except an explicit local dev/test.
+// Bare `tsx watch` (NODE_ENV unset) is treated as local dev but warns loudly.
+const nodeEnv = process.env.NODE_ENV;
+const ALLOW_INSECURE_DEV = nodeEnv === undefined || nodeEnv === 'development' || nodeEnv === 'test';
+if (!process.env.JWT_SECRET) {
+  if (!ALLOW_INSECURE_DEV) {
+    throw new Error(
+      `FATAL: JWT_SECRET muhit o'zgaruvchisi qo'yilmagan — bu muhitda (${nodeEnv}) ishga tushirish taqiqlanadi (fail-closed).`
+    );
+  }
+  // eslint-disable-next-line no-console
+  console.warn(
+    '⚠️  JWT_SECRET topilmadi — LOCAL DEV fallback ishlatilmoqda. HECH QACHON deploy muhitida (staging/preview/production) shunday qoldirmang.'
+  );
 }
 const JWT_SECRET = process.env.JWT_SECRET || 'tophand-dev-insecure-secret-do-not-use-in-prod';
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';

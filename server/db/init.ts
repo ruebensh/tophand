@@ -494,6 +494,14 @@ export async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_email_verification ON email_verification_codes(email, code);
   `);
 
+  // SECURITY (M-01): durable per-code failed-attempt counter and a temporary
+  // lockout timestamp so OTP brute-forcing is throttled per email+flow and
+  // survives restarts / multiple instances (idempotent ALTER for existing DBs).
+  await pool.query(`
+    ALTER TABLE email_verification_codes ADD COLUMN IF NOT EXISTS attempt_count INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE email_verification_codes ADD COLUMN IF NOT EXISTS locked_until TIMESTAMPTZ;
+  `);
+
   // ─── translation_cache (Faza E): mashina-tarjimalarini bir marta qilib saqlash ───
   await createTableIfNotExists(`
     CREATE TABLE IF NOT EXISTS translation_cache (

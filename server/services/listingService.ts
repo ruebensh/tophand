@@ -8,6 +8,7 @@ import {
   getPromoPrice,
 } from './monetizationService.ts';
 import { charge, refund } from './walletService.ts';
+import { sanitizeUserUrlList } from '../lib/urlSecurity.ts';
 
 /**
  * Admin / SUPER_ADMIN accounts are billing-exempt: they are never charged and
@@ -635,8 +636,8 @@ export async function createListing(userId: string, data: any) {
   const now = new Date().toISOString();
 
   // Validate images count (Faza 13: videos stored alongside images, media_type inferred by extension)
-  const images: string[] = Array.isArray(data.images) ? data.images.slice(0, 8) : [];
-  const videos: string[] = Array.isArray(data.videos) ? data.videos.slice(0, 2) : [];
+  const images: string[] = sanitizeUserUrlList(data.images, 8);
+  const videos: string[] = sanitizeUserUrlList(data.videos, 2);
   const media: string[] = [...images, ...videos];
 
   // Determine catalog_id. Prefer the client value; otherwise derive it from the

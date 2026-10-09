@@ -26,9 +26,21 @@ router.get('/transactions', requireAuth, async (req: AuthRequest, res: Response)
   }
 });
 
-// POST /api/wallet/topup — add funds (stub: real payment gateway integrated later).
+// POST /api/wallet/topup — add funds.
+// SECURITY (H-05): this is a demo stub that mints balance with NO verified
+// payment. It must never be reachable in production. We hard-disable it unless
+// running outside production OR an operator explicitly sets ALLOW_DEMO_TOPUP=1.
+// The real path is a verified payment-provider webhook that calls topUp() with
+// an exact amount/currency, ownership, idempotency and provider transaction id.
 router.post('/topup', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
+    const isProd = process.env.NODE_ENV === 'production';
+    const demoAllowed = !isProd || process.env.ALLOW_DEMO_TOPUP === '1';
+    if (!demoAllowed) {
+      return res.status(503).json({
+        error: "To'lov tizimi ulanmagan — balans to'ldirish vaqtincha o'chirilgan.",
+      });
+    }
     const amount = Number(req.body?.amount);
     if (!Number.isFinite(amount) || amount < 100) {
       return res.status(400).json({ error: 'Summa kamida 100 so‘m bo‘lishi kerak' });

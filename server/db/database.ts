@@ -7,9 +7,21 @@ const isRemoteDb = Boolean(
   !process.env.DATABASE_URL.includes('localhost')
 );
 
+// M-11: a deployed environment MUST point at its own database. The hardcoded
+// local fallback below is for development only — in production we fail closed
+// so a config drift can never silently connect to a known local credential.
+if (!process.env.DATABASE_URL && process.env.NODE_ENV === 'production') {
+  throw new Error("FATAL: DATABASE_URL sozlanmagan — production'da ishga tushirish taqiqlanadi.");
+}
+
+// H-04: for a remote database we verify the server certificate by default.
+// Only set DB_SSL_REJECT_UNAUTHORIZED=false for a provider whose CA bundle you
+// cannot install — never leave it off in production.
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://tophand:tophand123@127.0.0.1:5432/tophand',
-  ssl: isRemoteDb ? { rejectUnauthorized: false } : undefined,
+  ssl: isRemoteDb
+    ? { rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false' }
+    : undefined,
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,

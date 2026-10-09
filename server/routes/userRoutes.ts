@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { requireAuth, optionalAuth, AuthRequest } from '../auth/telegram.ts';
 import { queryOne, queryAll, runQuery } from '../db/database.ts';
+import { sanitizeUserUrl } from '../lib/urlSecurity.ts';
 
 const router = Router();
 
@@ -113,8 +114,8 @@ router.put('/me', requireAuth, async (req: AuthRequest, res) => {
         bio !== undefined ? bio : null,
         region_id !== undefined ? region_id : null,
         district_id !== undefined ? district_id : null,
-        profile_photo_url !== undefined ? profile_photo_url : null,
-        cover_photo_url !== undefined ? cover_photo_url : null,
+        profile_photo_url !== undefined ? sanitizeUserUrl(profile_photo_url) : null,
+        cover_photo_url !== undefined ? sanitizeUserUrl(cover_photo_url) : null,
         cover_gradient !== undefined ? cover_gradient : null,
         phone !== undefined ? phone : null,
         now,
@@ -244,7 +245,7 @@ router.post('/me/verification', requireAuth, async (req: AuthRequest, res) => {
         cleanPinfl,
         (passport_issued_by || '').trim() || null,
         (passport_issued_date || '').trim() || null,
-        verification_photo_url,
+        sanitizeUserUrl(verification_photo_url),
         now,
         req.user!.id,
       ]

@@ -1,5 +1,34 @@
 import crypto from 'crypto';
 import { queryAll, queryOne, runQuery } from '../db/database.ts';
+import { ROLE_LEVEL, type Role } from '../auth/telegram.ts';
+
+// SECURITY (H-09): enforce a strict role hierarchy for destructive account
+// mutations (ban / unban / role change). An actor may only manage staff/users at
+// a STRICTLY LOWER role level, and never themselves. This means:
+//   - an ADMIN cannot touch a SUPER_ADMIN (higher) or another ADMIN (peer);
+//   - a SUPER_ADMIN can manage ADMINs but not peer SUPER_ADMINs;
+//   - only someone above ADMIN can act on an ADMIN.
+// Previously the code only blocked "target role === ADMIN", leaving SUPER_ADMIN
+// unprotected and (paradoxically) blocking even SUPER_ADMINs from managing an
+// ADMIN. Fail closed when the actor cannot be resolved.
+const roleLevel = (role?: string | null): number =>
+  role ? (ROLE_LEVEL[role as Role] ?? -1) : -1;
+
+async function assertCanManageActor(actorId: string, targetUserId: string, actionLabel: string): Promise<{ targetRole: string }> {
+  if (actorId === targetUserId) {
+    throw new Error(`O'z hisobingizga “${actionLabel}” amalini bajara olmaysiz`);
+  }
+  const [actor, target] = await Promise.all([
+    queryOne<any>('SELECT role FROM users WHERE id = ?', [actorId]),
+    queryOne<any>('SELECT role FROM users WHERE id = ?', [targetUserId]),
+  ]);
+  if (!actor) throw new Error('Amalni bajaruvchi topilmadi');
+  if (!target) throw new Error('Foydalanuvchi topilmadi');
+  if (roleLevel(actor.role) <= roleLevel(target.role)) {
+    throw new Error(`Sizning darajangiz “${actionLabel}” uchun bu hisobga yetarli emas`);
+  }
+  return { targetRole: target.role };
+}
 
 export async function createReport(reporterUserId: string, data: {
   target_type: 'LISTING' | 'USER' | 'ORGANIZATION' | 'MESSAGE' | 'CONVERSATION';
@@ -142,10 +171,8 @@ export async function takeModeratorAction(
 }
 
 export async function adminPermanentBan(adminId: string, userId: string, reason: string) {
-  const targetUser = await queryOne<any>('SELECT role FROM users WHERE id = ?', [userId]);
-  if (targetUser?.role === 'ADMIN') {
-    throw new Error("Admin foydalanuvchini bloklab bo‘lmaydi");
-  }
+  // H-09: strict role hierarchy (also blocks acting on self / peers / superiors).
+  await assertCanManageActor(adminId, userId, 'bloklash');
 
   const now = new Date().toISOString();
   await runQuery(
@@ -166,6 +193,9 @@ export async function adminPermanentBan(adminId: string, userId: string, reason:
 }
 
 export async function adminUnban(adminId: string, userId: string) {
+  // H-09: only a strictly higher-ranked actor may lift a ban.
+  await assertCanManageActor(adminId, userId, 'blokdan chiqarish');
+
   const now = new Date().toISOString();
   await runQuery(
     `UPDATE users 
@@ -185,10 +215,9 @@ export async function adminUnban(adminId: string, userId: string) {
 }
 
 export async function adminSetRole(adminId: string, userId: string, newRole: 'USER' | 'MODERATOR') {
-  const targetUser = await queryOne<any>('SELECT role FROM users WHERE id = ?', [userId]);
-  if (targetUser?.role === 'ADMIN') {
-    throw new Error("Admin rolini o'zgartirib bo'lmaydi");
-  }
+  // H-09: prevent ADMIN from demoting a SUPER_ADMIN or peer, and allow
+  // SUPER_ADMIN to manage ADMINs (previously wrongly blocked).
+  await assertCanManageActor(adminId, userId, 'rol o‘zgartirish');
 
   const now = new Date().toISOString();
 

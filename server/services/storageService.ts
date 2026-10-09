@@ -12,6 +12,31 @@ if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 }
 
+// SECURITY (H-06): `folder` is partly caller-controlled (upload query param and
+// R2 object prefix). A raw value like `../../etc` would escape UPLOAD_DIR via
+// path.join and allow arbitrary file writes. We accept ONLY a single safe path
+// segment here and, for local writes, additionally assert containment under
+// UPLOAD_DIR so nothing can ever be written outside it.
+const SAFE_FOLDER_RE = /^[a-z0-9][a-z0-9_-]{0,31}$/;
+function sanitizeFolder(folder: string | undefined, fallback: string): string {
+  const value = (folder || '').trim().toLowerCase();
+  if (!value) return fallback;
+  if (!SAFE_FOLDER_RE.test(value)) {
+    throw new Error('Noto‘g‘ri yuklash katalogi (faqat harf, raqam, _ va - ruxsat)');
+  }
+  return value;
+}
+
+// Resolve `folder` to an absolute dir and guarantee it stays inside UPLOAD_DIR.
+function resolveUploadDir(folder: string): string {
+  const dir = path.resolve(UPLOAD_DIR, folder);
+  const withSep = UPLOAD_DIR.endsWith(path.sep) ? UPLOAD_DIR : UPLOAD_DIR + path.sep;
+  if (dir !== UPLOAD_DIR && !dir.startsWith(withSep)) {
+    throw new Error('Yuklash katalogi chegaradan tashqarida');
+  }
+  return dir;
+}
+
 // ─── Cloudflare R2 Client Setup ──────────────────────────────────────────
 const isR2Enabled = Boolean(
   process.env.R2_ACCESS_KEY_ID &&
@@ -52,6 +77,7 @@ export async function processAndStoreImage(
   options: { maxWidth?: number; maxHeight?: number; quality?: number } = {}
 ): Promise<UploadResult> {
   const { maxWidth = 1280, maxHeight = 1280, quality = 82 } = options;
+  folder = sanitizeFolder(folder, 'photos');
 
   // 1. Optimize image using Sharp: convert to WebP, resize if large, keep aspect ratio
   const sharpInstance = sharp(inputBuffer).rotate(); // auto-rotates based on EXIF
@@ -101,7 +127,7 @@ export async function processAndStoreImage(
   }
 
   // 3. Fallback: Save to local uploads folder
-  const targetDir = path.join(UPLOAD_DIR, folder);
+  const targetDir = resolveUploadDir(folder);
   if (!fs.existsSync(targetDir)) {
     fs.mkdirSync(targetDir, { recursive: true });
   }
@@ -268,13 +294,36 @@ export async function processAndStoreFavicon(
  * Stores a raw video file (mp4/webm) in Cloudflare R2 or local disk.
  * Faza 13 — video media for listings.
  */
+/**
+ * Video faylning HAQIQI turini magic-byte (imzo) orqali aniqlaymiz — mijoz
+ * yuborgan mimetype'ga ishonmaymiz (H-05/M-05: soxta rasm/video yuklash).
+ * MP4 → offset 4 da 'ftyp'; WebM/MKV → offset 0 da EBML `1A 45 DF A3`.
+ */
+function sniffVideoSignature(buf: Buffer): { ext: string; contentType: string } | null {
+  if (buf.length < 12) return null;
+  // ISO-BMFF / MP4: baytlar 4..8 == "ftyp"
+  if (buf[4] === 0x66 && buf[5] === 0x74 && buf[6] === 0x79 && buf[7] === 0x70) {
+    return { ext: 'mp4', contentType: 'video/mp4' };
+  }
+  // Matroska/WebM EBML header: 1A 45 DF A3
+  if (buf[0] === 0x1a && buf[1] === 0x45 && buf[2] === 0xdf && buf[3] === 0xa3) {
+    return { ext: 'webm', contentType: 'video/webm' };
+  }
+  return null;
+}
+
 export async function storeVideo(
   inputBuffer: Buffer,
   mimetype: string,
   folder: string = 'videos'
 ): Promise<UploadResult> {
-  const ext = mimetype.includes('webm') ? 'webm' : 'mp4';
-  const contentType = mimetype.includes('webm') ? 'video/webm' : 'video/mp4';
+  folder = sanitizeFolder(folder, 'videos');
+  const sniffed = sniffVideoSignature(inputBuffer);
+  if (!sniffed) {
+    throw new Error("Video fayl formati yaroqsiz (faqat MP4 yoki WebM qabul qilinadi)");
+  }
+  const ext = sniffed.ext;
+  const contentType = sniffed.contentType;
   const uniqueId = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
   const filename = `${uniqueId}.${ext}`;
   const storageKey = `${folder}/${filename}`;
@@ -295,7 +344,7 @@ export async function storeVideo(
     return { url: publicUrl, key: storageKey, size: inputBuffer.length, mimetype: contentType, storage: 'r2' };
   }
 
-  const targetDir = path.join(UPLOAD_DIR, folder);
+  const targetDir = resolveUploadDir(folder);
   if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
   const localFilePath = path.join(targetDir, filename);
   await fs.promises.writeFile(localFilePath, inputBuffer);

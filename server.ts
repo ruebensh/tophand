@@ -1,7 +1,11 @@
+// H-03: load .env BEFORE any module reads process.env. ES imports are hoisted
+// and evaluated in source order, so this side-effect import must come first —
+// the auth module captures JWT_SECRET at load time and would otherwise read an
+// empty env (silently falling back to the insecure dev secret).
+import 'dotenv/config';
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
-import dotenv from 'dotenv';
 import { initDatabase } from './server/db/init.ts';
 import { startExpirationCron } from './server/services/expirationService.ts';
 import { getSeoMeta, injectSeo } from './server/services/seoService.ts';
@@ -32,10 +36,9 @@ import adsRoutes from './server/routes/adsRoutes.ts';
 import seoRoutes from './server/routes/seoRoutes.ts';
 import translateRoutes from './server/routes/translateRoutes.ts';
 
-dotenv.config();
-
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+const GOOGLE_CLIENT_ID_FOR_STARTUP = (process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || '').trim();
 
 // Trust the first proxy (Render/Cloudflare) so req.ip / X-Forwarded-For is correct.
 app.set('trust proxy', 1);
@@ -49,11 +52,43 @@ app.set('trust proxy', 1);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// ── Production hardening: basic security headers + in-memory rate limiting ──
+// ── Production hardening: security headers + in-memory rate limiting ──
+// Baseline headers are always set; HSTS + a Content-Security-Policy are only
+// applied in production (M-13) so local Vite dev (HMR / inline scripts) keeps
+// working. The CSP is deliberately permissive on image/script/style origins
+// because the app loads Google Identity Services, Google Fonts, arbitrary https
+// listing/cover images and R2 media; a stricter nonce/hash CSP is a follow-up.
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self' https://accounts.google.com https://apis.google.com 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' data: https://fonts.gstatic.com",
+  "img-src 'self' data: blob: https:",
+  "media-src 'self' blob: https:",
+  "connect-src 'self' https:",
+  "frame-src 'self' https:",
+  "frame-ancestors 'self'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "object-src 'none'",
+  'upgrade-insecure-requests',
+].join('; ');
+
+const IS_PROD_SERVER = process.env.NODE_ENV === 'production';
 app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('X-XSS-Protection', '0');
+  res.setHeader(
+    'Permissions-Policy',
+    'geolocation=(self), camera=(), microphone=(), payment=(), usb=()'
+  );
+  if (IS_PROD_SERVER) {
+    // 2 years + include subdomains + preload. Only meaningful over HTTPS.
+    res.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
+    res.setHeader('Content-Security-Policy', CSP);
+  }
   next();
 });
 
@@ -87,6 +122,24 @@ const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100, message: "Ju
 const codeLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 10, message: "Kod yuborish chegarasi oshdi. 1 soatdan so'ng urinib ko'ring." });
 // Mashina-tarjimasi pullli API'ni himoya qilish: bir IP uchun soatiga cheklov.
 const translateLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 300, message: "Tarjima chegarasi oshdi. Birozdan so'ng urinib ko'ring." });
+
+// ── DDoS / abuse hardening (M-03): mutatsiya-limited rate limiters ──
+// Faqat yozuv/og'ir (POST/PUT/PATCH/DELETE) so'rovlar hisoblanadi — GET (o'qish/
+// browse) cheklanmaydi, shunda foydalanuvchi tajribasi buzilmaydi. Bu in-memory
+// limiter (process-local); production edge (CDN/WAF) + Redis qo'shimcha kerak.
+function mutateLimiter(opts: { windowMs: number; max: number; message: string }) {
+  const inner = rateLimit(opts);
+  return (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const m = req.method.toUpperCase();
+    if (m === 'GET' || m === 'HEAD' || m === 'OPTIONS') return next();
+    return inner(req, res, next);
+  };
+}
+const contentLimiter = mutateLimiter({ windowMs: 15 * 60 * 1000, max: 60, message: "Juda ko'p amallar. Birozdan so'ng urinib ko'ring." });
+const chatLimiter = mutateLimiter({ windowMs: 60 * 1000, max: 60, message: "Juda ko'p xabar. Biroz kuting." });
+const aiLimiter = mutateLimiter({ windowMs: 60 * 60 * 1000, max: 120, message: "AI chegarasi oshdi. Birozdan so'ng urinib ko'ring." });
+const uploadLimiter = mutateLimiter({ windowMs: 15 * 60 * 1000, max: 120, message: "Yuklash chegarasi oshdi. Birozdan so'ng urinib ko'ring." });
+const exportLimiter = mutateLimiter({ windowMs: 60 * 60 * 1000, max: 20, message: "Eksport chegarasi oshdi. Birozdan so'ng urinib ko'ring." });
 
 // Static assets with permissive CORS & Cross-Origin-Resource-Policy for browser image loading
 app.use((_req, res, next) => {
@@ -125,26 +178,27 @@ app.use('/api/auth/forgot-password', codeLimiter);
 app.use('/api/auth', authLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
-app.use('/api/listings', listingRoutes);
-app.use('/api/chat', chatRoutes);
+app.use('/api/listings', contentLimiter, listingRoutes);
+app.use('/api/chat', chatLimiter, chatRoutes);
 app.use('/api/saved-listings', savedRoutes);
 app.use('/api/locations', locationRoutes);
 app.use('/api/catalogs', catalogRoutes);
 app.use('/api/categories', categoryRoutes);
-app.use('/api/ai', aiRoutes);
-app.use('/api/organizations', organizationRoutes);
+app.use('/api/ai', aiLimiter, aiRoutes);
+app.use('/api/organizations', contentLimiter, organizationRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/moderation', moderationRoutes);
 app.use('/api/messaging', messagingRoutes);
+app.use('/api/admin/export', exportLimiter);
 app.use('/api/admin', adminRoutes);
-app.use('/api/upload', uploadRoutes);
-app.use('/api/storage', uploadRoutes);
+app.use('/api/upload', uploadLimiter, uploadRoutes);
+app.use('/api/storage', uploadLimiter, uploadRoutes);
 app.use('/api/settings', settingRoutes);
 app.use('/api/theme', themeRoutes);
-app.use('/api/reviews', reviewRoutes);
-app.use('/api/wallet', walletRoutes);
-app.use('/api/monetization', monetizationRoutes);
+app.use('/api/reviews', contentLimiter, reviewRoutes);
+app.use('/api/wallet', contentLimiter, walletRoutes);
+app.use('/api/monetization', contentLimiter, monetizationRoutes);
 app.use('/api/ads', adsRoutes);
 app.use('/api/translate', translateLimiter, translateRoutes);
 
@@ -167,6 +221,19 @@ app.use('/api', (err: any, _req: express.Request, res: express.Response, _next: 
 
 async function startServer() {
   try {
+    // Fail-closed visibility (H-01/H-02): in production, warn loudly about any
+    // missing critical integration so a mis-deploy is caught immediately. The
+    // hard failures (JWT_SECRET, DATABASE_URL) already throw at module load.
+    if (process.env.NODE_ENV === 'production') {
+      const hasMail = Boolean(
+        (process.env.BREVO_API_KEY || '').trim() ||
+        (process.env.SMTP_USER && process.env.SMTP_PASS)
+      );
+      const hasGoogle = Boolean(GOOGLE_CLIENT_ID_FOR_STARTUP);
+      if (!hasMail) console.warn("⚠️  [prod] Email provider YO'Q — ro'yxatdan o'tish/parol tiklash ishlamaydi (BREVO_API_KEY yoki SMTP).");
+      if (!hasGoogle) console.warn("⚠️  [prod] GOOGLE_CLIENT_ID YO'Q — Google login fail-closed bo'ladi.");
+    }
+
     // 1. Initialize PostgreSQL database & seed data
     await initDatabase();
 

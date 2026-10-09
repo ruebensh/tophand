@@ -137,7 +137,15 @@ export async function sendVerificationCodeEmail(
     }
   }
 
-  // 3) Development / Demo mode: Log verification code to console clearly.
+  // 3) Development / Demo simulation — NEVER in production (H-01 fail-closed).
+  // If we reach here, no Brevo key and no SMTP are configured. In production we
+  // must NOT fabricate/return a code (that would leak the OTP and let anyone
+  // verify any email / reset any password). Fail loudly instead.
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      "Email provider sozlanmagan (BREVO_API_KEY yoki SMTP_USER/SMTP_PASS kerak) — production'da tasdiqlash kodi yuborib bo'lmadi."
+    );
+  }
   console.log('\n==================================================');
   console.log(`📧 [EMAIL SIMULATSIYA] Kimga: ${toEmail}`);
   console.log(`🔑 Tasdiqlash kodi: ${code}`);

@@ -655,8 +655,8 @@ router.put('/users/:id/verification', async (req: AuthRequest, res) => {
       const notifId = `notif_${crypto.randomUUID().slice(0, 16)}`;
       await runQuery(
         `INSERT INTO notifications (id, user_id, type, title, body, link, created_at)
-         VALUES (?, ?, 'SYSTEM_ALERT', 'Shaxsingiz tasdiqlandi!', 'Tabriklaymiz! Sizning pasport ma’lumotlaringiz ma’muriyat tomonidan tekshirilib, profilingizga rasmiy tasdiq nishoni (Verified badge) berildi.', '/profile/${targetUserId}', ?)`,
-        [notifId, targetUserId, now]
+         VALUES (?, ?, 'SYSTEM_ALERT', 'Shaxsingiz tasdiqlandi!', 'Tabriklaymiz! Sizning pasport ma’lumotlaringiz ma’muriyat tomonidan tekshirilib, profilingizga rasmiy tasdiq nishoni (Verified badge) berildi.', ?, ?)`,
+        [notifId, targetUserId, '/profile/' + targetUserId, now]
       );
     } else if (status === 'REJECTED') {
       await runQuery(
@@ -672,8 +672,8 @@ router.put('/users/:id/verification', async (req: AuthRequest, res) => {
       const notifId = `notif_${crypto.randomUUID().slice(0, 16)}`;
       await runQuery(
         `INSERT INTO notifications (id, user_id, type, title, body, link, created_at)
-         VALUES (?, ?, 'SYSTEM_ALERT', 'Tasdiqlash arizasi rad etildi', ?, '/profile/${targetUserId}', ?)`,
-        [notifId, targetUserId, `Tasdiqlash arizangiz rad etildi. Sabab: ${rejection_reason || 'Hujjatlarda noaniqliklar mavjud'}`, now]
+         VALUES (?, ?, 'SYSTEM_ALERT', 'Tasdiqlash arizasi rad etildi', ?, ?, ?)`,
+        [notifId, targetUserId, `Tasdiqlash arizangiz rad etildi. Sabab: ${rejection_reason || 'Hujjatlarda noaniqliklar mavjud'}`, '/profile/' + targetUserId, now]
       );
     } else {
       // Revoke / unverify
