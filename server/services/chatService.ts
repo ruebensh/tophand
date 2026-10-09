@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { queryAll, queryOne, runQuery } from '../db/database.ts';
 import { sendPushToUser } from './pushService.ts';
+import { sanitizeUserUrl } from '../lib/urlSecurity.ts';
 
 export async function getOrCreateConversation(listingId: string, initiatorUserId: string) {
   // Find listing to get recipient
@@ -209,12 +210,13 @@ export async function sendMessage(
 
   const id = `msg_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
   const now = new Date().toISOString();
-  const messageType = attachmentUrl ? 'IMAGE' : 'TEXT';
+  const cleanAttachment = sanitizeUserUrl(attachmentUrl);
+  const messageType = cleanAttachment ? 'IMAGE' : 'TEXT';
 
   await runQuery(
     `INSERT INTO messages (id, conversation_id, sender_user_id, message_type, text, attachment_url, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [id, conversationId, senderUserId, messageType, text.trim(), attachmentUrl || null, now]
+    [id, conversationId, senderUserId, messageType, text.trim(), cleanAttachment, now]
   );
 
   // Update conversation updated_at

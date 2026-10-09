@@ -35,6 +35,8 @@ import monetizationRoutes from './server/routes/monetizationRoutes.ts';
 import adsRoutes from './server/routes/adsRoutes.ts';
 import seoRoutes from './server/routes/seoRoutes.ts';
 import translateRoutes from './server/routes/translateRoutes.ts';
+import verifyMediaRoutes from './server/routes/verifyMediaRoutes.ts';
+import { EXPOSED } from './server/lib/envSecurity.ts';
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
@@ -74,7 +76,10 @@ const CSP = [
   'upgrade-insecure-requests',
 ].join('; ');
 
-const IS_PROD_SERVER = process.env.NODE_ENV === 'production';
+// Strict security headers (HSTS + CSP) are applied in ANY internet-exposed env
+// (production/staging/preview/unset NODE_ENV), not only NODE_ENV=production.
+// Local dev/test skips them so Vite HMR / inline scripts keep working.
+const IS_PROD_SERVER = EXPOSED;
 app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
@@ -141,15 +146,26 @@ const aiLimiter = mutateLimiter({ windowMs: 60 * 60 * 1000, max: 120, message: "
 const uploadLimiter = mutateLimiter({ windowMs: 15 * 60 * 1000, max: 120, message: "Yuklash chegarasi oshdi. Birozdan so'ng urinib ko'ring." });
 const exportLimiter = mutateLimiter({ windowMs: 60 * 60 * 1000, max: 20, message: "Eksport chegarasi oshdi. Birozdan so'ng urinib ko'ring." });
 
-// Static assets with permissive CORS & Cross-Origin-Resource-Policy for browser image loading
-app.use((_req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+// Static assets with permissive CORS & Cross-Origin-Resource-Policy for browser
+// image loading. Scoped to NON-/api paths only (L-04): the API is same-origin and
+// must not get a wildcard Access-Control-Allow-Origin on every response.
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/api')) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  }
   next();
 });
 
 // Static uploads folder
 const uploadDir = path.resolve(process.cwd(), 'uploads');
+// SECURITY (H-07): verification passport/selfie images are personal data. Block
+// them from the public /uploads static route entirely — they are served ONLY via
+// the signed /api/verification-photo endpoint below.
+app.use('/uploads/verifications', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.status(404).json({ error: 'Not found' });
+});
 app.use('/uploads', express.static(uploadDir, {
   maxAge: '1d',
   setHeaders: (res) => {
@@ -177,6 +193,7 @@ app.use('/api/auth/register/send-code', codeLimiter);
 app.use('/api/auth/forgot-password', codeLimiter);
 app.use('/api/auth', authLimiter);
 app.use('/api/auth', authRoutes);
+app.use('/api/verification-photo', verifyMediaRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/listings', contentLimiter, listingRoutes);
 app.use('/api/chat', chatLimiter, chatRoutes);
@@ -210,10 +227,10 @@ app.get('/api/health', (_req, res) => {
 // Centralized API error handler
 app.use('/api', (err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('API Error:', err);
-  const isProd = process.env.NODE_ENV === 'production';
   const status = err.status || 500;
-  // In production, never leak internal 5xx messages (DB/SQL details, stack, etc.).
-  const expose = !isProd || (status >= 400 && status < 500);
+  // In an internet-exposed env, never leak internal 5xx messages (DB/SQL details,
+  // stack, etc.). 4xx are client-facing and safe to show.
+  const expose = !EXPOSED || (status >= 400 && status < 500);
   res.status(status).json({
     error: expose ? (err.message || 'So‘rovni bajarib bo‘lmadi') : 'Serverda ichki xatolik yuz berdi',
   });
@@ -221,17 +238,17 @@ app.use('/api', (err: any, _req: express.Request, res: express.Response, _next: 
 
 async function startServer() {
   try {
-    // Fail-closed visibility (H-01/H-02): in production, warn loudly about any
-    // missing critical integration so a mis-deploy is caught immediately. The
-    // hard failures (JWT_SECRET, DATABASE_URL) already throw at module load.
-    if (process.env.NODE_ENV === 'production') {
+    // Fail-closed visibility (H-01/H-02): in any internet-exposed env, warn
+    // loudly about any missing critical integration so a mis-deploy is caught
+    // immediately. The hard failures (JWT_SECRET, DATABASE_URL) throw at module load.
+    if (EXPOSED) {
       const hasMail = Boolean(
         (process.env.BREVO_API_KEY || '').trim() ||
         (process.env.SMTP_USER && process.env.SMTP_PASS)
       );
       const hasGoogle = Boolean(GOOGLE_CLIENT_ID_FOR_STARTUP);
-      if (!hasMail) console.warn("⚠️  [prod] Email provider YO'Q — ro'yxatdan o'tish/parol tiklash ishlamaydi (BREVO_API_KEY yoki SMTP).");
-      if (!hasGoogle) console.warn("⚠️  [prod] GOOGLE_CLIENT_ID YO'Q — Google login fail-closed bo'ladi.");
+      if (!hasMail) console.warn("⚠️  [exposed] Email provider YO'Q — ro'yxatdan o'tish/parol tiklash ishlamaydi (BREVO_API_KEY yoki SMTP).");
+      if (!hasGoogle) console.warn("⚠️  [exposed] GOOGLE_CLIENT_ID YO'Q — Google login fail-closed bo'ladi.");
     }
 
     // 1. Initialize PostgreSQL database & seed data

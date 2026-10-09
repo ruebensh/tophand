@@ -18,11 +18,46 @@ if (!fs.existsSync(UPLOAD_DIR)) {
 // segment here and, for local writes, additionally assert containment under
 // UPLOAD_DIR so nothing can ever be written outside it.
 const SAFE_FOLDER_RE = /^[a-z0-9][a-z0-9_-]{0,31}$/;
+
+// SECURITY (M-04): resource-exhaustion / decompression-bomb guards for the image
+// decoder. We bound total input pixels, per-side dimensions, disable animated
+// multi-frame decoding, fail on any corrupt pixel data, and cap decode/encode
+// wall-clock time so a hostile image can't pin the event loop or exhaust RAM.
+const MAX_INPUT_PIXELS = 40_000_000; // ~40MP total
+const MAX_INPUT_DIM = 10_000;        // max any single side (px)
+const DECODE_TIMEOUT_MS = 20_000;    // hard cap for one image pipeline
+const SHARP_INPUT_OPTS = {
+  limitInputPixels: MAX_INPUT_PIXELS,
+  failOn: 'error' as const,
+  animated: false,
+};
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`${label}: ishlov tugash vaqti oshdi (timeout)`)),
+      ms
+    );
+    promise.then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); }
+    );
+  });
+}
+
+// Reject obviously absurd dimensions before we let Sharp decode the full image.
+function assertSafeDimensions(meta: { width?: number; height?: number }): void {
+  const w = meta.width || 0;
+  const h = meta.height || 0;
+  if (w > MAX_INPUT_DIM || h > MAX_INPUT_DIM || w * h > MAX_INPUT_PIXELS) {
+    throw Object.assign(new Error("Rasm o'lchami juda katta (ruxsat etilgan maksimum ~40MP)"), { status: 400 });
+  }
+}
 function sanitizeFolder(folder: string | undefined, fallback: string): string {
   const value = (folder || '').trim().toLowerCase();
   if (!value) return fallback;
   if (!SAFE_FOLDER_RE.test(value)) {
-    throw new Error('Noto‘g‘ri yuklash katalogi (faqat harf, raqam, _ va - ruxsat)');
+    throw Object.assign(new Error('Noto‘g‘ri yuklash katalogi (faqat harf, raqam, _ va - ruxsat)'), { status: 400 });
   }
   return value;
 }
@@ -32,7 +67,7 @@ function resolveUploadDir(folder: string): string {
   const dir = path.resolve(UPLOAD_DIR, folder);
   const withSep = UPLOAD_DIR.endsWith(path.sep) ? UPLOAD_DIR : UPLOAD_DIR + path.sep;
   if (dir !== UPLOAD_DIR && !dir.startsWith(withSep)) {
-    throw new Error('Yuklash katalogi chegaradan tashqarida');
+    throw Object.assign(new Error('Yuklash katalogi chegaradan tashqarida'), { status: 400 });
   }
   return dir;
 }
@@ -80,19 +115,24 @@ export async function processAndStoreImage(
   folder = sanitizeFolder(folder, 'photos');
 
   // 1. Optimize image using Sharp: convert to WebP, resize if large, keep aspect ratio
-  const sharpInstance = sharp(inputBuffer).rotate(); // auto-rotates based on EXIF
+  const sharpInstance = sharp(inputBuffer, SHARP_INPUT_OPTS).rotate(); // auto-rotates based on EXIF
   const metadata = await sharpInstance.metadata();
+  assertSafeDimensions(metadata);
 
-  const processedBuffer = await sharp(inputBuffer)
-    .rotate()
-    .resize({
-      width: maxWidth,
-      height: maxHeight,
-      fit: 'inside',
-      withoutEnlargement: true,
-    })
-    .webp({ quality, effort: 4 })
-    .toBuffer();
+  const processedBuffer = await withTimeout(
+    sharp(inputBuffer, SHARP_INPUT_OPTS)
+      .rotate()
+      .resize({
+        width: maxWidth,
+        height: maxHeight,
+        fit: 'inside',
+        withoutEnlargement: true,
+      })
+      .webp({ quality, effort: 4 })
+      .toBuffer(),
+    DECODE_TIMEOUT_MS,
+    'Rasm ishlov'
+  );
 
   const processedMeta = await sharp(processedBuffer).metadata();
   const uniqueId = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
@@ -153,20 +193,25 @@ export async function processAndStoreLogo(
   inputBuffer: Buffer,
   originalFilename?: string
 ): Promise<UploadResult> {
-  const sharpInstance = sharp(inputBuffer).rotate();
+  const sharpInstance = sharp(inputBuffer, SHARP_INPUT_OPTS).rotate();
   const metadata = await sharpInstance.metadata();
+  assertSafeDimensions(metadata);
 
   // Resize logo if overly huge (e.g. > 1024px) but preserve transparency
-  const processedBuffer = await sharp(inputBuffer)
-    .rotate()
-    .resize({
-      width: 1024,
-      height: 1024,
-      fit: 'inside',
-      withoutEnlargement: true,
-    })
-    .png({ quality: 90, compressionLevel: 8 })
-    .toBuffer();
+  const processedBuffer = await withTimeout(
+    sharp(inputBuffer, SHARP_INPUT_OPTS)
+      .rotate()
+      .resize({
+        width: 1024,
+        height: 1024,
+        fit: 'inside',
+        withoutEnlargement: true,
+      })
+      .png({ quality: 90, compressionLevel: 8 })
+      .toBuffer(),
+    DECODE_TIMEOUT_MS,
+    'Logo ishlov'
+  );
 
   const processedMeta = await sharp(processedBuffer).metadata();
   const uniqueId = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
@@ -228,16 +273,20 @@ export async function processAndStoreFavicon(
   inputBuffer: Buffer,
   variant: 'light' | 'dark'
 ): Promise<UploadResult> {
-  const processedBuffer = await sharp(inputBuffer)
-    .rotate()
-    .resize({
-      width: 512,
-      height: 512,
-      fit: 'inside',
-      withoutEnlargement: true,
-    })
-    .png({ compressionLevel: 9 })
-    .toBuffer();
+  const processedBuffer = await withTimeout(
+    sharp(inputBuffer, SHARP_INPUT_OPTS)
+      .rotate()
+      .resize({
+        width: 512,
+        height: 512,
+        fit: 'inside',
+        withoutEnlargement: true,
+      })
+      .png({ compressionLevel: 9 })
+      .toBuffer(),
+    DECODE_TIMEOUT_MS,
+    'Favicon ishlov'
+  );
 
   const processedMeta = await sharp(processedBuffer).metadata();
   const uniqueId = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
@@ -320,7 +369,7 @@ export async function storeVideo(
   folder = sanitizeFolder(folder, 'videos');
   const sniffed = sniffVideoSignature(inputBuffer);
   if (!sniffed) {
-    throw new Error("Video fayl formati yaroqsiz (faqat MP4 yoki WebM qabul qilinadi)");
+    throw Object.assign(new Error("Video fayl formati yaroqsiz (faqat MP4 yoki WebM qabul qilinadi)"), { status: 400 });
   }
   const ext = sniffed.ext;
   const contentType = sniffed.contentType;

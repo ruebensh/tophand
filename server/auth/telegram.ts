@@ -2,19 +2,19 @@ import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { Request, Response, NextFunction } from 'express';
 import { queryOne } from '../db/database.ts';
+import { INSECURE_ALLOWED } from '../lib/envSecurity.ts';
 
 // SECURITY (H-02): never fall back to a known secret in a real deployment.
-// Previously only NODE_ENV==='production' was rejected, so staging / preview /
-// a mislabelled production silently used the hardcoded fallback below — letting
-// anyone who reads the repo forge tokens for arbitrary user IDs and roles.
-// We now fail closed for ANY environment except an explicit local dev/test.
-// Bare `tsx watch` (NODE_ENV unset) is treated as local dev but warns loudly.
+// We fail closed for ANY environment except an explicit local dev/test opt-in
+// (LOCAL_DEV=1 or NODE_ENV=development|test). Bare/unset NODE_ENV is now treated
+// as EXPOSED (secure) — previously it was wrongly treated as local dev, letting
+// staging/preview/unlabelled deployments forge tokens with the fallback secret.
 const nodeEnv = process.env.NODE_ENV;
-const ALLOW_INSECURE_DEV = nodeEnv === undefined || nodeEnv === 'development' || nodeEnv === 'test';
+const ALLOW_INSECURE_DEV = INSECURE_ALLOWED;
 if (!process.env.JWT_SECRET) {
   if (!ALLOW_INSECURE_DEV) {
     throw new Error(
-      `FATAL: JWT_SECRET muhit o'zgaruvchisi qo'yilmagan — bu muhitda (${nodeEnv}) ishga tushirish taqiqlanadi (fail-closed).`
+      `FATAL: JWT_SECRET muhit o'zgaruvchisi qo'yilmagan — bu muhitda (${nodeEnv || 'unset'}) ishga tushirish taqiqlanadi (fail-closed).`
     );
   }
   // eslint-disable-next-line no-console

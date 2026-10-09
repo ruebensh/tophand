@@ -23,6 +23,7 @@ import {
   ensureModeratorProfile,
   updateModeratorProfile,
 } from '../services/moderationAssignService.ts';
+import { signVerificationPhotoUrl } from '../lib/signedUrl.ts';
 import {
   getAutoFlaggedContent,
   resolveAutoFlagged,
@@ -32,6 +33,18 @@ import {
 } from '../services/autoModerationService.ts';
 
 const router = Router();
+
+// SECURITY (H-07): verification passport/selfie rasmlari endi faqat qisqa
+// muddatli, imzolangan URL orqali beriladi. Ommaviy `/uploads/verifications/*`
+// bloklangan; shu sababli DB'dagi xom URL o'rniga signed URL qaytaramiz.
+function toSignedVerifyUrl(url: unknown): string | null {
+  if (url == null) return null;
+  if (typeof url !== 'string' || !url.trim()) return null;
+  const m = url.match(/verifications\/([^/?#]+)/);
+  const fn = m ? m[1] : (url.split('/').pop() || '').replace(/[?#].*$/, '');
+  if (!fn || !/\.(webp|png|jpe?g|gif)$/i.test(fn)) return null;
+  return signVerificationPhotoUrl(fn);
+}
 
 // File a report (Any authenticated user)
 router.post('/reports', requireAuth, async (req: AuthRequest, res) => {
@@ -296,7 +309,7 @@ router.get('/verifications', requireAuth, requireMinLevel('MODERATOR'), async (r
        LIMIT 200`,
       [safeStatus]
     );
-    res.json(rows);
+    res.json(rows.map((r) => ({ ...r, verification_photo_url: toSignedVerifyUrl(r.verification_photo_url) })));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -312,7 +325,7 @@ router.get('/verifications/:userId', requireAuth, requireMinLevel('MODERATOR'), 
       [req.params.userId]
     );
     if (!row) return res.status(404).json({ error: 'Foydalanuvchi topilmadi' });
-    res.json(row);
+    res.json({ ...row, verification_photo_url: toSignedVerifyUrl(row.verification_photo_url) });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

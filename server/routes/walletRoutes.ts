@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { requireAuth, AuthRequest } from '../auth/telegram.ts';
 import { getBalance, topUp, listTransactions } from '../services/walletService.ts';
+import { INSECURE_ALLOWED } from '../lib/envSecurity.ts';
 
 const router = Router();
 
@@ -28,14 +29,15 @@ router.get('/transactions', requireAuth, async (req: AuthRequest, res: Response)
 
 // POST /api/wallet/topup — add funds.
 // SECURITY (H-05): this is a demo stub that mints balance with NO verified
-// payment. It must never be reachable in production. We hard-disable it unless
-// running outside production OR an operator explicitly sets ALLOW_DEMO_TOPUP=1.
+// payment. It must never be reachable in an internet-exposed env. We hard-disable
+// it unless running in an explicit local dev/test env (LOCAL_DEV / NODE_ENV=
+// development|test) OR an operator explicitly sets ALLOW_DEMO_TOPUP=1. Staging/
+// preview/unset NODE_ENV are now disabled too (previously only production was).
 // The real path is a verified payment-provider webhook that calls topUp() with
 // an exact amount/currency, ownership, idempotency and provider transaction id.
 router.post('/topup', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const isProd = process.env.NODE_ENV === 'production';
-    const demoAllowed = !isProd || process.env.ALLOW_DEMO_TOPUP === '1';
+    const demoAllowed = INSECURE_ALLOWED || process.env.ALLOW_DEMO_TOPUP === '1';
     if (!demoAllowed) {
       return res.status(503).json({
         error: "To'lov tizimi ulanmagan — balans to'ldirish vaqtincha o'chirilgan.",

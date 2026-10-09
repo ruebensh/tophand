@@ -7,6 +7,7 @@ import { sendVerificationCodeEmail } from '../services/emailService.ts';
 import { reqLang, type MsgLocale } from '../i18n/messages.ts';
 import { notifyWelcome } from '../services/notificationService.ts';
 import { sanitizeUserUrl } from '../lib/urlSecurity.ts';
+import { INSECURE_ALLOWED, EXPOSED } from '../lib/envSecurity.ts';
 
 const router = Router();
 
@@ -61,16 +62,18 @@ async function verifyGoogleIdToken(credential: unknown): Promise<VerifiedGoogleI
     if (payload.aud !== GOOGLE_CLIENT_ID) {
       throw Object.assign(new Error('Google token aud mos emas'), { status: 401 });
     }
-  } else if (process.env.NODE_ENV === 'production') {
-    // Fail closed: without a pinned client id we cannot bind the audience.
-    throw Object.assign(new Error('GOOGLE_CLIENT_ID sozlanmagan — production\'da Google login o\'chirilgan'), { status: 500 });
+  } else if (EXPOSED) {
+    // Fail closed: without a pinned client id we cannot bind the audience. In any
+    // internet-exposed env (staging/preview/prod/unset) Google login is disabled
+    // rather than accepting a token minted for another application.
+    throw Object.assign(new Error('GOOGLE_CLIENT_ID sozlanmagan — ochiq muhitda Google login o\'chirilgan'), { status: 500 });
   }
   if (!payload?.sub) {
     throw Object.assign(new Error('Google token sub yo\'q'), { status: 401 });
   }
 
   const emailVerified = payload.email_verified === true || String(payload.email_verified) === 'true';
-  if (process.env.NODE_ENV === 'production' && !emailVerified) {
+  if (EXPOSED && !emailVerified) {
     throw Object.assign(new Error('Google email tasdiqlanmagan'), { status: 401 });
   }
 
@@ -105,10 +108,11 @@ function randomGradient(): string {
 // ─── Auth helpers (email codes + profile state) ─────────────────────────
 const EMAIL_CODE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
-// H-01: never expose a verification/reset code in the API response in
-// production, even if the email layer somehow reports `simulated`.
+// H-01: never expose a verification/reset code in the API response outside an
+// explicit local dev/test env, even if the email layer reports `simulated`.
+// Staging/preview/unset NODE_ENV are treated as exposed → no demo_code echo.
 function demoCode(simulated: boolean | undefined, code: string): string | undefined {
-  return simulated && process.env.NODE_ENV !== 'production' ? code : undefined;
+  return simulated && INSECURE_ALLOWED ? code : undefined;
 }
 
 // SECURITY (M-01/L-02): OTP is generated with a CSPRNG, stored ONLY as a
@@ -757,7 +761,7 @@ router.post('/google/link', requireAuth, async (req: AuthRequest, res) => {
     const now = new Date().toISOString();
     await runQuery(
       `UPDATE users SET telegram_id = ?, profile_photo_url = COALESCE(profile_photo_url, ?), updated_at = ? WHERE id = ?`,
-      [lookupId, guser.picture || picture || null, now, req.user!.id]
+      [lookupId, sanitizeUserUrl(guser.picture || picture) || null, now, req.user!.id]
     );
 
     const updated = await queryOne<any>('SELECT * FROM users WHERE id = ?', [req.user!.id]);

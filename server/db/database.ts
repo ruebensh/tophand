@@ -1,4 +1,5 @@
 import { Pool, PoolClient } from 'pg';
+import { EXPOSED } from '../lib/envSecurity.ts';
 
 // ─── Connection Pool ───────────────────────────────────────────────────
 const isRemoteDb = Boolean(
@@ -7,11 +8,12 @@ const isRemoteDb = Boolean(
   !process.env.DATABASE_URL.includes('localhost')
 );
 
-// M-11: a deployed environment MUST point at its own database. The hardcoded
-// local fallback below is for development only — in production we fail closed
-// so a config drift can never silently connect to a known local credential.
-if (!process.env.DATABASE_URL && process.env.NODE_ENV === 'production') {
-  throw new Error("FATAL: DATABASE_URL sozlanmagan — production'da ishga tushirish taqiqlanadi.");
+// M-11: an internet-exposed environment MUST point at its own database. The
+// hardcoded local fallback below is for development only — in any exposed env
+// (production/staging/preview/unset NODE_ENV) we fail closed so a config drift
+// can never silently connect to a known local credential.
+if (!process.env.DATABASE_URL && EXPOSED) {
+  throw new Error("FATAL: DATABASE_URL sozlanmagan — ochiq muhitda ishga tushirish taqiqlanadi.");
 }
 
 // H-04: for a remote database we verify the server certificate by default.

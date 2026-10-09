@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { queryAll, queryOne, runQuery } from '../db/database.ts';
+import { sanitizeUserUrl, sanitizeUserUrlLoose } from '../lib/urlSecurity.ts';
 
 // ============================================================================
 //  adService — ichki Reklama menejeri uchun yagona ma'lumot qatlami.
@@ -115,9 +116,9 @@ export async function createAd(input: AdInput): Promise<Ad | null> {
       input.type,
       input.title.trim(),
       input.body?.trim() || null,
-      input.image_url || null,
-      input.video_url || null,
-      input.link_url.trim(),
+      sanitizeUserUrl(input.image_url) || null,
+      sanitizeUserUrl(input.video_url) || null,
+      sanitizeUserUrlLoose(input.link_url) || '#',
       input.cta_label?.trim() || 'Batafsil',
       input.placement,
       normalizeActive(input.active),
@@ -161,9 +162,9 @@ export async function updateAd(id: string, input: Partial<AdInput>): Promise<Ad 
       merged.type,
       merged.title.trim(),
       merged.body?.trim() || null,
-      merged.image_url || null,
-      merged.video_url || null,
-      merged.link_url.trim(),
+      sanitizeUserUrl(merged.image_url) || null,
+      sanitizeUserUrl(merged.video_url) || null,
+      sanitizeUserUrlLoose(merged.link_url) || '#',
       merged.cta_label?.trim() || 'Batafsil',
       merged.placement,
       normalizeActive(merged.active),

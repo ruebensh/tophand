@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
 import { msg, type MsgLocale } from '../i18n/messages.ts';
+import { EXPOSED } from '../lib/envSecurity.ts';
 dotenv.config();
 
 // Transporter is only used as a fallback when no Brevo API key is set.
@@ -137,13 +138,14 @@ export async function sendVerificationCodeEmail(
     }
   }
 
-  // 3) Development / Demo simulation — NEVER in production (H-01 fail-closed).
-  // If we reach here, no Brevo key and no SMTP are configured. In production we
-  // must NOT fabricate/return a code (that would leak the OTP and let anyone
-  // verify any email / reset any password). Fail loudly instead.
-  if (process.env.NODE_ENV === 'production') {
+  // 3) Development / Demo simulation — NEVER in an internet-exposed env (H-01).
+  // If we reach here, no Brevo key and no SMTP are configured. In any exposed
+  // env (staging/preview/production/unset NODE_ENV) we must NOT fabricate/return
+  // a code (that would leak the OTP and let anyone verify any email / reset any
+  // password). Fail loudly instead. Only explicit local dev/test may simulate.
+  if (EXPOSED) {
     throw new Error(
-      "Email provider sozlanmagan (BREVO_API_KEY yoki SMTP_USER/SMTP_PASS kerak) — production'da tasdiqlash kodi yuborib bo'lmadi."
+      "Email provider sozlanmagan (BREVO_API_KEY yoki SMTP_USER/SMTP_PASS kerak) — ochiq muhitda tasdiqlash kodi yuborib bo'lmadi."
     );
   }
   console.log('\n==================================================');

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import { requireAuth } from '../auth/telegram.ts';
 import { processAndStoreImage, storeVideo, getR2ObjectStream, r2Client } from '../services/storageService.ts';
+import { serverError } from '../lib/error.ts';
 
 const router = Router();
 
@@ -10,6 +11,9 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
     fileSize: 15 * 1024 * 1024, // Allow up to 15MB upload, Sharp compresses it down to ~100KB WebP!
+    files: 1,                    // M-04: only one image per request
+    fieldSize: 64 * 1024,        // M-04: cap non-file text fields (folder, etc.)
+    parts: 8,                    // M-04: bound multipart parts to curb abuse
   },
   fileFilter: (_req, file, cb) => {
     const allowedMime = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg', 'image/gif', 'image/heic'];
@@ -41,15 +45,14 @@ router.post('/', requireAuth, upload.single('image'), async (req, res) => {
       storage: result.storage,
     });
   } catch (err: any) {
-    console.error('Upload error:', err);
-    res.status(500).json({ error: err.message || 'Rasm yuklashda xatolik yuz berdi' });
+    serverError(res, err, 'Rasm yuklashda xatolik yuz berdi');
   }
 });
 
 // POST /api/upload/video - Faza 13: upload a listing video (mp4/webm)
 const videoUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+  limits: { fileSize: 50 * 1024 * 1024, files: 1, fieldSize: 64 * 1024, parts: 8 }, // 50MB
   fileFilter: (_req, file, cb) => {
     const mt = file.mimetype.toLowerCase();
     if (mt === 'video/mp4' || mt === 'video/webm') {
@@ -76,14 +79,20 @@ router.post('/video', requireAuth, videoUpload.single('video'), async (req, res)
       storage: result.storage,
     });
   } catch (err: any) {
-    console.error('Video upload error:', err);
-    res.status(500).json({ error: err.message || 'Video yuklashda xatolik yuz berdi' });
+    serverError(res, err, 'Video yuklashda xatolik yuz berdi');
   }
 });
 
 // GET /api/storage/:folder/:file or /api/upload/storage/:folder/:file - Stream image from Cloudflare R2
 router.get(['/storage/:folder/:file', '/:folder/:file'], async (req, res) => {
   try {
+    // SECURITY (H-07): verification passport/selfie objects are personal data and
+    // must not be reachable through the public storage proxy. They are served ONLY
+    // via the signed /api/verification-photo endpoint.
+    if ((req.params.folder as string) === 'verifications') {
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(404).json({ error: 'Fayl topilmadi' });
+    }
     const key = `${req.params.folder}/${req.params.file}`;
     if (!r2Client) {
       return res.status(404).json({ error: 'R2 storage not configured' });
