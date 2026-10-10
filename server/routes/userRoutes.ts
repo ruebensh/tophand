@@ -6,7 +6,8 @@ import bcrypt from 'bcryptjs';
 import { requireAuth, optionalAuth, AuthRequest } from '../auth/telegram.ts';
 import { queryOne, queryAll, runQuery } from '../db/database.ts';
 import { sanitizeUserUrl } from '../lib/urlSecurity.ts';
-import { processAndStoreVerificationImage } from '../services/storageService.ts';
+import { processAndStoreVerificationImage, deleteStoredMedia } from '../services/storageService.ts';
+import { purgeVerificationMedia } from '../services/moderationService.ts';
 import { signVerificationPhotoUrl } from '../lib/signedUrl.ts';
 
 const router = Router();
@@ -113,6 +114,13 @@ router.put('/me', requireAuth, async (req: AuthRequest, res) => {
     }
 
     const now = new Date().toISOString();
+    const newProfile = profile_photo_url !== undefined ? sanitizeUserUrl(profile_photo_url) : null;
+    const newCover = cover_photo_url !== undefined ? sanitizeUserUrl(cover_photo_url) : null;
+    // Eski havolalarni o'chirish uchun oldin qiymatni o'qib olamiz.
+    const before = await queryOne<any>(
+      'SELECT profile_photo_url, cover_photo_url FROM users WHERE id = ?',
+      [req.user!.id]
+    );
     await runQuery(
       `UPDATE users 
        SET name = COALESCE(?, name), 
@@ -130,14 +138,23 @@ router.put('/me', requireAuth, async (req: AuthRequest, res) => {
         bio !== undefined ? bio : null,
         region_id !== undefined ? region_id : null,
         district_id !== undefined ? district_id : null,
-        profile_photo_url !== undefined ? sanitizeUserUrl(profile_photo_url) : null,
-        cover_photo_url !== undefined ? sanitizeUserUrl(cover_photo_url) : null,
+        newProfile,
+        newCover,
         cover_gradient !== undefined ? cover_gradient : null,
         phone !== undefined ? phone : null,
         now,
         req.user!.id,
       ]
     );
+
+    // Tozalash: yangi rasm HAQIQIY almashtirilsa, eski faylni saqlagichdan
+    // o'chiramiz (faqat bizniki; tashqi URL'lar deleteStoredMedia'da tashlanadi).
+    if (newProfile && before?.profile_photo_url && before.profile_photo_url !== newProfile) {
+      await deleteStoredMedia(before.profile_photo_url);
+    }
+    if (newCover && before?.cover_photo_url && before.cover_photo_url !== newCover) {
+      await deleteStoredMedia(before.cover_photo_url);
+    }
 
     const updated = await queryOne('SELECT * FROM users WHERE id = ?', [req.user!.id]);
     res.json({ success: true, user: updated });
@@ -281,6 +298,24 @@ router.post('/me/verification', requireAuth, async (req: AuthRequest, res) => {
     }
 
     const now = new Date().toISOString();
+    // Tozalash (to'planib qolmasligi uchun): yangi ariza yuborilganda OLDINGI
+    // hujjat rasmini va tanlanmagan (abandoned) upload satrlarini o'chiramiz.
+    const prior = await queryOne<any>('SELECT verification_photo_url FROM users WHERE id = ?', [req.user!.id]);
+    if (prior?.verification_photo_url && prior.verification_photo_url !== upload.object_key) {
+      await deleteStoredMedia(prior.verification_photo_url);
+    }
+    const abandoned = await queryAll<{ object_key: string }>(
+      'SELECT object_key FROM verification_uploads WHERE owner_user_id = ? AND id <> ?',
+      [req.user!.id, verification_upload_id]
+    );
+    for (const a of abandoned) {
+      if (a.object_key && a.object_key !== upload.object_key) await deleteStoredMedia(a.object_key);
+    }
+    await runQuery(
+      'DELETE FROM verification_uploads WHERE owner_user_id = ? AND id <> ?',
+      [req.user!.id, verification_upload_id]
+    );
+
     await runQuery(
       `UPDATE users SET
         full_legal_name = ?,
@@ -313,6 +348,30 @@ router.post('/me/verification', requireAuth, async (req: AuthRequest, res) => {
       ]
     );
 
+    const updated = await queryOne('SELECT * FROM users WHERE id = ?', [req.user!.id]);
+    res.json({ success: true, user: updated });
+  } catch (err: any) {
+    serverError(res, err);
+  }
+});
+
+// 3) Bekor qilish: foydalanuvchi FAQAT o'z PENDING arizasini qaytara oladi.
+//    LEGAL (report #4): bekor qilinganda hujjat RASMI + rasmga oid havolalar
+//    o'chiriladi; pasport MATN ma'lumotlari saqlanadi (holat UNVERIFIED).
+router.post('/me/verification/cancel', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const me = await queryOne<any>('SELECT verification_status FROM users WHERE id = ?', [req.user!.id]);
+    if (!me) return res.status(404).json({ error: 'Foydalanuvchi topilmadi' });
+    if (me.verification_status !== 'PENDING') {
+      return res.status(400).json({ error: 'Faqat ko‘rib chiqilayotgan (PENDING) arizani bekor qilish mumkin' });
+    }
+    // Rasm + verification_uploads qatorlari + ustun havolalari tozalanadi.
+    await purgeVerificationMedia(req.user!.id);
+    const now = new Date().toISOString();
+    await runQuery(
+      `UPDATE users SET verification_status = 'UNVERIFIED', verification_rejection_reason = NULL, updated_at = ? WHERE id = ?`,
+      [now, req.user!.id]
+    );
     const updated = await queryOne('SELECT * FROM users WHERE id = ?', [req.user!.id]);
     res.json({ success: true, user: updated });
   } catch (err: any) {

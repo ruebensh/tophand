@@ -165,6 +165,36 @@ export async function initDatabase() {
     'ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_upload_id TEXT'
   );
 
+  // 4c. media_uploads (report #7): manifest of every GENERIC upload (image/video
+  //     returned by /api/upload). A cron reclaims files that are never bound to
+  //     any DB record after a TTL. `bound_at` is stamped once a live reference is
+  //     found, so in-use files are never touched again.
+  await createTableIfNotExists(`
+    CREATE TABLE IF NOT EXISTS media_uploads (
+      key TEXT PRIMARY KEY,
+      url TEXT NOT NULL,
+      storage TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      bound_at TIMESTAMPTZ
+    )
+  `);
+  await pool.query(
+    'CREATE INDEX IF NOT EXISTS idx_media_uploads_unbound ON media_uploads(created_at) WHERE bound_at IS NULL'
+  );
+
+  // 4d. media_deletions (report #6/#10): durable retry queue. When a media file
+  //     delete fails (e.g. transient R2 error) we record it so the cleanup cron
+  //     can retry instead of leaking the object forever.
+  await createTableIfNotExists(`
+    CREATE TABLE IF NOT EXISTS media_deletions (
+      ref TEXT PRIMARY KEY,
+      attempts INTEGER NOT NULL DEFAULT 1,
+      last_error TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
   // 5. organizations
   await createTableIfNotExists(`
     CREATE TABLE IF NOT EXISTS organizations (

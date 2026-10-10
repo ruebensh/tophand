@@ -4,11 +4,11 @@
 // empty env (silently falling back to the insecure dev secret).
 import 'dotenv/config';
 import express from 'express';
-import crypto from 'crypto';
 import path from 'path';
 import fs from 'fs';
 import { initDatabase } from './server/db/init.ts';
 import { startExpirationCron } from './server/services/expirationService.ts';
+import { startMediaCleanupCron } from './server/services/mediaCleanupService.ts';
 import { getSeoMeta, injectSeo } from './server/services/seoService.ts';
 
 // Routes
@@ -25,9 +25,9 @@ import pushRoutes from './server/routes/pushRoutes.ts';
 import moderationRoutes from './server/routes/moderationRoutes.ts';
 import messagingRoutes from './server/routes/messagingRoutes.ts';
 import adminRoutes from './server/routes/adminRoutes.ts';
+import leadRoutes from './server/routes/leadRoutes.ts';
 import uploadRoutes from './server/routes/uploadRoutes.ts';
 import settingRoutes from './server/routes/settingRoutes.ts';
-import themeRoutes from './server/routes/themeRoutes.ts';
 import reviewRoutes from './server/routes/reviewRoutes.ts';
 import catalogRoutes from './server/routes/catalogRoutes.ts';
 import aiRoutes from './server/routes/aiRoutes.ts';
@@ -39,13 +39,20 @@ import translateRoutes from './server/routes/translateRoutes.ts';
 import verifyMediaRoutes from './server/routes/verifyMediaRoutes.ts';
 import { EXPOSED, LOCAL_DEV } from './server/lib/envSecurity.ts';
 import { MEDIA_SIGNING_ENABLED } from './server/lib/signedUrl.ts';
+import { REQUIRES_PRIVATE_BUCKET_CHECK } from './server/services/storageService.ts';
+import { buildRateLimit, resolveTrustProxy } from './server/lib/rateLimit.ts';
+import { verifiedUserIdFromRequest } from './server/auth/telegram.ts';
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 const GOOGLE_CLIENT_ID_FOR_STARTUP = (process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || '').trim();
 
-// Trust the first proxy (Render/Cloudflare) so req.ip / X-Forwarded-For is correct.
-app.set('trust proxy', 1);
+// F-03: trust proxy deployment topologiyasiga mos bo'lishi SHART.
+// default `1` = bitta ishonchli reverse proxy. Cloudflare→Render kabi IKKI
+// hop'lik zanjirda TRUST_PROXY=2 qo'ying; app portiga bevosita tashqi ulanish
+// bo'lsa TRUST_PROXY=0 (proxy header'larga umuman ishonilmaydi). Noto'g'ri
+// qiymat Express startda fail qiladi — sezgir, sekin buzilmaydigan xatti-harakat.
+app.set('trust proxy', resolveTrustProxy(process.env.TRUST_PROXY));
 
 // ESLATMA: www ↔ apex kanonik redirect'ni ilova (app) darajasida QILMAYMIZ.
 // Render/Cloudflare o'zi apex→www redirect'ni bajaradi; agarda biz bu yerga
@@ -99,47 +106,33 @@ app.use((_req, res, next) => {
   next();
 });
 
-function rateLimit(opts: { windowMs: number; max: number; message: string }) {
-  const hits = new Map<string, { count: number; reset: number }>();
-  const sweeper = setInterval(() => {
-    const now = Date.now();
-    for (const [k, v] of hits) if (now > v.reset) hits.delete(k);
-  }, Math.max(opts.windowMs, 60_000));
-  if (typeof sweeper.unref === 'function') sweeper.unref();
-
-  return (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    // P2-4: do NOT hand-parse X-Forwarded-For (spoofable). Express `trust proxy`
-    // is configured above, so req.ip is the verified client IP. We also fold in a
-    // short hash of the bearer token so a single user (not just an IP) gets their
-    // own bucket — per-user + per-IP limiting without decoding auth at this layer.
-    const authHeader = req.headers.authorization || '';
-    const tokenTag = authHeader ? crypto.createHash('sha1').update(authHeader).digest('hex').slice(0, 12) : '';
-    const key = `${req.ip || 'unknown'}|${tokenTag}|${req.baseUrl}${req.path}`;
-    const now = Date.now();
-    let rec = hits.get(key);
-    if (!rec || now > rec.reset) {
-      rec = { count: 0, reset: now + opts.windowMs };
-      hits.set(key, rec);
-    }
-    rec.count++;
-    if (rec.count > opts.max) {
-      res.setHeader('Retry-After', String(Math.ceil((rec.reset - now) / 1000)));
-      return res.status(429).json({ error: opts.message });
-    }
-    next();
-  };
+// ── Rate limiting (F-01/F-02 qayta yozilgan) ──
+// Bucket kaliti = STATIK scope + TASDIQLANGAN identity (JWT imzosi tekshirilgan
+// userId, aks holda trust-proxy orqali hisoblangan req.ip). Xom Authorization
+// qiymati va req.path kalitga KIRMAYDI — soxta bearer/dynamic path bilan
+// bucket ko'paytirib bo'lmaydi; store bounded (max keys + eviction).
+// Multi-instance: RedisBucketStore kabi shared store ulanadi (infra).
+function limiterIdentity(req: express.Request): string {
+  if (EXPOSED) {
+    const uid = verifiedUserIdFromRequest(req);
+    if (uid) return `u:${uid}`;
+  }
+  return `ip:${req.ip || 'unknown'}`;
 }
 
-const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100, message: "Juda ko'p urinish. Birozdan so'ng qayta urinib ko'ring." });
-const codeLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 10, message: "Kod yuborish chegarasi oshdi. 1 soatdan so'ng urinib ko'ring." });
-// Mashina-tarjimasi pullli API'ni himoya qilish: bir IP uchun soatiga cheklov.
-const translateLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 300, message: "Tarjima chegarasi oshdi. Birozdan so'ng urinib ko'ring." });
+function rateLimit(opts: { windowMs: number; max: number; message: string; scope: string }) {
+  return buildRateLimit({ ...opts, identity: limiterIdentity });
+}
+
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100, scope: '/api/auth', message: "Juda ko'p urinish. Birozdan so'ng qayta urinib ko'ring." });
+const codeLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 10, scope: '/api/code', message: "Kod yuborish chegarasi oshdi. 1 soatdan so'ng urinib ko'ring." });
+// Mashina-tarjimasi pullli API'ni himoya qilish: bir identity uchun soatiga cheklov.
+const translateLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 300, scope: '/api/translate', message: "Tarjima chegarasi oshdi. Birozdan so'ng urinib ko'ring." });
 
 // ── DDoS / abuse hardening (M-03): mutatsiya-limited rate limiters ──
 // Faqat yozuv/og'ir (POST/PUT/PATCH/DELETE) so'rovlar hisoblanadi — GET (o'qish/
-// browse) cheklanmaydi, shunda foydalanuvchi tajribasi buzilmaydi. Bu in-memory
-// limiter (process-local); production edge (CDN/WAF) + Redis qo'shimcha kerak.
-function mutateLimiter(opts: { windowMs: number; max: number; message: string }) {
+// browse) cheklanmaydi. In-memory bounded store; multi-instance uchun Redis kerak.
+function mutateLimiter(opts: { windowMs: number; max: number; message: string; scope: string }) {
   const inner = rateLimit(opts);
   return (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const m = req.method.toUpperCase();
@@ -147,19 +140,48 @@ function mutateLimiter(opts: { windowMs: number; max: number; message: string })
     return inner(req, res, next);
   };
 }
-const contentLimiter = mutateLimiter({ windowMs: 15 * 60 * 1000, max: 60, message: "Juda ko'p amallar. Birozdan so'ng urinib ko'ring." });
-const chatLimiter = mutateLimiter({ windowMs: 60 * 1000, max: 60, message: "Juda ko'p xabar. Biroz kuting." });
-const aiLimiter = mutateLimiter({ windowMs: 60 * 60 * 1000, max: 120, message: "AI chegarasi oshdi. Birozdan so'ng urinib ko'ring." });
-const uploadLimiter = mutateLimiter({ windowMs: 15 * 60 * 1000, max: 120, message: "Yuklash chegarasi oshdi. Birozdan so'ng urinib ko'ring." });
-// P2-4: general mutation guard for the previously-uncovered write route groups
-// (users, saved, notifications, push, moderation, messaging, admin, settings,
-// theme, ads). NOTE (infra): this store is process-local (in-memory Map). For
-// multi-instance deployments a shared Redis store + trusted edge/WAF is required
-// so counters are global — see report item #5 (deferred, needs infra).
-const mutateGuard = mutateLimiter({ windowMs: 15 * 60 * 1000, max: 120, message: "Juda ko'p amallar. Birozdan so'ng urinib ko'ring." });
-// P2-4: admin export is a GET but expensive (full-table XLSX). Use a GET-counting
-// rateLimit (NOT the mutation-only limiter, which skips GETs) keyed by ip+token.
-const exportLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 20, message: "Eksport chegarasi oshdi. Birozdan so'ng urinib ko'ring." });
+const contentLimiter = mutateLimiter({ windowMs: 15 * 60 * 1000, max: 60, scope: '/api/content', message: "Juda ko'p amallar. Birozdan so'ng urinib ko'ring." });
+const chatLimiter = mutateLimiter({ windowMs: 60 * 1000, max: 60, scope: '/api/chat', message: "Juda ko'p xabar. Biroz kuting." });
+const aiLimiter = mutateLimiter({ windowMs: 60 * 60 * 1000, max: 120, scope: '/api/ai', message: "AI chegarasi oshdi. Birozdan so'ng urinib ko'ring." });
+const uploadLimiter = mutateLimiter({ windowMs: 15 * 60 * 1000, max: 120, scope: '/api/upload', message: "Yuklash chegarasi oshdi. Birozdan so'ng urinib ko'ring." });
+// P2-4: umumiy mutation guard (users, saved, notifications, push, moderation,
+// messaging, admin, settings, theme, ads yozuvlari).
+const mutateGuard = mutateLimiter({ windowMs: 15 * 60 * 1000, max: 120, scope: '/api/mutate', message: "Juda ko'p amallar. Birozdan so'ng urinib ko'ring." });
+// Admin export GET, lekin qimmat (full-table XLSX) → GET sanovchi limiter.
+const exportLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 20, scope: '/api/admin/export', message: "Eksport chegarasi oshdi. Birozdan so'ng urinib ko'ring." });
+
+// F-02: koddagi qat'iy limiter — barcha email-code yuboruvchi route'lar uchun
+// (register/send-code, forgot-password, authenticated /email/send-code). Uch
+// o'lchovli: identity (verified userId yoki IP) + MAQSADLI EMAIL + cooldown.
+// Invalid so'rovlar (emailsiz) faqat identity bucket'ini ishlatadi — cheksiz
+// yangi bucket yaralmaydi. 1 soatda 10 ta, bir xil identity+email juftligiga
+// 30 sek cooldown.
+function codeSendLimiter(scope: string) {
+  const perHour = buildRateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 10,
+    scope,
+    message: "Kod yuborish chegarasi oshdi. 1 soatdan so'ng urinib ko'ring.",
+    identity: (req) => {
+      const body = (req.body || {}) as Record<string, unknown>;
+      const email = typeof body.email === 'string' ? body.email.trim().toLowerCase().slice(0, 254) : '';
+      return `${limiterIdentity(req)}|${email || '-'}`;
+    },
+  });
+  const cooldown = buildRateLimit({
+    windowMs: 30 * 1000,
+    max: 1,
+    scope: `${scope}:cd`,
+    message: "Bu email'ga kod yuborish uchun juda tez — 30 soniya kuting.",
+    identity: (req) => {
+      const body = (req.body || {}) as Record<string, unknown>;
+      const email = typeof body.email === 'string' ? body.email.trim().toLowerCase().slice(0, 254) : '';
+      return `${limiterIdentity(req)}|${email || '-'}`;
+    },
+  });
+  return [cooldown, perHour] as const;
+}
+const emailCodeLimiters = codeSendLimiter('/api/auth/email/send-code');
 
 // Static assets with permissive CORS & Cross-Origin-Resource-Policy for browser
 // image loading. Scoped to NON-/api paths only (L-04): the API is same-origin and
@@ -204,8 +226,11 @@ app.use(seoRoutes);
 
 // API Routes
 // Rate-limit auth endpoints: strict on code-sending (email bombing), general on all auth.
+// F-02: ENDI authenticated `/api/auth/email/send-code` ham strict codeLimiter +
+// 30s cooldown ostida (identity + maqsadli email bo'yicha).
 app.use('/api/auth/register/send-code', codeLimiter);
 app.use('/api/auth/forgot-password', codeLimiter);
+app.use('/api/auth/email/send-code', ...emailCodeLimiters);
 app.use('/api/auth', authLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/verification-photo', verifyMediaRoutes);
@@ -224,10 +249,10 @@ app.use('/api/moderation', mutateGuard, moderationRoutes);
 app.use('/api/messaging', mutateGuard, messagingRoutes);
 app.use('/api/admin/export', exportLimiter);
 app.use('/api/admin', mutateGuard, adminRoutes);
+app.use('/api/lead', mutateGuard, leadRoutes);
 app.use('/api/upload', uploadLimiter, uploadRoutes);
 app.use('/api/storage', uploadLimiter, uploadRoutes);
 app.use('/api/settings', mutateGuard, settingRoutes);
-app.use('/api/theme', mutateGuard, themeRoutes);
 app.use('/api/reviews', contentLimiter, reviewRoutes);
 app.use('/api/wallet', contentLimiter, walletRoutes);
 app.use('/api/monetization', contentLimiter, monetizationRoutes);
@@ -243,9 +268,9 @@ app.get('/api/health', (_req, res) => {
 app.use('/api', (err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('API Error:', err);
   const status = err.status || 500;
-  // In an internet-exposed env, never leak internal 5xx messages (DB/SQL details,
-  // stack, etc.). 4xx are client-facing and safe to show.
-  const expose = !EXPOSED || (status >= 400 && status < 500);
+  // F-10: ichki 5xx xabarlari HECH qanday muhitda (LOCAL_DEV=1 da ham) sizib
+  // chiqmaydi. 4xx — mijoz uchun atayli xabar, ko'rsatiladi.
+  const expose = status >= 400 && status < 500;
   res.status(status).json({
     error: expose ? (err.message || 'So‘rovni bajarib bo‘lmadi') : 'Serverda ichki xatolik yuz berdi',
   });
@@ -269,9 +294,14 @@ async function startServer() {
       if (!MEDIA_SIGNING_ENABLED) {
         console.warn("⚠️  [exposed] Verification-media imzolash O'CHIQ (JWT_SECRET/VERIFICATION_MEDIA_SECRET kamida 16 belgi bo'lishi kerak) — tasdiq rasmlari ko'rsatilmaydi.");
       }
-      // P1-1: warn if verifications may still be publicly reachable on R2.
-      if (process.env.R2_PUBLIC_URL && !process.env.R2_PRIVATE_BUCKET_NAME) {
-        console.warn("⚠️  [exposed] R2_PUBLIC_URL sozlangan, lekin R2_PRIVATE_BUCKET_NAME yo'q — `verifications/*` prefix'ida public read O'CHIRILGANligini Cloudflare/R2 tomonida MAJBURIY tekshiring.");
+      // P1-1/F-07: R2-yoqilgan EXPOSED deploymentda `R2_PRIVATE_BUCKET_NAME`
+      // MAJBURIY — aks holda verification obyektlari oddiy (mmkin public-read)
+      // bucket'ga yoziladi va provider ACL'siga bog'liq privacy bypass qoladi.
+      // Warning bilan DAVOM ETMAYDI — startup fail (fail-closed).
+      if (REQUIRES_PRIVATE_BUCKET_CHECK()) {
+        throw new Error(
+          "FATAL [exposed]: R2_PRIVATE_BUCKET_NAME sozlanmagan — tasdiq hujjatlari public bucket'ga yozilmaydi. Alohida YOPIQ R2 bucket yarating (public read + CDN yo'q), bu env'ga R2_PRIVATE_BUCKET_NAME qo'ying va eski verifications/* obyektlarini ko'chiring (`npm run migrate:verifications`)."
+        );
       }
     }
 
@@ -280,6 +310,10 @@ async function startServer() {
 
     // 2. Start background cron for listing lifecycle (configurable active-days) & notifications
     startExpirationCron();
+
+    // 2b. Media cleanup cron (report #6/#7/#10): retry failed deletes + reclaim
+    //     orphan uploads and abandoned verification previews past a TTL.
+    startMediaCleanupCron();
 
     // 3. Vite development middleware or static production build.
     // SECURITY (P1-3): the Vite dev middleware binds 0.0.0.0 and exposes source,
@@ -333,4 +367,15 @@ async function startServer() {
   }
 }
 
-startServer();
+// Eksport: integration testlar (scripts/test-integration.ts) real middleware
+// zanjirini `listen(0)` bilan tekshirishi uchun.
+export { app };
+
+// Faqat BEVOSITA ishga tushirilganda listen qiladi (testda import qilinganda
+// start bo'lmaydi).
+const isMainModule = process.argv[1]
+  ? path.resolve(process.argv[1]).replace(/\.[cm]?[jt]s$/, '') === path.resolve('server.ts').replace(/\.[cm]?[jt]s$/, '')
+  : true;
+if (isMainModule) {
+  startServer();
+}

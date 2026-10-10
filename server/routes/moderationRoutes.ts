@@ -3,7 +3,7 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import { requireAuth, requireMinLevel, AuthRequest } from '../auth/telegram.ts';
 import { queryAll, queryOne, runQuery } from '../db/database.ts';
-import { createReport, getReports, takeModeratorAction } from '../services/moderationService.ts';
+import { createReport, getReports, takeModeratorAction, purgeVerificationMedia } from '../services/moderationService.ts';
 import {
   getMyQueue,
   getPool,
@@ -364,6 +364,8 @@ router.post('/verifications/:userId/action', requireAuth, requireMinLevel('MODER
       );
       notifTitle = 'Shaxsingiz tasdiqlandi!';
       notifBody = 'Tabriklaymiz! Sizning pasport ma\u2019lumotlaringiz tekshirilib, profilingizga rasmiy tasdiq nishoni (Verified badge) berildi.';
+      // LEGAL: qaror qabul qilindi — pasport/selfie RASMlari saqlanmaydi.
+      await purgeVerificationMedia(targetUserId);
     } else {
       const reason = (rejection_reason || '').trim() || 'Hujjatlarda noaniqliklar mavjud';
       await runQuery(
@@ -375,6 +377,8 @@ router.post('/verifications/:userId/action', requireAuth, requireMinLevel('MODER
       );
       notifTitle = 'Tasdiqlash arizasi rad etildi';
       notifBody = `Tasdiqlash arizangiz rad etildi. Sabab: ${reason}`;
+      // LEGAL: rad etilgan bo'lsa ham hujjat RASMI saqlanmaydi.
+      await purgeVerificationMedia(targetUserId);
     }
 
     const notifId = `notif_${crypto.randomUUID().slice(0, 16)}`;

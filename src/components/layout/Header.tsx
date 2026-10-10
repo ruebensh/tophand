@@ -572,11 +572,16 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
                         </button>
                       )}
                     </div>
-                    {(user.role === 'MODERATOR' || user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') && (
+                    {(user.role === 'MODERATOR' || user.role === 'LEAD_MOD' || user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') && (
                       <div className="py-1 bg-amber-50/50">
                         <button onClick={() => { setIsUserMenuOpen(false); onNavigate('/moderator'); }} className="w-full px-3.5 py-2 text-xs text-left font-semibold text-amber-800 hover:bg-amber-100/50 flex items-center gap-2">
                           <Shield className="w-4 h-4 text-amber-600" /> {t('nav.moderatorPanel')}
                         </button>
+                        {(user.role === 'LEAD_MOD' || user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') && (
+                          <button onClick={() => { setIsUserMenuOpen(false); onNavigate('/lead'); }} className="w-full px-3.5 py-2 text-xs text-left font-semibold text-fuchsia-800 hover:bg-fuchsia-100/50 flex items-center gap-2">
+                            <Shield className="w-4 h-4 text-fuchsia-600" /> {t('nav.chiefPanel')}
+                          </button>
+                        )}
                         {(user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') && (
                           <button onClick={() => { setIsUserMenuOpen(false); onNavigate('/admin'); }} className="w-full px-3.5 py-2 text-xs text-left font-semibold text-blue-800 hover:bg-blue-100/50 flex items-center gap-2">
                             <Settings className="w-4 h-4 text-blue-600" /> {t('nav.adminPanel')}

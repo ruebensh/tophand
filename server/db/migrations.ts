@@ -36,6 +36,25 @@ export async function runMigrations() {
   //    model `email` is only written after a code check, so email present ⇒ verified.
   await pool.query(`UPDATE users SET email_verified = 1 WHERE email IS NOT NULL AND email_verified = 0`);
 
+  // ── F-08: ma'lumotlar bazasi darajasida CASE-INSENSITIVE email unikalligi. ──
+  // `users_email_key` (oddiy email) katta/kichik harf farqi bilan ikki hisob
+  // (Alice@x vs alice@x) yaratishiga yo'l qo'ymaydi; login/register esa
+  // LOWER(email) orqali qidiradi. Shu sababli LOWER(email) bo'yicha qo'shimcha
+  // UNIQUE indeks saqlanadi. Avvaldan takroriy (case-duplicate) satrlar bo'lsa,
+  // indeks yaratish XATOSI bilan falayl-qiladi — bu maqsadli: ma'lumotlarni
+  // tozalash talab qilinadi (server notinch holatda ma'lumot buzilishidan
+  // himoyalanadi).
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes WHERE tablename = 'users' AND indexname = 'users_email_lower_key'
+      ) THEN
+        CREATE UNIQUE INDEX users_email_lower_key ON users (LOWER(email));
+      END IF;
+    END $$;
+  `);
+
   // ── Faza 17: expand role hierarchy (drop old CHECK, add new) ──
   await pool.query(`
     DO $$

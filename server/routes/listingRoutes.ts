@@ -2,6 +2,7 @@ import { serverError } from '../lib/error.ts';
 import { Router, Response } from 'express';
 import crypto from 'crypto';
 import { sanitizeUserUrlList } from '../lib/urlSecurity.ts';
+import { deleteStoredMedia } from '../services/storageService.ts';
 import { requireAuth, optionalAuth, isStaffRole, hasMinLevel, AuthRequest } from '../auth/telegram.ts';
 import {
   searchListings,
@@ -381,6 +382,14 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res) => {
       const imageList = Array.isArray(images) ? sanitizeUserUrlList(images, 8) : [];
       const videoList = Array.isArray(videos) ? sanitizeUserUrlList(videos, 2) : [];
       const media = [...imageList.slice(0, 8), ...videoList.slice(0, 2)];
+      // Tozalash: eski media ro'yxatini o'qib, yangisida QOLMAGAN fayllarni
+      // saqlagichdan o'chiramiz (shunda almashinuvda fayllar to'planib qolmaydi).
+      const oldMedia = await queryAll<{ url: string }>(
+        'SELECT url FROM listing_images WHERE listing_id = ?',
+        [listingId]
+      );
+      const keep = new Set(media);
+      const removed = oldMedia.map((m) => m.url).filter((u) => u && !keep.has(u));
       await runQuery('DELETE FROM listing_images WHERE listing_id = ?', [listingId]);
       for (let i = 0; i < media.length; i++) {
         const url = media[i];
@@ -391,6 +400,8 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res) => {
           [imgId, listingId, url, i, mediaType, now]
         );
       }
+      // Eski (endi havola qilinmaydigan) fayllarni o'chirish — best-effort.
+      await Promise.all(removed.map((u) => deleteStoredMedia(u)));
     }
 
     if (isAdminEditor) {
@@ -575,9 +586,16 @@ router.delete('/:id', requireAuth, async (req: AuthRequest, res) => {
     const hard = req.query.hard === 'true' && hasMinLevel(req.user!.role, 'ADMIN');
 
     if (hard) {
+      // Tozalash: qattiq o'chirishda media fayllari ham ketadi (soft-delete'da
+      // ular qoladi — ARXIVLANGAN e'lon tiklanishi mumkin).
+      const mediaRows = await queryAll<{ url: string }>(
+        'SELECT url FROM listing_images WHERE listing_id = ?',
+        [listing.id]
+      );
       await runQuery('DELETE FROM listing_images WHERE listing_id = ?', [listing.id]);
       await runQuery('DELETE FROM saved_listings WHERE listing_id = ?', [listing.id]);
       await runQuery('DELETE FROM listings WHERE id = ?', [listing.id]);
+      await Promise.all(mediaRows.map((m) => deleteStoredMedia(m.url)));
 
       const auditId = `audit_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
       await runQuery(

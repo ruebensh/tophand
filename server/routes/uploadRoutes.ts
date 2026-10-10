@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { requireAuth } from '../auth/telegram.ts';
-import { processAndStoreImage, storeVideo, getR2ObjectStream, r2Client } from '../services/storageService.ts';
+import { processAndStoreImage, storeVideo, getR2ObjectStream, r2Client, VERIFICATION_FOLDER } from '../services/storageService.ts';
+import { recordUpload } from '../services/mediaCleanupService.ts';
 import { serverError } from '../lib/error.ts';
 
 const router = Router();
@@ -28,6 +29,13 @@ const upload = multer({
   },
 });
 
+// F-06: folder'ni NORMALIZACIYA qilib taqqoslash (kichik harf + trailing slash),
+// aks holda `VERIFICATIONS`/`Verifications/` kabi variantlar deny'ni chetlab
+// ketadi. storageService.sanitizeFolder ichida ham ikkinchi qulf bor.
+function isVerificationFolder(raw: unknown): boolean {
+  return String(raw ?? '').trim().toLowerCase().replace(/\/+$/, '') === VERIFICATION_FOLDER;
+}
+
 // POST /api/upload - Upload and optimize image (WebP + Cloudflare R2)
 router.post('/', requireAuth, upload.single('image'), async (req, res) => {
   try {
@@ -39,10 +47,12 @@ router.post('/', requireAuth, upload.single('image'), async (req, res) => {
     // P1-1: verification images must go through the dedicated PRIVATE endpoint
     // (/api/users/me/verification/upload). The generic path writes public, long-
     // cache objects, so it must never accept the `verifications` folder.
-    if (folder === 'verifications') {
+    if (isVerificationFolder(folder)) {
       return res.status(400).json({ error: 'Tasdiq rasmi uchun /api/users/me/verification/upload ishlatiladi' });
     }
     const result = await processAndStoreImage(req.file.buffer, folder);
+    // Report #7: manifest the upload so an orphan (never saved) is auto-reclaimed.
+    await recordUpload({ key: result.key, url: result.url, storage: result.storage });
 
     res.json({
       url: result.url,
@@ -78,7 +88,13 @@ router.post('/video', requireAuth, videoUpload.single('video'), async (req, res)
       return res.status(400).json({ error: 'Video fayl tanlanmadi' });
     }
     const folder = (req.query.folder as string) || 'videos';
+    // F-06: video pipeline ham verifications papkasiga yozolmasin.
+    if (isVerificationFolder(folder)) {
+      return res.status(400).json({ error: 'Tasdiq rasmi uchun /api/users/me/verification/upload ishlatiladi' });
+    }
     const result = await storeVideo(req.file.buffer, req.file.mimetype, folder);
+    // Report #7: manifest the upload so an orphan (never saved) is auto-reclaimed.
+    await recordUpload({ key: result.key, url: result.url, storage: result.storage });
     res.json({
       url: result.url,
       filename: result.key,
@@ -97,8 +113,8 @@ router.get(['/storage/:folder/:file', '/:folder/:file'], async (req, res) => {
   try {
     // SECURITY (H-07): verification passport/selfie objects are personal data and
     // must not be reachable through the public storage proxy. They are served ONLY
-    // via the signed /api/verification-photo endpoint.
-    if ((req.params.folder as string) === 'verifications') {
+    // via the signed /api/verification-photo endpoint. F-06: case-insensitive.
+    if (isVerificationFolder(req.params.folder)) {
       res.setHeader('Cache-Control', 'no-store');
       return res.status(404).json({ error: 'Fayl topilmadi' });
     }

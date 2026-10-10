@@ -13,10 +13,11 @@ import {
   adminUnban,
   adminSetRole,
   adminVerifyOrganization,
+  purgeVerificationMedia,
 } from '../services/moderationService.ts';
 import { getAdvancedAnalytics } from '../services/autoModerationService.ts';
 import { queryAll, queryOne, runQuery, persistDb } from '../db/database.ts';
-import { processAndStoreLogo, processAndStoreFavicon } from '../services/storageService.ts';
+import { processAndStoreLogo, processAndStoreFavicon, deleteStoredMedia } from '../services/storageService.ts';
 import { getMonetizationConfig, setSetting } from '../services/monetizationService.ts';
 import { listAllAds, createAd, updateAd, deleteAd, validateAd, getAdById, type AdInput } from '../services/adService.ts';
 import { isSupportedEntity, exportToXlsx, importFromXlsx } from '../services/exportService.ts';
@@ -143,8 +144,11 @@ router.post('/users/:id/unban', async (req: AuthRequest, res) => {
 router.post('/users/:id/role', async (req: AuthRequest, res) => {
   try {
     const { role } = req.body;
-    if (role !== 'USER' && role !== 'MODERATOR') {
-      return res.status(400).json({ error: 'Faqat USER yoki MODERATOR roli o‘rnatilishi mumkin' });
+    // Admin/SUPER_ADMIN: moderator jamoasi + BOSH MODERATOR (LEAD_MOD) tayinlash.
+    // (LEAD_MOD'ning o'zi bu endpointga kira olmaydi — `/api/lead` orqali cheklangan.)
+    const ASSIGNABLE = ['USER', 'INTERN_MOD', 'MODERATOR', 'LEAD_MOD'];
+    if (!ASSIGNABLE.includes(role)) {
+      return res.status(400).json({ error: 'Faqat USER/INTERN_MOD/MODERATOR/LEAD_MOD roli o‘rnatilishi mumkin' });
     }
 
     const result = await adminSetRole(req.user!.id, req.params.id, role);
@@ -432,6 +436,13 @@ router.post('/logo', (req: AuthRequest, res, next) => {
     );
 
     // 8. Record administrator logo replacement event in audit log
+    // Tozalash: eski logotip fayli endi kerak emas — saqlagichdan o'chiriladi
+    // (faqat bizniki, bundan tashqari `/TOPHAND.uz (1).png` kabi bundle assetlar
+    // deleteStoredMedia ichida avtomatik tashlab yuboriladi).
+    if (previousUrl && previousUrl !== relativeUrl) {
+      await deleteStoredMedia(previousUrl);
+    }
+
     const auditId = `audit_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
     await runQuery(
       `INSERT INTO audit_logs (id, actor_user_id, action, target_type, target_id, metadata, created_at)
@@ -585,6 +596,16 @@ router.post('/favicon', (req: AuthRequest, res, next) => {
     const settingKey = variant === 'light' ? 'favicon_light_url' : 'favicon_dark_url';
     const now = new Date().toISOString();
 
+    // Tozalash: eski favicon faylini almashinuvdan keyin o'chiramiz (agar bizniki
+    // bo'lsa; `/favicon-light.png` kabi bundle assetlar tashlab yuboriladi).
+    const prevFavicon = await queryOne<{ value: string }>(
+      'SELECT value FROM system_settings WHERE key = ?',
+      [settingKey]
+    );
+    if (prevFavicon?.value && prevFavicon.value !== result.url) {
+      await deleteStoredMedia(prevFavicon.value);
+    }
+
     await runQuery(
       `INSERT INTO system_settings (key, value, updated_at, updated_by)
        VALUES (?, ?, ?, ?)
@@ -688,6 +709,10 @@ router.put('/users/:id/verification', async (req: AuthRequest, res) => {
         [now, targetUserId]
       );
     }
+
+    // LEGAL (F-07 davomi): tasdiq qarori (VERIFIED/REJECTED) yoki bekor qilish
+    // (UNVERIFIED) — HOLATDA ham pasport/selfie RASMlari saqlanmaydi.
+    await purgeVerificationMedia(targetUserId);
 
     const updated = await queryOne('SELECT * FROM users WHERE id = ?', [targetUserId]);
     await persistDb();
@@ -834,6 +859,8 @@ router.put('/organizations/:id', async (req: AuthRequest, res) => {
 
     const orgId = req.params.id;
     const now = new Date().toISOString();
+    // Eski logotipni almashtirishda o'chirish uchun oldin o'qib olamiz.
+    const prevOrg = await queryOne<any>('SELECT logo_url FROM organizations WHERE id = ?', [orgId]);
 
     await runQuery(
       `UPDATE organizations SET
@@ -864,6 +891,10 @@ router.put('/organizations/:id', async (req: AuthRequest, res) => {
     );
 
     const updated = await queryOne('SELECT * FROM organizations WHERE id = ?', [orgId]);
+    // Tozalash: logotip almashtirilsa, eski faylni o'chiramiz (faqat bizniki).
+    if (logo_url && prevOrg?.logo_url && prevOrg.logo_url !== logo_url) {
+      await deleteStoredMedia(prevOrg.logo_url);
+    }
     await persistDb();
     res.json(updated);
   } catch (err: any) {
@@ -875,7 +906,10 @@ router.put('/organizations/:id', async (req: AuthRequest, res) => {
 router.delete('/organizations/:id', async (req: AuthRequest, res) => {
   try {
     const orgId = req.params.id;
+    const prevOrg = await queryOne<any>('SELECT logo_url FROM organizations WHERE id = ?', [orgId]);
     await runQuery('DELETE FROM organizations WHERE id = ?', [orgId]);
+    // Tozalash: tashkilot o'chirilganda uning logotip fayli ham ketadi.
+    if (prevOrg?.logo_url) await deleteStoredMedia(prevOrg.logo_url);
     await persistDb();
     res.json({ success: true, message: 'Tashkilot muvaffaqiyatli o‘chirildi' });
   } catch (err: any) {

@@ -1,0 +1,67 @@
+name: CI
+
+# F-12: every pull request (and pushes to main) must build + lint + test before
+# it can be merged. Make "CI / test" a REQUIRED status check in the repository
+# branch-protection settings so a red pipeline physically blocks the merge.
+
+on:
+  pull_request:
+    branches: ['**']
+  push:
+    branches: [main]
+
+# A new push to the same PR cancels the in-flight run (keeps the queue fast).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Build, lint & test
+    runs-on: ubuntu-latest
+
+    # The integration suite boots the REAL Express app against a REAL Postgres.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: tophand
+          POSTGRES_PASSWORD: tophand123
+          POSTGRES_DB: tophand
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U tophand -d tophand"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    env:
+      # Local, throwaway service DB — NEVER a real deployment DB. Also satisfies
+      # the integration test's non-local-DB safety guard.
+      DATABASE_URL: postgresql://tophand:tophand123@127.0.0.1:5432/tophand
+      TEST_DATABASE_URL: postgresql://tophand:tophand123@127.0.0.1:5432/tophand
+      JWT_SECRET: ci-only-placeholder-secret-0123456789abcdef
+      TRUST_PROXY: '0'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies (clean, reproducible lockfile install)
+        run: npm ci
+
+      - name: Lint (tsc --noEmit)
+        run: npm run lint
+
+      - name: Production build (vite build)
+        run: npm run build
+
+      - name: Test (security helpers + API integration)
+        run: npm test

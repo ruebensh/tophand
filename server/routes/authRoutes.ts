@@ -301,21 +301,32 @@ async function loginHandler(req: any, res: any) {
     }
 
     if (user.is_banned) {
-      // Auto-lift expired temporary bans
+      // F-09: muddati tugagan vaqtinchalik blokni ATOMIK, SHARTLI ko'taramiz:
+      // UPDATE faqat hanuz vaqtinchalik + muddati tugagan qatorga ta'sir qiladi.
+      // Moderator shu orada blokni uzaytirsа/PERMANENT qilsa — 0 qator, qayta
+      // o'qigach ban saqlanib qolgan bo'ladi → kirish rad etiladi (403).
       if (user.ban_type === 'TEMPORARY' && user.ban_end_date && new Date(user.ban_end_date) <= new Date()) {
-        await runQuery(
-          `UPDATE users SET is_banned = 0, ban_type = 'NONE', ban_reason = NULL, ban_end_date = NULL, updated_at = ? WHERE id = ?`,
+        const lifted = await runQuery(
+          `UPDATE users SET is_banned = 0, ban_type = 'NONE', ban_reason = NULL, ban_end_date = NULL, updated_at = ?
+           WHERE id = ? AND is_banned = 1 AND ban_type = 'TEMPORARY' AND ban_end_date <= NOW()`,
           [new Date().toISOString(), user.id]
         );
-        // Continue login — ban has expired
-      } else {
-        return res.status(403).json({
-          error: 'Hisobingiz bloklangan',
-          ban_type: user.ban_type,
-          ban_reason: user.ban_reason,
-          ban_end_date: user.ban_end_date,
-        });
+        if (lifted.changes > 0) {
+          const fresh = await queryOne<any>('SELECT * FROM users WHERE id = ?', [user.id]);
+          if (!fresh || fresh.is_banned) {
+            return res.status(403).json({ error: 'Hisobingiz bloklangan' });
+          }
+          // Blok haqiqiy ko'tarildi — tizimga kiritamiz.
+          const token = generateToken(fresh);
+          return res.json({ token, user: serializeUser(fresh), is_admin: fresh.role === 'ADMIN' });
+        }
       }
+      return res.status(403).json({
+        error: 'Hisobingiz bloklangan',
+        ban_type: user.ban_type,
+        ban_reason: user.ban_reason,
+        ban_end_date: user.ban_end_date,
+      });
     }
 
     const token = generateToken(user);
@@ -384,19 +395,24 @@ router.post('/register', async (req, res) => {
 
     const cleanEmail = email.trim().toLowerCase();
 
-    const existing = await queryOne<any>('SELECT id FROM users WHERE LOWER(email) = ?', [cleanEmail]);
-    if (existing) {
-      return res.status(400).json({ error: 'Ushbu email bilan hisob allaqachon mavjud' });
-    }
-
-    // Reserved admin email is managed via .env, never via self-registration.
-    if (cleanEmail === (process.env.ADMIN_EMAIL || '').trim().toLowerCase()) {
-      return res.status(400).json({ error: "Ushbu email bilan hisob yaratib bo'lmaydi" });
-    }
+    // F-08: email MAVJUDLIGI endi alohida tekshirilmaydi — unauthenticated
+    // caller OTP'ni yengmasdan "bu email ro'yxatdan o'tgan"ni bilolmasin.
+    // Avval OTP validate qilinadi (mavjudlikka qat'iy javoblar o'chirildi);
+    // keyingi barcha muvaffaqiyatsizlik yo'llari (band email, mavjud hisob,
+    // concurrent duplicate) — BITTA generic xabar. LOWER(email) bo'yicha DB
+    // unique cheklovi (users.email UNIQUE) saqlanadi va ko'pi bilan bitta
+    // hisob yaraladi.
+    const GENERIC_REGISTER_FAIL = "Ro'yxatdan o'tish tugallanmadi. Kodi yoki ma'lumotlarni tekshirib, qayta urinib ko'ring.";
 
     const otp = await consumeEmailCode(cleanEmail, code, 'EMAIL_VERIFICATION');
     if (!otp.ok) {
       return res.status(otp.reason === 'locked' ? 429 : 400).json({ error: otpMessage(otp) });
+    }
+
+    // Reserved admin email (.env orqali boshqariladi) — bu tarmoq faqat OTP
+    // egasiga ko'rinadi, shuning uchun enumeratsiya emas; xatosi ham generic.
+    if (cleanEmail === (process.env.ADMIN_EMAIL || '').trim().toLowerCase()) {
+      return res.status(400).json({ error: GENERIC_REGISTER_FAIL });
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
@@ -405,11 +421,21 @@ router.post('/register', async (req, res) => {
     // name is a placeholder; the mandatory profile step collects the real name.
     const placeholderName = cleanEmail.split('@')[0];
 
-    await runQuery(
-      `INSERT INTO users (id, email, password_hash, name, cover_gradient, role, email_verified, is_banned, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, 'USER', 1, 0, ?, ?)`,
-      [userId, cleanEmail, passwordHash, placeholderName, randomGradient(), now, now]
-    );
+    try {
+      await runQuery(
+        `INSERT INTO users (id, email, password_hash, name, cover_gradient, role, email_verified, is_banned, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, 'USER', 1, 0, ?, ?)`,
+        [userId, cleanEmail, passwordHash, placeholderName, randomGradient(), now, now]
+      );
+    } catch (insertErr: any) {
+      // 23505 = unique_violation (email band yoki concurrent race); admin
+      // reserved email ham shu generic yo'lga biriktirilgan (ikkala holat bir xil).
+      const isUnique = insertErr?.code === '23505' || /unique|duplicate/i.test(String(insertErr?.message || ''));
+      if (isUnique) {
+        return res.status(400).json({ error: GENERIC_REGISTER_FAIL });
+      }
+      throw insertErr;
+    }
 
     await clearEmailCodes(cleanEmail, 'EMAIL_VERIFICATION');
 

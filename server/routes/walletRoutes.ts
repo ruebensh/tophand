@@ -57,7 +57,10 @@ router.post('/topup', requireAuth, async (req: AuthRequest, res: Response) => {
     });
     res.json({ success: true, balance });
   } catch (err: any) {
-    res.status(400).json({ error: err.message });
+    // F-10: xom exception matni (DB/driver/constraint tafsilotlari) HECH
+    // QACHON mijozga qaytarilmaydi — LOCAL_DEV=1 da ham. Niyatlangan 4xx
+    // (validation/payment) xatolari serverError ichida saqlanadi, 5xx generic.
+    serverError(res, err, "Balansni to'ldirishda xatolik yuz berdi");
   }
 });
 

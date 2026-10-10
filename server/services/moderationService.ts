@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { queryAll, queryOne, runQuery } from '../db/database.ts';
 import { ROLE_LEVEL, type Role } from '../auth/telegram.ts';
+import { deleteStoredMedia } from '../services/storageService.ts';
 
 // SECURITY (H-09): enforce a strict role hierarchy for destructive account
 // mutations (ban / unban / role change). An actor may only manage staff/users at
@@ -214,7 +215,7 @@ export async function adminUnban(adminId: string, userId: string) {
   return { success: true };
 }
 
-export async function adminSetRole(adminId: string, userId: string, newRole: 'USER' | 'MODERATOR') {
+export async function adminSetRole(adminId: string, userId: string, newRole: Role) {
   // H-09: prevent ADMIN from demoting a SUPER_ADMIN or peer, and allow
   // SUPER_ADMIN to manage ADMINs (previously wrongly blocked).
   await assertCanManageActor(adminId, userId, 'rol o‘zgartirish');
@@ -241,7 +242,7 @@ export async function adminSetRole(adminId: string, userId: string, newRole: 'US
     [
       auditId,
       adminId,
-      newRole === 'MODERATOR' ? 'MODERATOR_ADDED' : 'MODERATOR_REMOVED',
+      STAFF_ROLES.includes(newRole) ? 'MODERATOR_ADDED' : 'MODERATOR_REMOVED',
       userId,
       JSON.stringify({ newRole }),
       now,
@@ -300,3 +301,108 @@ export async function getAdminOverview() {
     banned_users: bannedCount?.count || 0,
   };
 }
+
+/**
+ * LEGAL (F-07 davomi): pasport/selfie RASMLARI tasdiq qaroridan (APPROVE yoki
+ * REJECT) keyin SAQLANMASLIGI kerak. Bu funksiya foydalanuvchiga bog'langan barcha
+ * yopiq obyektlarni o'chiradi, `users.verification_photo_url` havolasini tozalaydi
+ * va `verification_uploads` satrlarini bekor qiladi. MATN pasport ma'lumotlari
+ * (seriya/raqam/PINFL) qoladi — takror ariza oldini olish uchun kerak; faqat
+ * RASM baytlari o'chadi. Best-effort: o'chirishda xatolik bo'lsa ham DB tozalash
+ * bajariladi (rasmlar qolmasligi asosiy talab).
+ */
+export async function purgeVerificationMedia(userId: string): Promise<void> {
+  try {
+    const rows = await queryAll<{ object_key: string }>(
+      'SELECT object_key FROM verification_uploads WHERE owner_user_id = ?',
+      [userId]
+    );
+    const user = await queryOne<{ verification_photo_url: string | null }>(
+      'SELECT verification_photo_url FROM users WHERE id = ?',
+      [userId]
+    );
+    const refs = new Set<string>();
+    for (const r of rows) if (r?.object_key) refs.add(r.object_key);
+    if (user?.verification_photo_url) refs.add(user.verification_photo_url);
+    await Promise.all(Array.from(refs).map((ref) => deleteStoredMedia(ref)));
+    await runQuery('DELETE FROM verification_uploads WHERE owner_user_id = ?', [userId]);
+    await runQuery(
+      'UPDATE users SET verification_photo_url = NULL, verification_upload_id = NULL WHERE id = ?',
+      [userId]
+    );
+  } catch (err: any) {
+    console.warn('purgeVerificationMedia xato:', err?.message || err);
+  }
+}
+
+// ─── Bosh moderator (LEAD_MOD) uchun SKOPLANGAN statistika ────────────────
+// Faqat staff (moderator/lead) ish faoliyati — platforma/admin umumiy stats
+// EMAS. Manba: audit_logs (har bir staff harakati actor_user_id bilan yoziladi).
+function statsBuckets(): string {
+  return `
+    COUNT(*) AS total,
+    COUNT(*) FILTER (WHERE action ILIKE '%APPROV%' OR action ILIKE '%VERIFIED%' OR action ILIKE '%RESTORE%') AS approvals,
+    COUNT(*) FILTER (WHERE action ILIKE '%HIDE%' OR action ILIKE '%REMOVE%' OR action ILIKE '%REJECT%' OR action ILIKE '%UNVERIFIED%') AS removals,
+    COUNT(*) FILTER (WHERE action ILIKE '%BAN%') AS bans,
+    COUNT(*) FILTER (WHERE action ILIKE '%MODERATOR%') AS role_changes,
+    COUNT(*) FILTER (WHERE action ILIKE '%VERIF%') AS verifications
+  `;
+}
+
+/** Aktoorning shaxsiy 30 kunlik ish statistikasi. */
+export async function getStaffPersonalStats(actorId: string) {
+  const totals = await queryOne<any>(
+    `SELECT ${statsBuckets()} FROM audit_logs
+     WHERE actor_user_id = ? AND created_at >= NOW() - INTERVAL '30 days'`,
+    [actorId]
+  );
+  const series = await queryAll<{ day: string; count: number }>(
+    `SELECT to_char(created_at, 'YYYY-MM-DD') AS day, COUNT(*) AS count
+     FROM audit_logs
+     WHERE actor_user_id = ? AND created_at >= NOW() - INTERVAL '30 days'
+     GROUP BY day ORDER BY day`,
+    [actorId]
+  );
+  const num = (v: any) => Number(v || 0);
+  return {
+    window_days: 30,
+    totals: {
+      total: num(totals?.total),
+      approvals: num(totals?.approvals),
+      removals: num(totals?.removals),
+      bans: num(totals?.bans),
+      role_changes: num(totals?.role_changes),
+      verifications: num(totals?.verifications),
+    },
+    series,
+  };
+}
+
+/** Jamoa (barcha moderator/lead) 30 kunlik ish statistikasi. */
+export async function getStaffTeamStats() {
+  const rows = await queryAll<any>(
+    `SELECT u.id, u.name, u.role,
+       COUNT(a.id) AS total,
+       COUNT(*) FILTER (WHERE a.action ILIKE '%APPROV%' OR a.action ILIKE '%VERIFIED%' OR a.action ILIKE '%RESTORE%') AS approvals,
+       COUNT(*) FILTER (WHERE a.action ILIKE '%HIDE%' OR a.action ILIKE '%REMOVE%' OR a.action ILIKE '%REJECT%' OR a.action ILIKE '%UNVERIFIED%') AS removals,
+       COUNT(*) FILTER (WHERE a.action ILIKE '%BAN%') AS bans,
+       COUNT(*) FILTER (WHERE a.action ILIKE '%VERIF%') AS verifications
+     FROM users u
+     LEFT JOIN audit_logs a ON a.actor_user_id = u.id AND a.created_at >= NOW() - INTERVAL '30 days'
+     WHERE u.role IN ('INTERN_MOD', 'MODERATOR', 'LEAD_MOD')
+     GROUP BY u.id, u.name, u.role
+     ORDER BY total DESC`
+  );
+  const num = (v: any) => Number(v || 0);
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    role: r.role,
+    total: num(r.total),
+    approvals: num(r.approvals),
+    removals: num(r.removals),
+    bans: num(r.bans),
+    verifications: num(r.verifications),
+  }));
+}
+

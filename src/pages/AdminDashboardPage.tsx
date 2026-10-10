@@ -36,7 +36,6 @@ import {
 import { formatDateAgo } from '../lib/utils.ts';
 import { useI18n } from '../i18n/IntlContext.tsx';
 import { PlatformManagementSection } from '../components/admin/PlatformManagementSection.tsx';
-import { ThemeHolidaySection } from '../components/admin/ThemeHolidaySection.tsx';
 import { MonetizationSettings } from '../components/admin/MonetizationSettings.tsx';
 import { DataIOSection } from '../components/admin/DataIOSection.tsx';
 import { ModeratorTeam } from '../components/admin/ModeratorTeam.tsx';
@@ -248,6 +247,22 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     }
   };
 
+  // Bosh moderator (LEAD_MOD) tayinlash / bekor qilish — faqat ADMIN/SUPER_ADMIN.
+  const handleAssignChief = async (userId: string, currentRole: string) => {
+    const newRole = currentRole === 'LEAD_MOD' ? 'MODERATOR' : 'LEAD_MOD';
+    if (!confirm(t('admin.roleChangeConfirm', { role: newRole }))) return;
+    try {
+      await apiRequest(`/api/admin/users/${userId}/role`, {
+        method: 'POST',
+        body: JSON.stringify({ role: newRole }),
+      });
+      alert(t('admin.roleUpdated'));
+      fetchUsers();
+    } catch (err: any) {
+      alert(err.message || t('common.error'));
+    }
+  };
+
   const handleVerifyOrg = async (orgId: string, currentStatus: string) => {
     const nextVerify = currentStatus !== 'VERIFIED';
     try {
@@ -327,7 +342,6 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         {[
           { id: 'overview', label: t('admin.tabOverview'), icon: BarChart3 },
           { id: 'platform', label: t('admin.tabPlatform'), icon: Palette },
-          { id: 'theme', label: t('admin.tabTheme'), icon: Palette },
           { id: 'users', label: t('admin.tabUsers'), icon: Users },
           { id: 'organizations', label: t('admin.tabOrgs'), icon: Building2 },
           { id: 'categories', label: t('admin.tabCategories'), icon: Layers },
@@ -582,9 +596,6 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       {/* 2. Platform Management Tab (Platform Brand & Logo Customization) */}
       {activeTab === 'platform' && <PlatformManagementSection />}
 
-      {/* 2b. Hudud / Bayram mavzularini boshqarish */}
-      {activeTab === 'theme' && <ThemeHolidaySection />}
-
       {/* 3. Users & Identity Verification Tab */}
       {activeTab === 'users' && (
         <div className="bg-white rounded-3xl border border-gray-100 shadow-xs overflow-hidden">
@@ -734,6 +745,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                             className={`px-2 py-0.5 rounded-md font-bold text-[10px] ${
                               u.role === 'ADMIN'
                                 ? 'bg-purple-100 text-purple-800'
+                                : u.role === 'LEAD_MOD'
+                                ? 'bg-fuchsia-100 text-fuchsia-800'
                                 : u.role === 'MODERATOR'
                                 ? 'bg-amber-100 text-amber-800'
                                 : 'bg-blue-50 text-blue-700'
@@ -795,6 +808,16 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                               className="px-2.5 py-1 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-100 text-[11px] font-medium cursor-pointer"
                             >
                               {u.role === 'MODERATOR' ? t('admin.revokeMod') : t('admin.makeMod')}
+                            </button>
+                          )}
+
+                          {(u.role === 'MODERATOR' || u.role === 'LEAD_MOD') && (
+                            <button
+                              type="button"
+                              onClick={() => handleAssignChief(u.id, u.role)}
+                              className="px-2.5 py-1 rounded-lg border border-fuchsia-200 text-fuchsia-700 hover:bg-fuchsia-50 text-[11px] font-bold cursor-pointer"
+                            >
+                              {u.role === 'LEAD_MOD' ? t('admin.revokeChief') : t('admin.makeChief')}
                             </button>
                           )}
 

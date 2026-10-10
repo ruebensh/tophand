@@ -5,7 +5,6 @@ import { NotificationProvider } from './context/NotificationContext.tsx';
 import { LogoProvider } from './context/LogoContext.tsx';
 import { AdsProvider } from './context/AdsContext.tsx';
 import { GeoProvider } from './context/GeoContext.tsx';
-import { ThemeProvider } from './context/ThemeContext.tsx';
 import { Header } from './components/layout/Header.tsx';
 import { MobileNav } from './components/layout/MobileNav.tsx';
 import { Footer } from './components/layout/Footer.tsx';
@@ -26,13 +25,13 @@ const WalletPage = lazy(() => import('./pages/WalletPage.tsx').then((m) => ({ de
 const OrganizationPage = lazy(() => import('./pages/OrganizationPage.tsx').then((m) => ({ default: m.OrganizationPage })));
 const ModeratorDashboardPage = lazy(() => import('./pages/ModeratorDashboardPage.tsx').then((m) => ({ default: m.ModeratorDashboardPage })));
 const AdminDashboardPage = lazy(() => import('./pages/AdminDashboardPage.tsx').then((m) => ({ default: m.AdminDashboardPage })));
+const ChiefModeratorPage = lazy(() => import('./pages/ChiefModeratorPage.tsx').then((m) => ({ default: m.ChiefModeratorPage })));
 const RegionCategoryPage = lazy(() => import('./pages/RegionCategoryPage.tsx').then((m) => ({ default: m.RegionCategoryPage })));
 const LegalPage = lazy(() => import('./pages/LegalPage.tsx').then((m) => ({ default: m.LegalPage })));
 
 // Global Modals
 import { GoogleLoginModal } from './components/modals/GoogleLoginModal.tsx';
 import { ProfileCompletionModal } from './components/modals/ProfileCompletionModal.tsx';
-import { ThemeAtmosphere } from './components/theme/ThemeAtmosphere.tsx';
 
 const AppContent: React.FC = () => {
   const { user, openLoginModal } = useAuth();
@@ -259,6 +258,26 @@ const AppContent: React.FC = () => {
       return <AdminDashboardPage onNavigate={navigate} />;
     }
 
+    // 9b. Chief Moderator Dashboard: /lead (bosh moderator uchun alohida panel)
+    if (currentRoute === '/lead') {
+      const LEAD_ROLES = ['LEAD_MOD', 'ADMIN', 'SUPER_ADMIN'];
+      if (!user || !LEAD_ROLES.includes(user.role)) {
+        return (
+          <div className="max-w-md mx-auto py-16 text-center">
+            <h3 className="font-bold text-base text-gray-900">{t('common.accessDenied')}</h3>
+            <p className="text-xs text-gray-500 mt-1">{t('admin.leadAccessNote')}</p>
+            <button
+              onClick={() => openLoginModal()}
+              className="mt-4 px-5 py-2 rounded-full bg-blue-600 text-white text-xs font-bold"
+            >
+              {t('admin.leadLoginAsChief')}
+            </button>
+          </div>
+        );
+      }
+      return <ChiefModeratorPage onNavigate={navigate} />;
+    }
+
     // Default: Home Page (/)
     const homeType = currentRoute.includes('?type=')
       ? (currentRoute.split('?type=')[1] as any)
@@ -276,9 +295,6 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="relative min-h-screen flex flex-col bg-gray-50/50 font-sans text-gray-900 selection:bg-blue-600 selection:text-white overflow-x-clip w-full max-w-full">
-      {/* Mavzu muhiti: hudud foni/naqshi + bayram animatsiyalari (kontent ortasi/ustida) */}
-      <ThemeAtmosphere />
-
       {/* Global Header */}
       <Header
         onNavigate={navigate}
@@ -324,9 +340,7 @@ export function App() {
           <LogoProvider>
             <AdsProvider>
               <GeoProvider>
-                <ThemeProvider>
-                  <AppContent />
-                </ThemeProvider>
+                <AppContent />
               </GeoProvider>
             </AdsProvider>
           </LogoProvider>

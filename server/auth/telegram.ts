@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { Request, Response, NextFunction } from 'express';
-import { queryOne } from '../db/database.ts';
+import { queryOne, runQuery } from '../db/database.ts';
 import { INSECURE_ALLOWED } from '../lib/envSecurity.ts';
 
 // SECURITY (H-02): never fall back to a known secret in a real deployment.
@@ -101,18 +101,30 @@ export async function authenticateToken(token: string): Promise<AuthUser | null>
 
     if (!user) return null;
 
-    // Check temporary ban expiration
+    // F-09: muddati tugagan VAQTINCHA blokni atomik, shartli ko'taramiz.
+    // Moderator race'ida (blok uzaytirilsa/PERMANENT qilinga) UPDATE 0 qator
+    // ta'sir qiladi — qayta o'qigach ban holati saqlanib qolgan bo'lsa, token
+    // berilmaydi (null → 403).
     if (user.is_banned && user.ban_type === 'TEMPORARY' && user.ban_end_date) {
       if (new Date(user.ban_end_date).getTime() < Date.now()) {
-        // Ban expired, unban automatically
-        await queryOne(
-          "UPDATE users SET is_banned = 0, ban_type = 'NONE', ban_reason = NULL, ban_end_date = NULL WHERE id = ?",
+        const lifted = await runQuery(
+          `UPDATE users SET is_banned = 0, ban_type = 'NONE', ban_reason = NULL, ban_end_date = NULL
+           WHERE id = ? AND is_banned = 1 AND ban_type = 'TEMPORARY' AND ban_end_date <= NOW()`,
           [user.id]
         );
-        user.is_banned = 0;
-        user.ban_type = 'NONE';
+        if (lifted.changes > 0) {
+          const fresh = await queryOne<AuthUser>(
+            'SELECT id, telegram_id, telegram_username, name, role, is_banned, ban_type, ban_reason, ban_end_date FROM users WHERE id = ?',
+            [user.id]
+          );
+          if (!fresh) return null;
+          Object.assign(user, fresh);
+        }
       }
     }
+
+    // So'rov autentifikatsiyadan o'tmagan bo'lsa ham ban holati bilan uchmasin.
+    if (user.is_banned) return null;
 
     return user;
   } catch (err) {
@@ -204,3 +216,21 @@ export function requireMinLevel(min: Role) {
     next();
   };
 }
+
+/**
+ * F-01: rate-limit bucket'lar uchun TASDIQLANGAN identity. Faqat JWT
+ * signature'ini o'zi tekshiriladi (DB so'rovsiz, arzon); token yaroqsiz/soxta
+ * bo'lsa `null` — chaqiruvchi IP'ga qaytadi. Shunda attacker soxta
+ * `Authorization` qiymatlari bilan yangi bucket yarata olmaydi.
+ */
+export function verifiedUserIdFromRequest(req: Request): string | null {
+  const header = req.headers.authorization;
+  if (!header || !header.startsWith('Bearer ')) return null;
+  try {
+    const decoded = jwt.verify(header.slice(7), JWT_SECRET) as any;
+    return typeof decoded?.id === 'string' && decoded.id ? decoded.id : null;
+  } catch {
+    return null;
+  }
+}
+

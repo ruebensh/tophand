@@ -8,8 +8,11 @@
     "build": "vite build",
     "preview": "vite preview",
     "start": "tsx server.ts",
-    "test": "tsx scripts/test-security.ts",
+    "test": "tsx scripts/test-security.ts && tsx scripts/test-integration.ts",
+    "test:security": "tsx scripts/test-security.ts",
+    "test:integration": "tsx scripts/test-integration.ts",
     "clean": "rm -rf dist",
+    "migrate:verifications": "node scripts/migrate-verifications.mjs",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
