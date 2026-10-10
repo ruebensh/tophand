@@ -16,17 +16,20 @@ const roleLevel = (role?: string | null): number =>
   role ? (ROLE_LEVEL[role as Role] ?? -1) : -1;
 
 async function assertCanManageActor(actorId: string, targetUserId: string, actionLabel: string): Promise<{ targetRole: string }> {
+  // Report #9: bu kutilgan biznes/avtorizatsiya xatolari — mijozga ko'rsatish
+  // XAVFSIZ (stack/DB emas). `status: 400` qo'yamiz, shunda chaqiruvchi route
+  // `serverError` orqali 4xx xabarni ko'rsatadi, 5xx ichki xatolar esa yashiriladi.
   if (actorId === targetUserId) {
-    throw new Error(`O'z hisobingizga “${actionLabel}” amalini bajara olmaysiz`);
+    throw Object.assign(new Error(`O'z hisobingizga “${actionLabel}” amalini bajara olmaysiz`), { status: 400 });
   }
   const [actor, target] = await Promise.all([
     queryOne<any>('SELECT role FROM users WHERE id = ?', [actorId]),
     queryOne<any>('SELECT role FROM users WHERE id = ?', [targetUserId]),
   ]);
-  if (!actor) throw new Error('Amalni bajaruvchi topilmadi');
-  if (!target) throw new Error('Foydalanuvchi topilmadi');
+  if (!actor) throw Object.assign(new Error('Amalni bajaruvchi topilmadi'), { status: 400 });
+  if (!target) throw Object.assign(new Error('Foydalanuvchi topilmadi'), { status: 404 });
   if (roleLevel(actor.role) <= roleLevel(target.role)) {
-    throw new Error(`Sizning darajangiz “${actionLabel}” uchun bu hisobga yetarli emas`);
+    throw Object.assign(new Error(`Sizning darajangiz “${actionLabel}” uchun bu hisobga yetarli emas`), { status: 403 });
   }
   return { targetRole: target.role };
 }
@@ -308,31 +311,32 @@ export async function getAdminOverview() {
  * yopiq obyektlarni o'chiradi, `users.verification_photo_url` havolasini tozalaydi
  * va `verification_uploads` satrlarini bekor qiladi. MATN pasport ma'lumotlari
  * (seriya/raqam/PINFL) qoladi — takror ariza oldini olish uchun kerak; faqat
- * RASM baytlari o'chadi. Best-effort: o'chirishda xatolik bo'lsa ham DB tozalash
- * bajariladi (rasmlar qolmasligi asosiy talab).
+ * RASM baytlari o'chadi. Obyekt o'chirish `deleteStoredMedia` orqali (xatoda
+ * DURABLE retry navbatiga tushadi), DB tozalash esa shu yerda bajariladi.
+ * MUHIM (report #1): DB so'rovi xato bersa xato CHAQIRUVCHIGA TARQADI — shunda
+ * API "success" qaytarmaydi va holat PENDING bo'lib qoladi (qayta uriladi),
+ * aks holda xatolik yashirilib, havolalar bazada qolib ketardi.
  */
 export async function purgeVerificationMedia(userId: string): Promise<void> {
-  try {
-    const rows = await queryAll<{ object_key: string }>(
-      'SELECT object_key FROM verification_uploads WHERE owner_user_id = ?',
-      [userId]
-    );
-    const user = await queryOne<{ verification_photo_url: string | null }>(
-      'SELECT verification_photo_url FROM users WHERE id = ?',
-      [userId]
-    );
-    const refs = new Set<string>();
-    for (const r of rows) if (r?.object_key) refs.add(r.object_key);
-    if (user?.verification_photo_url) refs.add(user.verification_photo_url);
-    await Promise.all(Array.from(refs).map((ref) => deleteStoredMedia(ref)));
-    await runQuery('DELETE FROM verification_uploads WHERE owner_user_id = ?', [userId]);
-    await runQuery(
-      'UPDATE users SET verification_photo_url = NULL, verification_upload_id = NULL WHERE id = ?',
-      [userId]
-    );
-  } catch (err: any) {
-    console.warn('purgeVerificationMedia xato:', err?.message || err);
-  }
+  const rows = await queryAll<{ object_key: string }>(
+    'SELECT object_key FROM verification_uploads WHERE owner_user_id = ?',
+    [userId]
+  );
+  const user = await queryOne<{ verification_photo_url: string | null }>(
+    'SELECT verification_photo_url FROM users WHERE id = ?',
+    [userId]
+  );
+  const refs = new Set<string>();
+  for (const r of rows) if (r?.object_key) refs.add(r.object_key);
+  if (user?.verification_photo_url) refs.add(user.verification_photo_url);
+  // Obyektlarni o'chiramiz (durable-retry ichida; o'zi throw qilmaydi), SO'NG DB
+  // havolalarini tozalaymiz. DB xatosi yuqoriga tarqaladi (catch QILINMAYDI).
+  await Promise.all(Array.from(refs).map((ref) => deleteStoredMedia(ref)));
+  await runQuery('DELETE FROM verification_uploads WHERE owner_user_id = ?', [userId]);
+  await runQuery(
+    'UPDATE users SET verification_photo_url = NULL, verification_upload_id = NULL WHERE id = ?',
+    [userId]
+  );
 }
 
 // ─── Bosh moderator (LEAD_MOD) uchun SKOPLANGAN statistika ────────────────

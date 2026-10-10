@@ -1,4 +1,5 @@
 import { serverError } from '../lib/error.ts';
+import { parseStrictBoolean } from '../lib/params.ts';
 import { Router } from 'express';
 import type { Response } from 'express';
 import crypto from 'crypto';
@@ -17,7 +18,8 @@ import {
 } from '../services/moderationService.ts';
 import { getAdvancedAnalytics } from '../services/autoModerationService.ts';
 import { queryAll, queryOne, runQuery, persistDb } from '../db/database.ts';
-import { processAndStoreLogo, processAndStoreFavicon, deleteStoredMedia } from '../services/storageService.ts';
+import { processAndStoreLogo, processAndStoreFavicon } from '../services/storageService.ts';
+import { deleteStoredMediaIfUnreferenced } from '../services/mediaCleanupService.ts';
 import { getMonetizationConfig, setSetting } from '../services/monetizationService.ts';
 import { listAllAds, createAd, updateAd, deleteAd, validateAd, getAdById, type AdInput } from '../services/adService.ts';
 import { isSupportedEntity, exportToXlsx, importFromXlsx } from '../services/exportService.ts';
@@ -126,7 +128,7 @@ router.post('/users/:id/ban', async (req: AuthRequest, res) => {
     const result = await adminPermanentBan(req.user!.id, req.params.id, reason);
     res.json(result);
   } catch (err: any) {
-    res.status(400).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -136,7 +138,7 @@ router.post('/users/:id/unban', async (req: AuthRequest, res) => {
     const result = await adminUnban(req.user!.id, req.params.id);
     res.json(result);
   } catch (err: any) {
-    res.status(400).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -154,15 +156,19 @@ router.post('/users/:id/role', async (req: AuthRequest, res) => {
     const result = await adminSetRole(req.user!.id, req.params.id, role);
     res.json(result);
   } catch (err: any) {
-    res.status(400).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
 // Organization verification
 router.post('/organizations/:id/verify', async (req: AuthRequest, res) => {
   try {
-    const { verify } = req.body;
-    const result = await adminVerifyOrganization(req.user!.id, req.params.id, Boolean(verify));
+    // Report #9: `Boolean(verify)` o'rniga qat'iy parse (`Boolean('false')` === true xato).
+    const parsed = parseStrictBoolean(req.body?.verify);
+    if (parsed === null) {
+      return res.status(400).json({ error: 'verify aniq boolean (true/false) bo‘lishi shart' });
+    }
+    const result = await adminVerifyOrganization(req.user!.id, req.params.id, parsed);
     res.json(result);
   } catch (err: any) {
     serverError(res, err);
@@ -438,9 +444,10 @@ router.post('/logo', (req: AuthRequest, res, next) => {
     // 8. Record administrator logo replacement event in audit log
     // Tozalash: eski logotip fayli endi kerak emas — saqlagichdan o'chiriladi
     // (faqat bizniki, bundan tashqari `/TOPHAND.uz (1).png` kabi bundle assetlar
-    // deleteStoredMedia ichida avtomatik tashlab yuboriladi).
+    // deleteStoredMedia ichida avtomatik tashlab yuboriladi). Report #3: boshqa
+    // yashovchi qator hali unga bog'liq bo'lsa saqlaymiz.
     if (previousUrl && previousUrl !== relativeUrl) {
-      await deleteStoredMedia(previousUrl);
+      await deleteStoredMediaIfUnreferenced(previousUrl);
     }
 
     const auditId = `audit_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
@@ -603,7 +610,7 @@ router.post('/favicon', (req: AuthRequest, res, next) => {
       [settingKey]
     );
     if (prevFavicon?.value && prevFavicon.value !== result.url) {
-      await deleteStoredMedia(prevFavicon.value);
+      await deleteStoredMediaIfUnreferenced(prevFavicon.value);
     }
 
     await runQuery(
@@ -661,6 +668,18 @@ router.put('/users/:id/verification', async (req: AuthRequest, res) => {
     const targetUserId = req.params.id;
     const now = new Date().toISOString();
 
+    // status ALLOWLIST (audit HIGH): `undefined`/`''`/typo → 400. Aks holda `else`
+    // shoxiga tushib, hali PENDING bo'lgan ariza rasmini yo'q qilardi.
+    const VALID_STATUS = ['VERIFIED', 'REJECTED', 'UNVERIFIED'];
+    if (!VALID_STATUS.includes(status)) {
+      return res.status(400).json({ error: 'status noto\u2018g\u2018ri (VERIFIED/REJECTED/UNVERIFIED)' });
+    }
+
+    // LEGAL (F-07): terminal qaror (VERIFIED/REJECTED) yoki bekor qilish (UNVERIFIED)
+    // — HOLATDA ham pasport/selfie RASMlari saqlanmaydi. Purge STATUS'DAN OLDIN:
+    // DB xatosi bo'lsa holat o'zgarmaydi va API success qaytarmaydi (report #1).
+    await purgeVerificationMedia(targetUserId);
+
     if (status === 'VERIFIED') {
       await runQuery(
         `UPDATE users SET 
@@ -709,10 +728,6 @@ router.put('/users/:id/verification', async (req: AuthRequest, res) => {
         [now, targetUserId]
       );
     }
-
-    // LEGAL (F-07 davomi): tasdiq qarori (VERIFIED/REJECTED) yoki bekor qilish
-    // (UNVERIFIED) — HOLATDA ham pasport/selfie RASMlari saqlanmaydi.
-    await purgeVerificationMedia(targetUserId);
 
     const updated = await queryOne('SELECT * FROM users WHERE id = ?', [targetUserId]);
     await persistDb();
@@ -893,7 +908,7 @@ router.put('/organizations/:id', async (req: AuthRequest, res) => {
     const updated = await queryOne('SELECT * FROM organizations WHERE id = ?', [orgId]);
     // Tozalash: logotip almashtirilsa, eski faylni o'chiramiz (faqat bizniki).
     if (logo_url && prevOrg?.logo_url && prevOrg.logo_url !== logo_url) {
-      await deleteStoredMedia(prevOrg.logo_url);
+      await deleteStoredMediaIfUnreferenced(prevOrg.logo_url);
     }
     await persistDb();
     res.json(updated);
@@ -909,7 +924,7 @@ router.delete('/organizations/:id', async (req: AuthRequest, res) => {
     const prevOrg = await queryOne<any>('SELECT logo_url FROM organizations WHERE id = ?', [orgId]);
     await runQuery('DELETE FROM organizations WHERE id = ?', [orgId]);
     // Tozalash: tashkilot o'chirilganda uning logotip fayli ham ketadi.
-    if (prevOrg?.logo_url) await deleteStoredMedia(prevOrg.logo_url);
+    if (prevOrg?.logo_url) await deleteStoredMediaIfUnreferenced(prevOrg.logo_url);
     await persistDb();
     res.json({ success: true, message: 'Tashkilot muvaffaqiyatli o‘chirildi' });
   } catch (err: any) {

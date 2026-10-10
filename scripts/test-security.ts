@@ -235,6 +235,19 @@ async function main() {
     threw = false;
     try { parseVideoSafe(Buffer.alloc(64)); } catch { threw = true; }
     assert(threw, 'video: tiny file rejected');
+
+    // Regressiya (mvhd): taratilgan/qisqa mvhd avval xom RangeError → 500
+    // berardi; endi parseVideoSafe uni status=400 VideoRejected'ga aylantiradi.
+    {
+      const badMvhd = mkMp4Box('moov', Buffer.concat([
+        mkMp4Box('mvhd', Buffer.alloc(6)), // version o'qiladi, duration uchib ketadi
+        trak('avc1', 640, 480),
+      ]));
+      const ftyp2 = mkMp4Box('ftyp', Buffer.concat([Buffer.from('isom', 'latin1'), Buffer.alloc(4), Buffer.from('isom', 'latin1')]));
+      let vidErr: any = null;
+      try { parseVideoSafe(Buffer.concat([ftyp2, badMvhd, Buffer.alloc(2048)])); } catch (e) { vidErr = e; }
+      assert(vidErr !== null && vidErr.status === 400, 'video: truncated mvhd → controlled 400 (not 500)');
+    }
   }
 
   // ── 8) F-06: processAndStoreImage ichida reserved folder (case-insensitive) ─
@@ -297,6 +310,42 @@ async function main() {
     const bounded = memoryStore();
     for (let i = 0; i < 5; i++) await bounded.incr(`k${i}`, 60_000, 3);
     assert(bounded.size() <= 3, 'limit: store evicts beyond maxKeys (bounded memory)');
+
+    // Report #10: store xatosida DEFAULT fail-CLOSED (429); failOpen:true bo'lsa o'tadi.
+    const throwingStore = { incr: () => Promise.reject(new Error('redis down')) };
+    const mkRes2 = () => ({
+      headers: {} as Record<string, string>,
+      setHeader(k: string, v: string) { this.headers[k] = v; },
+      status(code: number) { (this as any).statusCode = code; return this; },
+      json(body: any) { (this as any).body = body; return this; },
+    });
+    const closedLimiter = buildRateLimit({
+      windowMs: 60_000, max: 10, scope: '/api/x', message: '429',
+      identity: (rq: any) => `ip:${rq.ip}`, store: throwingStore,
+    });
+    const cres: any = mkRes2();
+    let cPassed = false;
+    await closedLimiter({ ip: '1.2.3.4' } as any, cres, () => { cPassed = true; });
+    assert(cres.statusCode === 429 && !cPassed, 'limit: store error → FAIL-CLOSED (429), not bypassed (report #10)');
+    const openLimiter = buildRateLimit({
+      windowMs: 60_000, max: 10, scope: '/api/x', message: '429',
+      identity: (rq: any) => `ip:${rq.ip}`, store: throwingStore, failOpen: true,
+    });
+    const ores: any = mkRes2();
+    let oPassed = false;
+    await openLimiter({ ip: '1.2.3.4' } as any, ores, () => { oPassed = true; });
+    assert(oPassed && !(ores as any).statusCode, 'limit: failOpen:true opt-in still passes on store error');
+
+    // Report #10: eviction picks MIN-RESET (tezroq o'ladigan) bucket'ni,
+    // insertion-order emas. `a` eski lekin reset'i KECH (jonli), `b`/`c` reset'i
+    // ERTA — to'lganda near-expiry biri chiqarib tashlanadi, `a` qoladi.
+    const ev = memoryStore();
+    await ev.incr('a', 10_000_000, 2); // a: reset juda uzoq
+    await ev.incr('b', 60_000, 2);     // b: reset yaqin
+    await ev.incr('c', 60_000, 2);     // sig'maydi → evict (b yoki c ketadi)
+    assert(ev.size() === 2, 'limit: bounded eviction keeps size at maxKeys');
+    const aRec = await ev.incr('a', 10_000_000, 2); // a hali ichida → count 2
+    assert(aRec!.count === 2, 'limit: min-reset eviction keeps the long-lived (active) bucket (report #10)');
   }
 
   console.log(`=== RESULTS: ${passed} passed, ${failed} failed ===`);

@@ -33,7 +33,13 @@ export function memoryStore(): BucketStore & { size(): number } {
       let rec = hits.get(key);
       if (!rec || now > rec.reset) {
         if (hits.size >= maxKeys) {
-          // Evict expired first; still full → evict oldest-reset.
+          // Evict expired first; still full → evict the entry whose window
+          // expires SOONEST (min `reset`). Report #10: evicting
+          // `hits.keys().next()` (insertion order) is WRONG — an old key that was
+          // recently re-hit has a LATE reset, while a freshly-created key has an
+          // early reset; insertion order would drop the active one and keep the
+          // soon-to-die one, letting an attacker pin/rotate buckets. Min-reset is
+          // the entry closest to natural expiry → cheapest, least-disruptive drop.
           let evicted = false;
           for (const [k, v] of hits) {
             if (now > v.reset) {
@@ -42,11 +48,16 @@ export function memoryStore(): BucketStore & { size(): number } {
               if (hits.size < maxKeys) break;
             }
           }
-          while (!evicted && hits.size >= maxKeys) {
-            const oldest = hits.keys().next();
-            if (oldest.done) break;
-            hits.delete(oldest.value);
-            evicted = true;
+          if (!evicted && hits.size >= maxKeys) {
+            let oldestKey: string | undefined;
+            let oldestReset = Infinity;
+            for (const [k, v] of hits) {
+              if (v.reset < oldestReset) {
+                oldestReset = v.reset;
+                oldestKey = k;
+              }
+            }
+            if (oldestKey !== undefined) hits.delete(oldestKey);
           }
         }
         rec = { count: 0, reset: now + windowMs };
@@ -73,6 +84,14 @@ export interface RateLimitOptions {
    */
   identity(req: Request): string;
   store?: BucketStore;
+  /**
+   * Report #10: store (masalan Redis) xatosida xatti-harakat. DEFAULT =
+   * fail-CLOSED: so'rovni 429 bilan BLOCK qilamiz — agar store ishlamasa
+   * limiter aylanib o'tib brute-force/DoS'ga ruxsat BERMASTI. Faqat aniq
+   * availability-critical, xavfsiz bo'lmagan scope uchun `true` qo'yilsa
+   * (log bilan) o'tkazadi.
+   */
+  failOpen?: boolean;
 }
 
 export function buildRateLimit(opts: RateLimitOptions) {
@@ -89,10 +108,12 @@ export function buildRateLimit(opts: RateLimitOptions) {
       }
       next();
     } catch (err) {
-      // Store xatosi limitni bloklamasin — fail-open emas, log bilan o'tkazamiz
-      // (availability), lekin xato ko'rinib tursin.
+      // Report #10: store xatosi — fail-CLOSED (429), chunki fail-open limiter
+      // bypass'iga (kuchsiz store = cheksiz urinish) yo'l ochadi.
       console.error('[rateLimit] store error:', err);
-      next();
+      if (opts.failOpen) return next();
+      res.setHeader('Retry-After', String(Math.max(1, Math.ceil(opts.windowMs / 1000))));
+      return res.status(429).json({ error: opts.message });
     }
   };
 }

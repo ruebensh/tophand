@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { queryAll, queryOne, runQuery } from '../db/database.ts';
 import { sanitizeUserUrl, sanitizeUserUrlLoose } from '../lib/urlSecurity.ts';
-import { deleteStoredMedia } from './storageService.ts';
+import { deleteStoredMediaIfUnreferenced } from './mediaCleanupService.ts';
 
 // ============================================================================
 //  adService — ichki Reklama menejeri uchun yagona ma'lumot qatlami.
@@ -179,10 +179,12 @@ export async function updateAd(id: string, input: Partial<AdInput>): Promise<Ad 
   // Report #6: media almashtirilsa, eski faylni o'chiramiz (faqat bizniki;
   // tashqi URL'lar deleteStoredMedia'da tashlanadi). Yangi manzil DB'ga
   // saqlangandan KEYIN o'chiramiz — shunda update muvaffaqiyatsiz bo'lsa fayl qoladi.
+  // Report #3: almashtirishda eski faylni FAQAT boshqa yashovchi qatorlar ham
+  // unga bog'lanmagan bo'lsa o'chiramiz (break-image oldini olish).
   const newImage = sanitizeUserUrl(merged.image_url) || null;
   const newVideo = sanitizeUserUrl(merged.video_url) || null;
-  if (existing.image_url && existing.image_url !== newImage) await deleteStoredMedia(existing.image_url);
-  if (existing.video_url && existing.video_url !== newVideo) await deleteStoredMedia(existing.video_url);
+  if (existing.image_url && existing.image_url !== newImage) await deleteStoredMediaIfUnreferenced(existing.image_url);
+  if (existing.video_url && existing.video_url !== newVideo) await deleteStoredMediaIfUnreferenced(existing.video_url);
   return getAdById(id);
 }
 
@@ -190,9 +192,10 @@ export async function deleteAd(id: string): Promise<boolean> {
   const existing = await getAdById(id);
   const res = await runQuery(`DELETE FROM ads WHERE id = ?`, [id]);
   if (res.changes > 0 && existing) {
-    // Report #6: reklama o'chirilganda media fayli ham ketadi (faqat bizniki).
-    if (existing.image_url) await deleteStoredMedia(existing.image_url);
-    if (existing.video_url) await deleteStoredMedia(existing.video_url);
+    // Report #6/#3: reklama o'chirilganda media fayli ham ketadi (faqat bizniki,
+    // agar boshqa qator hali unga bog'liq bo'lmasa).
+    if (existing.image_url) await deleteStoredMediaIfUnreferenced(existing.image_url);
+    if (existing.video_url) await deleteStoredMediaIfUnreferenced(existing.video_url);
   }
   return res.changes > 0;
 }

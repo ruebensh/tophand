@@ -194,6 +194,11 @@ export async function initDatabase() {
       next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
+  // Report (dq): DOQ — abadiy muvaffaqiyatsiz bo'lgan 'poison' ref queue'ni
+  // cheksiz shovullamasin. MAX_ATTEMPTS'tan keyin qator dead-letter belgilanadi
+  // (retry skedjulidan chiqadi, lekin operator qo'lda tozalashi uchun saqlanadi).
+  await pool.query('ALTER TABLE media_deletions ADD COLUMN IF NOT EXISTS dead_lettered_at TIMESTAMPTZ');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_media_deletions_due ON media_deletions(next_attempt_at) WHERE dead_lettered_at IS NULL');
 
   // 5. organizations
   await createTableIfNotExists(`

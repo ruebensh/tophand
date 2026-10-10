@@ -1,9 +1,10 @@
 import { queryAll, runQuery } from '../db/database.ts';
-import { attemptDeleteStoredMedia } from './storageService.ts';
+import { attemptDeleteStoredMedia, deleteStoredMedia } from './storageService.ts';
 import {
   listDueDeletions,
   recordFailedAttempt,
   removeDeletion,
+  countDeadLetters,
 } from './mediaDeletionQueue.ts';
 
 /**
@@ -33,6 +34,18 @@ export function basenameOf(ref: string): string {
   const clean = String(ref || '').split('?')[0].split('#')[0];
   const idx = clean.lastIndexOf('/');
   return idx >= 0 ? clean.slice(idx + 1) : clean;
+}
+
+// `folder/filename` — oxirgi IKKI path segmenti. Bu `photos/a.webp` va
+// `videos/a.webp` kabi bir xil nomli, turli papkadagi fayllarni BIR-BIRIDAN
+// ajratadi (report #8: faqat basename solishtirish xato bog'lashga olib kelardi).
+// Bizning barcha URL shakllari (`/uploads/<folder>/<file>`, `/api/storage/<folder>/<file>`,
+// `R2_PUBLIC_URL/<folder>/<file>`) va `media_uploads.key` (`<folder>/<file>`) shu
+// tail'ga keladi — izchil qiyos mumkin.
+export function mediaTailOf(ref: string): string {
+  const clean = String(ref || '').split('?')[0].split('#')[0];
+  const parts = clean.split('/').filter(Boolean);
+  return parts.slice(-2).join('/');
 }
 
 /** Record a generic upload so it can be reclaimed if never bound. Best-effort. */
@@ -68,9 +81,52 @@ async function collectReferencedBasenames(): Promise<Set<string>> {
   );
   const set = new Set<string>();
   for (const r of rows) {
-    if (r?.ref) set.add(basenameOf(r.ref));
+    if (r?.ref) set.add(mediaTailOf(r.ref));
   }
   return set;
+}
+
+/**
+ * Report #3 markaziy guard: berilgan ref (eski URL) hozir DB'da boshqa YASHOV
+ * qatorlar tomonidan ishlatilayotganini tekshiradi. Replace-flow chaqiruvchilari
+ESKI qiymatni o'chirishdan OLDIN shuni chaqiradi — shunda bir obyekt bir nechta
+yozuvga ulangan bo'lsa, bittasidagi almashtirish qolganlarining rasmini buzmaydi.
+Havola `folder/filename` tail'i bo'yicha qiyolanadi (xato yo'nalish = KEEP, ya'ni
+ko'proq moslik = fayl saqlanadi = ma'lumot yo'qolishi EMAS).
+ */
+export async function isMediaStillReferenced(ref: string): Promise<boolean> {
+  const tail = mediaTailOf(ref);
+  if (!tail) return false;
+  const rows = await queryAll<{ one: number }>(
+    `SELECT 1 AS one FROM (
+       SELECT profile_photo_url AS v FROM users WHERE profile_photo_url IS NOT NULL
+       UNION ALL SELECT cover_photo_url FROM users WHERE cover_photo_url IS NOT NULL
+       UNION ALL SELECT url FROM listing_images WHERE url IS NOT NULL
+       UNION ALL SELECT attachment_url FROM messages WHERE attachment_url IS NOT NULL
+       UNION ALL SELECT image_url FROM ads WHERE image_url IS NOT NULL
+       UNION ALL SELECT video_url FROM ads WHERE video_url IS NOT NULL
+       UNION ALL SELECT logo_url FROM organizations WHERE logo_url IS NOT NULL
+       UNION ALL SELECT value FROM system_settings WHERE value IS NOT NULL
+     ) t WHERE t.v = ? OR t.v LIKE ? LIMIT 1`,
+    [ref, `%/${tail}`]
+  );
+  return rows.length > 0;
+}
+
+/**
+ * Replace/delete uchun xavfli-o'chirish yordamchisi: ref boshqa yashovchi
+ * qatorlarda hali ishlatilsa — O'CHIRMAYMIZ (break image oldini olish).
+ * Aksi holda deleteStoredMedia (ichida durable-retry) chaqiriladi.
+ * @returns true → o'chirildi; false → hali ishlatilmoqda yoki ref bo'sh.
+ */
+export async function deleteStoredMediaIfUnreferenced(
+  ref: string | null | undefined
+): Promise<boolean> {
+  const value = String(ref || '').trim();
+  if (!value) return false;
+  if (await isMediaStillReferenced(value)) return false;
+  await deleteStoredMedia(value);
+  return true;
 }
 
 async function drainRetryQueue(): Promise<number> {
@@ -101,7 +157,7 @@ async function reclaimOrphanUploads(referenced: Set<string>): Promise<number> {
   );
   let reclaimed = 0;
   for (const c of candidates) {
-    const base = basenameOf(c.key);
+    const base = mediaTailOf(c.key);
     if (referenced.has(base)) {
       // In use by a live record → stamp bound so we stop rescanning it.
       await runQuery('UPDATE media_uploads SET bound_at = NOW() WHERE key = ?', [c.key]);
@@ -147,12 +203,19 @@ export async function processMediaCleanup(): Promise<{
   retried: number;
   reclaimed_uploads: number;
   reclaimed_verifications: number;
+  dead_letters: number;
 }> {
   const retried = await drainRetryQueue();
   const referenced = await collectReferencedBasenames();
   const reclaimed_uploads = await reclaimOrphanUploads(referenced);
   const reclaimed_verifications = await reclaimAbandonedVerification();
-  return { retried, reclaimed_uploads, reclaimed_verifications };
+  // Report (dq): dead-letter orqasida qolgan (endchelek) media o'chirishlar
+  // haqida operatorni ogohlantiramiz — ular avtomatik qayta urinishdan chiqqan.
+  const dead_letters = await countDeadLetters();
+  if (dead_letters > 0) {
+    console.warn(`mediaCleanup: ${dead_letters} ta media-deletion dead-letter holatida (qo'lda tekshirish kerak).`);
+  }
+  return { retried, reclaimed_uploads, reclaimed_verifications, dead_letters };
 }
 
 export function startMediaCleanupCron(): void {

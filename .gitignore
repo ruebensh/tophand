@@ -8,3 +8,8 @@ coverage/
 !.env.example
 data
 Qa
+
+# User-uploaded media (personal data — NEVER commit; R2/local storage only).
+# Report HIGH: previously `uploads/` was not ignored, so a real listing/passport
+# image could be (and was) committed into the repo.
+uploads/

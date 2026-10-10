@@ -41,11 +41,23 @@ const SRC = process.env.R2_BUCKET_NAME;
 const DST = process.env.R2_PRIVATE_BUCKET_NAME;
 const PREFIX = 'verifications/';
 
-// Yopiq bucket maqsadli (public read yo'q) ekanini tekshirish uchun URL so'raymiz.
-try {
-  await client.send(new HeadObjectCommand({ Bucket: DST, Key: `${PREFIX}.tophand-private-probe` }).catch(() => null));
-} catch {
-  /* probe ixtiyoriy */
+// Report #4: maqsad bucket HAQIQATAN yopiq ekanini tekshiramiz. Bu bucket uchun
+// ommaviy dev-domain URL (`R2_PRIVATE_DEV_URL`) SOZLANGAN BO'LSA va u probe'ga
+// 200 qaytarsa — bucket OMMAVIY OKINADIGAN degani: bunday bucket'ga ko'chirish
+// hujjatni yana ochiq qilib qo'yadi, shuning uchun DARHOL to'xtaymiz.
+// (URL sozlanmagan bo'lsa — yopiq bucket to'g'ri konfiguratsiya, davom etamiz;
+//  operator oxirdagi qo'lda tekshiruv ko'rsatmasiga amal qiladi.)
+if ((process.env.R2_PRIVATE_DEV_URL || '').trim()) {
+  const probeUrl = `${process.env.R2_PRIVATE_DEV_URL.replace(/\/$/, '')}/${PREFIX}.tophand-private-probe`;
+  try {
+    const res = await fetch(probeUrl, { method: 'GET', cache: 'no-store' });
+    if (res.status === 200) {
+      console.error(`ABORT: R2_PRIVATE_DEV_URL ommaviy o'qishga ruxsat bermoqda (${res.status}). Maqsad bucket yopiq emas — F-07 buziladi. Public read'ni o'chiring.`);
+      process.exit(1);
+    }
+  } catch {
+    /* fetch kutilmagan xato (DNS/403) — bucket yopiq deb taxlim qilinadi, davom */
+  }
 }
 
 let token;
@@ -80,10 +92,19 @@ for (const key of keys) {
         MetadataDirective: 'REPLACE',
       })
     );
+    // Report #4: manzilga (YOPIQ bucket) haqiqatan yozilganini HEAD orqali
+    // TASDIQLAMASDAN public nusxani O'CHIRMAYMIZ — aks holda ko'chirish jim
+    // yakobid bo'lib, fayl ham yo'qolishi mumkin edi.
+    try {
+      await client.send(new HeadObjectCommand({ Bucket: DST, Key: key }));
+    } catch (headErr) {
+      console.error(`  [fail] ${key}: ko'chirishdan keyin HEAD yopiq bucket'da topilmadi — public nusxa SAQLANADI: ${headErr?.message || headErr}`);
+      continue;
+    }
     copied++;
     await client.send(new DeleteObjectCommand({ Bucket: SRC, Key: key }));
     deleted++;
-    console.log(`  [ok] ${key} ko'chirildi va public nusxa o'chirildi`);
+    console.log(`  [ok] ${key} ko'chirildi (HEAD tasdiqlandi) va public nusxa o'chirildi`);
   } catch (err) {
     console.error(`  [fail] ${key}: ${err?.message || err}`);
   }

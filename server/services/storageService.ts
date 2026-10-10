@@ -22,6 +22,13 @@ if (!fs.existsSync(UPLOAD_DIR)) {
 // UPLOAD_DIR so nothing can ever be written outside it.
 const SAFE_FOLDER_RE = /^[a-z0-9][a-z0-9_-]{0,31}$/;
 
+// Report (upload folder allowlist): generic upload YOZISH uchun ruxsat etilgan
+// papkalar (frontend `avatars`/`listings`/`ads` yuboradi; video endpoint'i
+// `videos`; bo'sh bo'lsa ichki fallback `photos`). Foydalanuvchi istalgan
+// yangi papka yarata olmasligi uchun ijobiy ro'yxat (`verifications` bu yerda
+// YO'Q — u alohida, xavfsiz endpoint orqali yoziladi).
+const ALLOWED_UPLOAD_FOLDERS = new Set(['listings', 'videos', 'avatars', 'covers', 'ads', 'chat', 'photos']);
+
 // SECURITY (M-04 / P2-2): resource-exhaustion / decompression-bomb guards for the
 // image decoder. We bound total input pixels, per-side dimensions, disable
 // animated multi-frame decoding, fail on any corrupt pixel data, and cap
@@ -147,6 +154,13 @@ function sanitizeFolder(folder: string | undefined, fallback: string): string {
   if (!value) return fallback;
   if (!SAFE_FOLDER_RE.test(value)) {
     throw Object.assign(new Error('Noto‘g‘ri yuklash katalogi (faqat harf, raqam, _ va - ruxsat)'), { status: 400 });
+  }
+  // Report (upload folder allowlist): SAFE_FOLDER_RE + path-traversal +
+  // reserved-folder guardlar yetarli emas — foydalanuvchi istalgan VALID
+  // ko'rinishdagi papkani (masalan `../../etc` emas, lekin `secrets`) yarata
+  // olardi. Generic upload FAQAT quyidagi ma'lum papkalarga yozadi.
+  if (!ALLOWED_UPLOAD_FOLDERS.has(value)) {
+    throw Object.assign(new Error('Ruxsat etilmagan yuklash katalogi'), { status: 400 });
   }
   // F-06: RESERVED papkalar — generic img/video pipeline VERIFICATION obyektlar
   // papkasiga yozmasligi kerak. Route'dan qat'iy, shu yerda ham (har bir
@@ -712,8 +726,25 @@ export async function attemptDeleteStoredMedia(
 
     // R2 obyekti
     if (!r2Client) return { ok: false, skipped: true };
-    const bucket = isPrivate ? PRIVATE_BUCKET_NAME : BUCKET_NAME;
-    if (!bucket) return { ok: false, skipped: true }; // private bucket sozlanmagan → fail-safe
+    if (isPrivate) {
+      // Yuqori xavf tuzatilishi (audit HIGH #2): eski (migratsiyadan oldin) yoki
+      // adashib PUBLIC bucket'ga tushgan hujjat obyektlari ham o'chirilishi kerak.
+      // Shu sababli TASYOQ bucket'dan o'chirish yetarli emas — ikkala bucket'ga
+      // urinamiz. PRIVATE — authoritative: u ojlsa, xato tashqariga chiqadi (retry
+      // navbatiga yoziladi). PUBLIC esa best-effort (legacy tozalash).
+      if (!PRIVATE_BUCKET_NAME) return { ok: false, skipped: true }; // fail-safe
+      await r2Client.send(new DeleteObjectCommand({ Bucket: PRIVATE_BUCKET_NAME, Key: target.key }));
+      if (BUCKET_NAME && BUCKET_NAME !== PRIVATE_BUCKET_NAME) {
+        try {
+          await r2Client.send(new DeleteObjectCommand({ Bucket: BUCKET_NAME, Key: target.key }));
+        } catch {
+          /* legacy public nusxa yo'q yoki ochirib bo'lmadi — private muhim, davom etamiz */
+        }
+      }
+      return { ok: true, skipped: false };
+    }
+    const bucket = BUCKET_NAME;
+    if (!bucket) return { ok: false, skipped: true };
     await r2Client.send(new DeleteObjectCommand({ Bucket: bucket, Key: target.key }));
     return { ok: true, skipped: false };
   } catch (err: any) {

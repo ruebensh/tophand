@@ -27,18 +27,20 @@ for (const k of [
 
 // SAFETY (critical): integration tests must NEVER touch a real/remote database.
 // `.env` may point at production (e.g. a hosted Neon URL) — importing server.ts
-// runs `dotenv/config`, so we FORCE a local/CI Postgres here and pre-set
-// DATABASE_URL (dotenv cannot overwrite an already-set key). A non-local target
-// is refused unless the operator explicitly exports TEST_DATABASE_URL or we are
-// running in CI.
+// runs `dotenv/config`, so we FORCE a local Postgres here and pre-set
+// DATABASE_URL (dotenv cannot overwrite an already-set key). Report #5: the
+// blanket `CI` bypass is REMOVED — a bare `CI=true` env must NOT be allowed to
+// redirect these tests at a remote/production DB. The target MUST be local
+// (127.0.0.1/localhost/::1) even in CI; CI service containers publish Postgres
+// on localhost, so this stays compatible while closing the foot-gun.
 const TEST_DB_URL =
   process.env.TEST_DATABASE_URL ||
   'postgresql://tophand:tophand123@127.0.0.1:5432/tophand';
 const isLocalTarget = /(127\.0\.0\.1|localhost|::1)/.test(TEST_DB_URL);
-if (!isLocalTarget && !process.env.CI) {
+if (!isLocalTarget) {
   console.error(
-    'REFUSED: integration tests will not run against a non-local DB. ' +
-      'Set TEST_DATABASE_URL to a throwaway/local Postgres. Target was:\n  ' +
+    'REFUSED: integration tests will not run against a non-local DB (CI does NOT ' +
+      'bypass this). Set TEST_DATABASE_URL to a throwaway/local Postgres. Target was:\n  ' +
       TEST_DB_URL.replace(/:[^:@/]*@/, ':***@')
   );
   process.exit(1);
@@ -429,6 +431,41 @@ async function main() {
       assert(chief.status === 200, 'admin: assign LEAD_MOD (chief) → 200');
       const chiefRole = await queryOne<any>('SELECT role FROM users WHERE id = ?', [mod.id]);
       assert(chiefRole?.role === 'LEAD_MOD', 'admin: chief moderator persisted as LEAD_MOD');
+
+      // ── Report #9: qat'iy verify boolean (Boolean('false') tuzog'i) ──
+      {
+        const orgId = `org_integ_${RUN_ID}`;
+        await runQuery(
+          `INSERT INTO organizations (id, name, owner_user_id, verification_status, created_at, updated_at)
+           VALUES (?, ?, ?, 'VERIFIED', NOW(), NOW())`,
+          [orgId, `Integ Org ${RUN_ID}`, admin.id]
+        );
+        // `verify:'false'` (satr) VERIFIED'ni OCHIRISHI kerak — Boolean('false')===true
+        // bo'lgani uchun avval u tasdiqlab qo'yardi.
+        const vFalse = await req(`/api/lead/organizations/${orgId}/verify`, authJson({ verify: 'false' }, leadToken));
+        const afterFalse = await queryOne<any>('SELECT verification_status FROM organizations WHERE id = ?', [orgId]);
+        assert(vFalse.status === 200 && afterFalse?.verification_status === 'UNVERIFIED', 'org verify: string "false" → UNVERIFIED (strict boolean, report #9)');
+        // aniq true → VERIFIED.
+        await req(`/api/lead/organizations/${orgId}/verify`, authJson({ verify: true }, leadToken));
+        const afterTrue = await queryOne<any>('SELECT verification_status FROM organizations WHERE id = ?', [orgId]);
+        assert(afterTrue?.verification_status === 'VERIFIED', 'org verify: boolean true → VERIFIED');
+        // noma'lum qiymat → 400 (rad).
+        const vBad = await req(`/api/lead/organizations/${orgId}/verify`, authJson({ verify: 'maybe' }, leadToken));
+        assert(vBad.status === 400, 'org verify: invalid boolean → 400 (report #9)');
+        try { await runQuery('DELETE FROM organizations WHERE id = ?', [orgId]); } catch {}
+      }
+
+      // ── Report #3: markaziy referatsiya guardi ──
+      {
+        const { isMediaStillReferenced, deleteStoredMediaIfUnreferenced } = await import('../server/services/mediaCleanupService.ts');
+        const sharedRef = `/uploads/listings/shared_ref_${RUN_ID}.webp`;
+        await runQuery('UPDATE users SET profile_photo_url = ? WHERE id = ?', [sharedRef, plain.id]);
+        assert((await isMediaStillReferenced(sharedRef)) === true, 'guard: shared object detected as still-referenced (report #3)');
+        const deleted = await deleteStoredMediaIfUnreferenced(sharedRef);
+        assert(deleted === false, 'guard: deleteStoredMediaIfUnreferenced REFUSES to delete a referenced object (report #3)');
+        await runQuery('UPDATE users SET profile_photo_url = NULL WHERE id = ?', [plain.id]);
+        assert((await isMediaStillReferenced(sharedRef)) === false, 'guard: unreferenced object no longer flagged (report #3)');
+      }
 
       for (const id of [admin.id, lead.id, mod.id, plain.id]) {
         try { await runQuery('DELETE FROM users WHERE id = ?', [id]); } catch {}

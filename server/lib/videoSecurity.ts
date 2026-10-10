@@ -30,6 +30,10 @@ const MAX_PIXELS = 8_294_400; // 3840*2160
 const MP4_ALLOWED_BRANDS = ['isom', 'iso2', 'iso4', 'avc1', 'mp41', 'mp42', 'dash', 'silv', 'XAVC'];
 const MP4_ALLOWED_VIDEO_CODECS = ['avc1', 'hvc1', 'hev1', 'mp4v', 'av01'];
 const MAX_BOX_VISITS = 20_000;
+// MP4 readBoxes uchun umumiy box-soni chegarasi (CPU/xotira DoS'dan himoya):
+// 50MB ichida millionlab 8-baytli box yaratib, event loop'ni band qilishning oldini oladi.
+const MAX_MP4_BOXES = 20_000;
+let mp4BoxCount = 0;
 
 class VideoRejected extends Error {
   status = 400;
@@ -62,6 +66,7 @@ function readBoxes(buf: Buffer, start: number, end: number): Mp4Box[] {
   const boxes: Mp4Box[] = [];
   let off = start;
   while (off + 8 <= end) {
+    if (++mp4BoxCount > MAX_MP4_BOXES) throw new VideoRejected('mp4 box soni chegaradan oshdi');
     let size = u32(buf, off);
     let headerEnd = off + 8;
     const type = buf.toString('latin1', off + 4, off + 8);
@@ -90,6 +95,7 @@ function findBox(boxes: Mp4Box[], type: string): Mp4Box | undefined {
 }
 
 function parseMp4(buf: Buffer): VideoInfo {
+  mp4BoxCount = 0;
   const top = readBoxes(buf, 0, Math.min(buf.length, 256 * 1024 * 1024));
   const ftyp = top[0];
   if (!ftyp || ftyp.type !== 'ftyp') throw new VideoRejected('ftyp top box emas');
@@ -106,7 +112,12 @@ function parseMp4(buf: Buffer): VideoInfo {
 
   const mvhd = findBox(readBoxes(buf, moov.headerEnd, moov.end), 'mvhd');
   if (!mvhd) throw new VideoRejected('moov ichida mvhd yo‘q');
+  // mvhd payload uzunligini TEKSHIRMADAN fixed-offset o'qish RangeError (500) beradi —
+  // oldindan chegaralaymiz (F-05: yaroqsiz kirda 400, 500 EMAS).
+  const mvhdLen = mvhd.end - mvhd.headerEnd;
+  if (mvhdLen < 4) throw new VideoRejected('mvhd truncated');
   const version = buf.readUInt8(mvhd.headerEnd);
+  if (mvhdLen < (version === 1 ? 32 : 20)) throw new VideoRejected('mvhd truncated');
   let timescale = 0;
   let duration = 0;
   if (version === 1) {
@@ -187,6 +198,7 @@ const EBML_IDS = {
   DocType: 0x4282,
   Segment: 0x18538067,
   Info: 0x1549a966,
+  TimecodeScale: 0x2ad7b1,
   Duration: 0x4489,
   Tracks: 0x1654ae6b,
   TrackEntry: 0xae,
@@ -206,14 +218,16 @@ const EBML_CONTAINERS = new Set<number>([
 
 function parseWebm(buf: Buffer): VideoInfo {
   // Reader: top-level → Header/Segment; ichki elementlarni chuqurlik 3 gacha.
-  let offset = 0;
   let visits = 0;
   let docType = '';
-  let durationSec = 0;
+  let durationRaw = 0;
+  let timecodeScaleNs = 1_000_000; // Matroska default: 1e6 ns = 1 ms
+  let sawVideo = false;
   let width = 0;
   let height = 0;
 
   const readFloat = (b: Buffer, off: number, size: number): number => {
+    if (b.length < off + size) return NaN; // chegaradan tashqarida o'qishning oldini oladi
     if (size === 4) return b.readFloatBE(off);
     if (size === 8) return b.readDoubleBE(off);
     return NaN;
@@ -229,15 +243,21 @@ function parseWebm(buf: Buffer): VideoInfo {
       if (!size) break;
       const dataStart = sizeOff + size.length;
       // "unknown size" (all data bits 1) → element daraxti o'qilmaydigan — fail
-      const unknown = size.value === Math.pow(2, 7 * size.length) - 2;
+      const unknown = size.value === Math.pow(2, 7 * size.length) - 1;
       if (unknown) throw new VideoRejected('webm unknown-size element (no parsing)');
       const dataEnd = dataStart + size.value;
       if (dataEnd > end) throw new VideoRejected('webm element chegaradan tashqarida');
       const idNum = id.value;
       if (idNum === EBML_IDS.DocType) {
         docType = buf.toString('ascii', dataStart, dataEnd);
+      } else if (idNum === EBML_IDS.TimecodeScale) {
+        const ts = readUint(buf, dataStart, size.value);
+        if (ts > 0) timecodeScaleNs = ts;
       } else if (idNum === EBML_IDS.Duration) {
-        durationSec = readFloat(buf, dataStart, size.value) / 1000;
+        durationRaw = readFloat(buf, dataStart, size.value);
+      } else if (idNum === EBML_IDS.Video) {
+        sawVideo = true;
+        if (depth < 5) walk(dataStart, dataEnd, depth + 1);
       } else if (idNum === EBML_IDS.PixelWidth) {
         width = readUint(buf, dataStart, size.value) || width;
       } else if (idNum === EBML_IDS.PixelHeight) {
@@ -251,6 +271,10 @@ function parseWebm(buf: Buffer): VideoInfo {
 
   walk(0, buf.length, 0);
   if (docType !== 'webm') throw new VideoRejected(`EBML DocType "webm" emas (${docType || 'topilmadi'})`);
+  // Video trek + musbat o'lcham MAJBURIY (MP4 siyosati bilan simmetrik).
+  if (!sawVideo) throw new VideoRejected('webm video trek yo‘q');
+  // Duration TimecodeScale birliklarida; sekundga to'g'ri aylantiramiz.
+  const durationSec = (durationRaw * timecodeScaleNs) / 1_000_000_000;
   if (!durationSec) throw new VideoRejected('Duration yo‘q yoki 0');
   return finalize({ container: 'webm', durationSec, width, height });
 }
@@ -259,10 +283,15 @@ function finalize(info: VideoInfo): VideoInfo {
   if (!Number.isFinite(info.durationSec) || info.durationSec < MIN_DURATION_SEC || info.durationSec > MAX_DURATION_SEC) {
     throw new VideoRejected(`davomiylik ruxsat etilmagan (${info.durationSec}s; ${MIN_DURATION_SEC}–${MAX_DURATION_SEC}s)`);
   }
-  if (info.width < 0 || info.height < 0 || info.width > MAX_DIM || info.height > MAX_DIM) {
+  // Ijobiy o'lcham MAJBURIY: 0x0 (o'lcham topilmadi/yo'q) rad etiladi — MP4'da tkhd
+  // bo'lmasa, WebM'da video trek bo'lmasa nol qoladi va bu yaroqsiz konteyner.
+  if (!info.width || !info.height || info.width <= 0 || info.height <= 0) {
+    throw new VideoRejected(`video o'lchami topilmadi yoki nol (${info.width}x${info.height})`);
+  }
+  if (info.width > MAX_DIM || info.height > MAX_DIM) {
     throw new VideoRejected(`o'lcham ruxsat etilmagan (${info.width}x${info.height})`);
   }
-  if (info.width && info.height && info.width * info.height > MAX_PIXELS) {
+  if (info.width * info.height > MAX_PIXELS) {
     throw new VideoRejected('piksel maydoni juda katta');
   }
   return info;
@@ -273,12 +302,19 @@ function finalize(info: VideoInfo): VideoInfo {
  * Chaqiruvchi (storeVideo) xatoni saqlashdan OLDIN oladi — hech narsa yozilmaydi.
  */
 export function parseVideoSafe(buf: Buffer): VideoInfo {
-  if (buf.length < 1024) throw new VideoRejected('fayl juda kichik');
-  if (buf[4] === 0x66 && buf[5] === 0x74 && buf[6] === 0x79 && buf[7] === 0x70) {
-    return parseMp4(buf);
+  // Har qanday kutilmagan istisno (masalan RangeError) 400 VideoRejected'ga aylanadi —
+  // mijozga yaroqsiz fayl uchun HECH QACHON 500 qaytmasligi kerak.
+  try {
+    if (buf.length < 1024) throw new VideoRejected('fayl juda kichik');
+    if (buf[4] === 0x66 && buf[5] === 0x74 && buf[6] === 0x79 && buf[7] === 0x70) {
+      return parseMp4(buf);
+    }
+    if (buf[0] === 0x1a && buf[1] === 0x45 && buf[2] === 0xdf && buf[3] === 0xa3) {
+      return parseWebm(buf);
+    }
+    throw new VideoRejected('imzo MP4 yoki WebM emas');
+  } catch (err: any) {
+    if (err instanceof VideoRejected) throw err;
+    throw new VideoRejected(`parse: ${err?.message || 'noma’lum xato'}`);
   }
-  if (buf[0] === 0x1a && buf[1] === 0x45 && buf[2] === 0xdf && buf[3] === 0xa3) {
-    return parseWebm(buf);
-  }
-  throw new VideoRejected('imzo MP4 yoki WebM emas');
 }

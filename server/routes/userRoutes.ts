@@ -7,6 +7,7 @@ import { requireAuth, optionalAuth, AuthRequest } from '../auth/telegram.ts';
 import { queryOne, queryAll, runQuery } from '../db/database.ts';
 import { sanitizeUserUrl } from '../lib/urlSecurity.ts';
 import { processAndStoreVerificationImage, deleteStoredMedia } from '../services/storageService.ts';
+import { deleteStoredMediaIfUnreferenced } from '../services/mediaCleanupService.ts';
 import { purgeVerificationMedia } from '../services/moderationService.ts';
 import { signVerificationPhotoUrl } from '../lib/signedUrl.ts';
 
@@ -149,11 +150,13 @@ router.put('/me', requireAuth, async (req: AuthRequest, res) => {
 
     // Tozalash: yangi rasm HAQIQIY almashtirilsa, eski faylni saqlagichdan
     // o'chiramiz (faqat bizniki; tashqi URL'lar deleteStoredMedia'da tashlanadi).
+    // Report #3: profil/cover almashtirilganda eski faylni FAQAT boshqa yashovchi
+    // qatorlar hali unga bog'lanmagan bo'lsa o'chiramiz (break-image oldini olish).
     if (newProfile && before?.profile_photo_url && before.profile_photo_url !== newProfile) {
-      await deleteStoredMedia(before.profile_photo_url);
+      await deleteStoredMediaIfUnreferenced(before.profile_photo_url);
     }
     if (newCover && before?.cover_photo_url && before.cover_photo_url !== newCover) {
-      await deleteStoredMedia(before.cover_photo_url);
+      await deleteStoredMediaIfUnreferenced(before.cover_photo_url);
     }
 
     const updated = await queryOne('SELECT * FROM users WHERE id = ?', [req.user!.id]);
@@ -298,21 +301,12 @@ router.post('/me/verification', requireAuth, async (req: AuthRequest, res) => {
     }
 
     const now = new Date().toISOString();
-    // Tozalash (to'planib qolmasligi uchun): yangi ariza yuborilganda OLDINGI
-    // hujjat rasmini va tanlanmagan (abandoned) upload satrlarini o'chiramiz.
+    // Report #6: eski fayllarni o'chirishni BINDING UPDATE MUVAFFAQIYATLI
+    // bo'lganidan KEYIN bajaramiz (avval o'chirsak, UPDATE yiqilsa DB eski
+    // havolani saqlab, fayl yo'q bo'lib qolardi). Bu yerda FAQAT o'qiymiz.
     const prior = await queryOne<any>('SELECT verification_photo_url FROM users WHERE id = ?', [req.user!.id]);
-    if (prior?.verification_photo_url && prior.verification_photo_url !== upload.object_key) {
-      await deleteStoredMedia(prior.verification_photo_url);
-    }
     const abandoned = await queryAll<{ object_key: string }>(
       'SELECT object_key FROM verification_uploads WHERE owner_user_id = ? AND id <> ?',
-      [req.user!.id, verification_upload_id]
-    );
-    for (const a of abandoned) {
-      if (a.object_key && a.object_key !== upload.object_key) await deleteStoredMedia(a.object_key);
-    }
-    await runQuery(
-      'DELETE FROM verification_uploads WHERE owner_user_id = ? AND id <> ?',
       [req.user!.id, verification_upload_id]
     );
 
@@ -347,6 +341,19 @@ router.post('/me/verification', requireAuth, async (req: AuthRequest, res) => {
         req.user!.id,
       ]
     );
+
+    // UPDATE bo'ldi — endi eski/abandoned obyektlarni o'chiramiz (deleteStoredMedia
+    // ichida durable-retry, shuning uchun throw qilmaydi).
+    if (prior?.verification_photo_url && prior.verification_photo_url !== upload.object_key) {
+      await deleteStoredMedia(prior.verification_photo_url);
+    }
+    await runQuery(
+      'DELETE FROM verification_uploads WHERE owner_user_id = ? AND id <> ?',
+      [req.user!.id, verification_upload_id]
+    );
+    for (const a of abandoned) {
+      if (a.object_key && a.object_key !== upload.object_key) await deleteStoredMedia(a.object_key);
+    }
 
     const updated = await queryOne('SELECT * FROM users WHERE id = ?', [req.user!.id]);
     res.json({ success: true, user: updated });

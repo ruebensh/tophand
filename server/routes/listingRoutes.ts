@@ -2,7 +2,7 @@ import { serverError } from '../lib/error.ts';
 import { Router, Response } from 'express';
 import crypto from 'crypto';
 import { sanitizeUserUrlList } from '../lib/urlSecurity.ts';
-import { deleteStoredMedia } from '../services/storageService.ts';
+import { deleteStoredMediaIfUnreferenced } from '../services/mediaCleanupService.ts';
 import { requireAuth, optionalAuth, isStaffRole, hasMinLevel, AuthRequest } from '../auth/telegram.ts';
 import {
   searchListings,
@@ -400,8 +400,9 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res) => {
           [imgId, listingId, url, i, mediaType, now]
         );
       }
-      // Eski (endi havola qilinmaydigan) fayllarni o'chirish — best-effort.
-      await Promise.all(removed.map((u) => deleteStoredMedia(u)));
+      // Eski (endi havola qilinmaydigan) fayllarni o'chirish — Report #3: boshqa
+      // e'lon hali shu faylga bog'liq bo'lsa saqlaymiz.
+      await Promise.all(removed.map((u) => deleteStoredMediaIfUnreferenced(u)));
     }
 
     if (isAdminEditor) {
@@ -595,7 +596,7 @@ router.delete('/:id', requireAuth, async (req: AuthRequest, res) => {
       await runQuery('DELETE FROM listing_images WHERE listing_id = ?', [listing.id]);
       await runQuery('DELETE FROM saved_listings WHERE listing_id = ?', [listing.id]);
       await runQuery('DELETE FROM listings WHERE id = ?', [listing.id]);
-      await Promise.all(mediaRows.map((m) => deleteStoredMedia(m.url)));
+      await Promise.all(mediaRows.map((m) => deleteStoredMediaIfUnreferenced(m.url)));
 
       const auditId = `audit_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
       await runQuery(

@@ -1,4 +1,5 @@
 import { serverError } from '../lib/error.ts';
+import { parseStrictBoolean } from '../lib/params.ts';
 import { Router } from 'express';
 import { requireAuth, requireMinLevel, AuthRequest } from '../auth/telegram.ts';
 import { queryAll } from '../db/database.ts';
@@ -44,6 +45,14 @@ router.get('/users', async (req: AuthRequest, res) => {
       params.push(term, term, term);
     }
     if (role) {
+      // Report #9: `role` filtrini ma'lum rol ro'yxati (allowlist) bilan cheklamiz
+      // — tasodifan/zoomli qiymat so'rovga kirib, kelajakdagi noto'g'ri
+      // ulanishlarga yo'l qo'masin (parametrizatsiya SQLi himoya qiladi, bu
+      // qo'shimcha aniqlik).
+      const KNOWN_ROLES = ['USER', 'INTERN_MOD', 'MODERATOR', 'LEAD_MOD', 'ADMIN', 'SUPER_ADMIN'];
+      if (!KNOWN_ROLES.includes(role)) {
+        return res.status(400).json({ error: "Noma'lum rol filtri" });
+      }
       conditions.push('u.role = ?');
       params.push(role);
     }
@@ -56,13 +65,15 @@ router.get('/users', async (req: AuthRequest, res) => {
 });
 
 // Ban / Unban (hierarchy assertCanManageActor ichida tekshiriladi).
+// Report #9: `err.message` to'g'ridan-to'g'ri qaytarish o'rniga `serverError` —
+// kutilgan 4xx (status'li) biznes xabarlari ko'rinadi, 5xx ichki matn sizmaydi.
 router.post('/users/:id/ban', async (req: AuthRequest, res) => {
   try {
     const { reason } = req.body;
     if (!reason) return res.status(400).json({ error: 'Bloklash sababi ko‘rsatilishi shart' });
     res.json(await adminPermanentBan(req.user!.id, req.params.id, reason));
   } catch (err: any) {
-    res.status(400).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -70,7 +81,7 @@ router.post('/users/:id/unban', async (req: AuthRequest, res) => {
   try {
     res.json(await adminUnban(req.user!.id, req.params.id));
   } catch (err: any) {
-    res.status(400).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -85,7 +96,7 @@ router.post('/users/:id/role', async (req: AuthRequest, res) => {
     }
     res.json(await adminSetRole(req.user!.id, req.params.id, role));
   } catch (err: any) {
-    res.status(400).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -105,8 +116,13 @@ router.get('/organizations', async (_req: AuthRequest, res) => {
 
 router.post('/organizations/:id/verify', async (req: AuthRequest, res) => {
   try {
-    const { verify } = req.body;
-    res.json(await adminVerifyOrganization(req.user!.id, req.params.id, Boolean(verify)));
+    // Report #9: `Boolean(verify)` xato — `Boolean('false')` === true. QAT'IY
+    // parse: faqat aniq true/false qiymatlarni qabul qilamiz, qolganini 400.
+    const parsed = parseStrictBoolean(req.body?.verify);
+    if (parsed === null) {
+      return res.status(400).json({ error: 'verify aniq boolean (true/false) bo‘lishi shart' });
+    }
+    res.json(await adminVerifyOrganization(req.user!.id, req.params.id, parsed));
   } catch (err: any) {
     serverError(res, err);
   }

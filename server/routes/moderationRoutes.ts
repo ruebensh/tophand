@@ -354,6 +354,10 @@ router.post('/verifications/:userId/action', requireAuth, requireMinLevel('MODER
     let notifBody = '';
 
     if (action === 'APPROVE') {
+      // LEGAL: qaror qabul qilindi — pasport/selfie RASMlari saqlanmaydi.
+      // Purge STATUS'DAN OLDIN: DB xatosi bo'lsa VERIFIED belgilanmaydi (handler
+      // serverError qaytaradi, holat PENDING qoladi va qayta uriladi).
+      await purgeVerificationMedia(targetUserId);
       await runQuery(
         `UPDATE users SET
           verification_status = 'VERIFIED',
@@ -364,10 +368,10 @@ router.post('/verifications/:userId/action', requireAuth, requireMinLevel('MODER
       );
       notifTitle = 'Shaxsingiz tasdiqlandi!';
       notifBody = 'Tabriklaymiz! Sizning pasport ma\u2019lumotlaringiz tekshirilib, profilingizga rasmiy tasdiq nishoni (Verified badge) berildi.';
-      // LEGAL: qaror qabul qilindi — pasport/selfie RASMlari saqlanmaydi.
-      await purgeVerificationMedia(targetUserId);
     } else {
       const reason = (rejection_reason || '').trim() || 'Hujjatlarda noaniqliklar mavjud';
+      // LEGAL: rad etilgan bo'lsa ham hujjat RASMI saqlanmaydi — purge oldin.
+      await purgeVerificationMedia(targetUserId);
       await runQuery(
         `UPDATE users SET
           verification_status = 'REJECTED',
@@ -377,8 +381,6 @@ router.post('/verifications/:userId/action', requireAuth, requireMinLevel('MODER
       );
       notifTitle = 'Tasdiqlash arizasi rad etildi';
       notifBody = `Tasdiqlash arizangiz rad etildi. Sabab: ${reason}`;
-      // LEGAL: rad etilgan bo'lsa ham hujjat RASMI saqlanmaydi.
-      await purgeVerificationMedia(targetUserId);
     }
 
     const notifId = `notif_${crypto.randomUUID().slice(0, 16)}`;

@@ -40,20 +40,35 @@ export async function runMigrations() {
   // `users_email_key` (oddiy email) katta/kichik harf farqi bilan ikki hisob
   // (Alice@x vs alice@x) yaratishiga yo'l qo'ymaydi; login/register esa
   // LOWER(email) orqali qidiradi. Shu sababli LOWER(email) bo'yicha qo'shimcha
-  // UNIQUE indeks saqlanadi. Avvaldan takroriy (case-duplicate) satrlar bo'lsa,
-  // indeks yaratish XATOSI bilan falayl-qiladi — bu maqsadli: ma'lumotlarni
-  // tozalash talab qilinadi (server notinch holatda ma'lumot buzilishidan
-  // himoyalanadi).
-  await pool.query(`
-    DO $$
-    BEGIN
-      IF NOT EXISTS (
-        SELECT 1 FROM pg_indexes WHERE tablename = 'users' AND indexname = 'users_email_lower_key'
-      ) THEN
-        CREATE UNIQUE INDEX users_email_lower_key ON users (LOWER(email));
-      END IF;
-    END $$;
-  `);
+  // UNIQUE indeks saqlanadi.
+  // Report #11: indeksni YOQISHDAN OLDIN PREFLIGHT — agar avvaldan case-duplicate
+  // satrlar bo'lsa, `CREATE UNIQUE INDEX` xom Postgres xatosi bilan butun
+  // initDatabase()/boot'ni qorong'i abort qilardi. Endi takrorlar ANIQ,
+  // amal qilish mumkin bo'lgan xabar bilan ro'yxat qilinadi (operator tozalashgacha
+  // fail-closed — bu maqsadli, ma'lumot buzilishidan himoya).
+  const emailIdxExists = await pool.query(
+    `SELECT 1 FROM pg_indexes WHERE tablename = 'users' AND indexname = 'users_email_lower_key'`
+  );
+  if ((emailIdxExists.rowCount ?? 0) === 0) {
+    // NULL email'lar UNIQUE indeksda distinct hisoblanadi — ularni sanamaymiz.
+    const dupRows = await pool.query(
+      `SELECT LOWER(email) AS email, COUNT(*)::int AS n
+       FROM users WHERE email IS NOT NULL
+       GROUP BY LOWER(email) HAVING COUNT(*) > 1
+       ORDER BY n DESC LIMIT 50`
+    );
+    if ((dupRows.rowCount ?? 0) > 0) {
+      const listing = dupRows.rows
+        .map((r: any) => `${r.email} ×${r.n}`)
+        .join(', ');
+      throw new Error(
+        `F-08 email unikalligi migratsiyasi to‘xtatildi: LOWER(email) bo‘yicha case-duplicate hisoblar topildi: ${listing}. `
+        + `Iltimos, bu hisoblarni birlashtiring yoki takroriy email‘larni o‘zgartiring, so‘ng serverni qayta ishga tushiring. `
+        + `(Server ma‘lumot buzilishidan himoyalanish uchun fail-closed holatda turadi.)`
+      );
+    }
+    await pool.query(`CREATE UNIQUE INDEX users_email_lower_key ON users (LOWER(email))`);
+  }
 
   // ── Faza 17: expand role hierarchy (drop old CHECK, add new) ──
   await pool.query(`
