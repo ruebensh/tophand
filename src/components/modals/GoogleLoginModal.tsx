@@ -11,7 +11,7 @@ declare global {
   }
 }
 
-type AuthViewMode = 'login' | 'register' | 'register_code' | 'forgot_password' | 'enter_code';
+type AuthViewMode = 'login' | 'register' | 'register_code' | 'register_password' | 'forgot_password' | 'enter_code';
 
 export const GoogleLoginModal: React.FC = () => {
   const { t, intlLocale } = useI18n();
@@ -22,6 +22,7 @@ export const GoogleLoginModal: React.FC = () => {
     loginWithEmail,
     sendRegisterCode,
     registerWithEmail,
+    setInitialPassword,
     sendPasswordResetCode,
     resetPasswordWithCode,
     isLoading,
@@ -32,6 +33,7 @@ export const GoogleLoginModal: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -64,6 +66,7 @@ export const GoogleLoginModal: React.FC = () => {
       setSuccessMsg('');
       setPassword('');
       setNewPassword('');
+      setConfirmPassword('');
       setVerificationCode('');
     }
   }, [isLoginModalOpen]);
@@ -165,17 +168,43 @@ export const GoogleLoginModal: React.FC = () => {
     }
   };
 
-  // Step 2: confirm code + choose password → create account
+  // Step 2: confirm code → create account (parol hali SO'RALMAYDI)
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim() || !verificationCode.trim() || !password) return;
+    if (!email.trim() || !verificationCode.trim()) return;
     setErrorMsg('');
     setIsSubmitting(true);
 
     try {
-      await registerWithEmail(email.trim(), verificationCode.trim(), password);
+      const res = await registerWithEmail(email.trim(), verificationCode.trim());
+      // Hisob yaratildi va token saqlandi — endi MAJBURIY parol qadamiga o'tamiz.
+      setPassword('');
+      setConfirmPassword('');
+      setMode(res?.needs_password === false ? 'login' : 'register_password');
     } catch (err: any) {
       setErrorMsg(err.message || t('auth.errRegister'));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Step 3 (majburiy): parol o'ylab topish → hisobni yakunlash
+  const handleSetPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+    if (password.length < 6) {
+      setErrorMsg(t('auth.errPassLenShort'));
+      return;
+    }
+    if (password !== confirmPassword) {
+      setErrorMsg(t('auth.errPassAgain'));
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      await setInitialPassword(password);
+    } catch (err: any) {
+      setErrorMsg(err.message || t('auth.errPassReset'));
     } finally {
       setIsSubmitting(false);
     }
@@ -476,25 +505,9 @@ export const GoogleLoginModal: React.FC = () => {
                   />
                 </div>
 
-                <div className="relative">
-                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder={t('auth.passPhMin')}
-                    required
-                    minLength={6}
-                    className="w-full pl-10 pr-10 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-hidden focus:bg-white focus:border-blue-600 transition-all font-medium"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
+                <p className="text-[11px] text-gray-500">
+                  {t('auth.regCodeNextHint')}
+                </p>
 
                 {errorMsg && (
                   <p className="text-xs text-rose-600 font-medium bg-rose-50 px-3 py-2 rounded-xl border border-rose-100">
@@ -518,6 +531,69 @@ export const GoogleLoginModal: React.FC = () => {
                   className="w-full text-center text-[11px] font-semibold text-gray-500 hover:text-gray-900 cursor-pointer"
                 >
                   {t('auth.resendCode')}
+                </button>
+              </form>
+            </div>
+          )}
+
+          {/* ════════════════════════════════════════════════════════════
+              2c. REGISTER → SET PASSWORD (majburiy 3-qadam: parol o'ylab toping)
+          ════════════════════════════════════════════════════════════ */}
+          {mode === 'register_password' && (
+            <div className="space-y-4">
+              <div className="mb-2">
+                <h3 className="text-base font-extrabold text-gray-950">{t('auth.regPassTitle')}</h3>
+                <p className="text-xs text-gray-500">{t('auth.regPassSub')}</p>
+              </div>
+
+              <form onSubmit={handleSetPasswordSubmit} className="space-y-3">
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder={t('auth.passPhMin')}
+                    required
+                    minLength={6}
+                    autoFocus
+                    className="w-full pl-10 pr-10 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-hidden focus:bg-white focus:border-blue-600 transition-all font-medium"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder={t('auth.passAgainPh')}
+                    required
+                    minLength={6}
+                    className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-hidden focus:bg-white focus:border-blue-600 transition-all font-medium"
+                  />
+                </div>
+
+                {errorMsg && (
+                  <p className="text-xs text-rose-600 font-medium bg-rose-50 px-3 py-2 rounded-xl border border-rose-100">
+                    {errorMsg}
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting || isLoading}
+                  className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all shadow-xs disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  {isSubmitting || isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                  <span>{t('auth.setPassBtn')}</span>
                 </button>
               </form>
             </div>

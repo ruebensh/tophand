@@ -21,7 +21,10 @@ interface AuthContextType {
   isLoading: boolean;
   loginWithEmail: (email: string, password: string) => Promise<any>;
   sendRegisterCode: (email: string) => Promise<any>;
-  registerWithEmail: (email: string, code: string, password: string) => Promise<any>;
+  registerWithEmail: (email: string, code: string) => Promise<any>;
+  setInitialPassword: (newPassword: string) => Promise<any>;
+  sendChangePasswordCode: () => Promise<any>;
+  changePasswordWithCode: (code: string, newPassword: string) => Promise<any>;
   sendPasswordResetCode: (email: string) => Promise<any>;
   resetPasswordWithCode: (email: string, code: string, newPassword: string) => Promise<any>;
   loginWithGoogle: (googleData: any) => Promise<void>;
@@ -127,18 +130,63 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
   };
 
-  const registerWithEmail = async (email: string, code: string, password: string) => {
+  const registerWithEmail = async (email: string, code: string) => {
     setIsLoading(true);
     try {
-      const res = await apiRequest<{ token: string; user: User; is_new?: boolean }>('/api/auth/register', {
+      const res = await apiRequest<{ token: string; user: User; is_new?: boolean; needs_password?: boolean }>('/api/auth/register', {
         method: 'POST',
-        body: JSON.stringify({ email, code, password }),
+        body: JSON.stringify({ email, code }),
       });
-      _afterLogin(res, true);
+      // Token saqlanadi va foydalanuvchi kirilgan holatga o'tadi, lekin onboarding
+      // (profil to'ldirish) hali OCHILMAYDI — avval majburiy parol qadami bosiladi.
+      setStoredToken(res.token);
+      setToken(res.token);
+      setUser(res.user);
       return res;
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Ro'yxatdan keyingi MAJBURIY parol qadami: email-kod endi o'tilgan, shuning
+  // uchun qo'shimcha kodsiz parol o'rnatiladi. Muvaffaqiyatdan so'ng profil
+  // to'ldirish gate'i (yangi hisob → qat'iy) ochiladi.
+  const setInitialPassword = async (newPassword: string) => {
+    setIsLoading(true);
+    try {
+      const res = await apiRequest<{ success: boolean; user: User }>('/api/auth/set-password', {
+        method: 'POST',
+        body: JSON.stringify({ newPassword }),
+      });
+      setUser(res.user);
+      setIsLoginModalOpen(false);
+      if (res.user.is_profile_complete === false) {
+        setProfileCanSkip(false);
+        setIsProfileModalOpen(true);
+      }
+      if (loginSuccessCallback) {
+        loginSuccessCallback();
+        setLoginSuccessCallback(null);
+      }
+      return res;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Parolni almashtirish — email-kod orqali (profil sahifasi).
+  const sendChangePasswordCode = async () => {
+    return apiRequest<{ success: boolean; message: string; simulated?: boolean; demo_code?: string }>(
+      '/api/auth/change-password/send-code',
+      { method: 'POST', timeoutMs: 20000 }
+    );
+  };
+
+  const changePasswordWithCode = async (code: string, newPassword: string) => {
+    return apiRequest<{ success: boolean; message: string }>('/api/auth/change-password/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ code, newPassword }),
+    });
   };
 
   const sendPasswordResetCode = async (email: string) => {
@@ -238,6 +286,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loginWithEmail,
         sendRegisterCode,
         registerWithEmail,
+        setInitialPassword,
+        sendChangePasswordCode,
+        changePasswordWithCode,
         sendPasswordResetCode,
         resetPasswordWithCode,
         loginWithGoogle,

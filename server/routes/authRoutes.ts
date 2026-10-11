@@ -386,11 +386,17 @@ router.post('/register', async (req, res) => {
   try {
     const { email, code, password } = req.body;
 
-    if (!email || !code || !password) {
-      return res.status(400).json({ error: "Email, tasdiqlash kodi va parol kiritilishi shart" });
+    // Ro'yxatdan o'tish endi FAQAT email + tasdiqlash kodi bilan bo'ladi.
+    // Parol bu qadamda TALAB QILINMAYDI — u email-tasdiqdan KEYIN majburiy
+    // qadamda (/auth/set-password) o'rnatiladi. Eski klient parol yuborsa,
+    // orqaga moslashuv uchun tekshiriladi va o'rnatiladi.
+    if (!email || !code) {
+      return res.status(400).json({ error: "Email va tasdiqlash kodi kiritilishi shart" });
     }
-    if (password.length < 6) {
-      return res.status(400).json({ error: "Parol kamida 6 ta belgidan iborat bo'lishi kerak" });
+    if (password !== undefined && password !== null && password !== '') {
+      if (typeof password !== 'string' || password.length < 6) {
+        return res.status(400).json({ error: "Parol kamida 6 ta belgidan iborat bo'lishi kerak" });
+      }
     }
 
     const cleanEmail = email.trim().toLowerCase();
@@ -415,7 +421,7 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: GENERIC_REGISTER_FAIL });
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = password ? await bcrypt.hash(password, 10) : null;
     const userId = `usr_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
     const now = new Date().toISOString();
     // name is a placeholder; the mandatory profile step collects the real name.
@@ -445,7 +451,7 @@ router.post('/register', async (req, res) => {
     // Welcome notification for the new account (signed by the TopHand team).
     notifyWelcome(userId).catch(() => {});
 
-    res.status(201).json({ token, user: serializeUser(newUser), is_new: true });
+    res.status(201).json({ token, user: serializeUser(newUser), is_new: true, needs_password: !passwordHash });
   } catch (err: any) {
     console.error('Register error:', err);
     serverError(res, err, "Ro'yxatdan o'tishda xatolik yuz berdi");
@@ -527,6 +533,82 @@ router.post('/reset-password', async (req, res) => {
   } catch (err: any) {
     console.error('Reset password error:', err);
     serverError(res, err, 'Parolni yangilashda xatolik yuz berdi');
+  }
+});
+
+// ─── Parolni o'rnatish (ro'yxatdan keyingi MAJBURIY qadam) ──────────────
+// Faqat paroli YO'Q hisoblar uchun: foydalanuvchi email-kodni endigina
+// muvaffaqiyatli o'tkazdi, shuning uchun qo'shimcha kod talab qilinmaydi.
+// Hisobda parol mavjud bo'lsa → xavfsiz "change-password" (email-kod) oqimiga yo'naltiramiz.
+router.post('/set-password', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { newPassword } = req.body || {};
+    if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 6) {
+      return res.status(400).json({ error: "Parol kamida 6 ta belgidan iborat bo'lishi kerak" });
+    }
+    const user = await queryOne<any>('SELECT password_hash FROM users WHERE id = ?', [req.user!.id]);
+    if (!user) return res.status(404).json({ error: 'Foydalanuvchi topilmadi' });
+    if (user.password_hash) {
+      return res.status(400).json({ error: "Hisobda parol allaqachon o'rnatilgan. Almashtirish uchun kod yuboring." });
+    }
+    const hash = await bcrypt.hash(newPassword, 10);
+    await runQuery('UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?', [
+      hash, new Date().toISOString(), req.user!.id,
+    ]);
+    const updated = await queryOne<any>('SELECT * FROM users WHERE id = ?', [req.user!.id]);
+    res.json({ success: true, user: serializeUser(updated) });
+  } catch (err: any) {
+    console.error('Set password error:', err);
+    serverError(res, err, "Parolni o'rnatishda xatolik yuz berdi");
+  }
+});
+
+// ─── Parolni almashtirish — email-kod orqali (xavfsiz) ──────────────────
+// Eski parolni kiritish O'RNIGA: hisob email'iga yuboriladigan 6 xonali kod
+// tasdiqlanadi (PASSWORD_CHANGE maqsadiga bog'langan — L-02 purpose binding).
+router.post('/change-password/send-code', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = await queryOne<any>('SELECT email FROM users WHERE id = ?', [req.user!.id]);
+    if (!user || !user.email) {
+      return res.status(400).json({ error: 'Parol almashtirish uchun avval hisobingizga email ulang' });
+    }
+    const cleanEmail = String(user.email).trim().toLowerCase();
+    const { code, simulated } = await issueEmailCode(
+      cleanEmail, 'PASSWORD_CHANGE', "TopHand - Parolni o'zgartirish kodi", reqLang(req)
+    );
+    res.json({ success: true, message: 'Tasdiqlash kodi emailingizga yuborildi', simulated, demo_code: demoCode(simulated, code) });
+  } catch (err: any) {
+    console.error('Change password send-code error:', err);
+    serverError(res, err, 'Kodni yuborishda xatolik yuz berdi');
+  }
+});
+
+router.post('/change-password/confirm', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { code, newPassword } = req.body || {};
+    if (!code || !newPassword) {
+      return res.status(400).json({ error: 'Tasdiqlash kodi va yangi parol kiritilishi shart' });
+    }
+    if (typeof newPassword !== 'string' || newPassword.length < 6) {
+      return res.status(400).json({ error: "Yangi parol kamida 6 ta belgidan iborat bo'lishi kerak" });
+    }
+    const user = await queryOne<any>('SELECT email FROM users WHERE id = ?', [req.user!.id]);
+    if (!user || !user.email) {
+      return res.status(400).json({ error: 'Parol almashtirish uchun avval hisobingizga email ulang' });
+    }
+    const cleanEmail = String(user.email).trim().toLowerCase();
+    const otp = await consumeEmailCode(cleanEmail, String(code).trim(), 'PASSWORD_CHANGE');
+    if (!otp.ok) {
+      return res.status(otp.reason === 'locked' ? 429 : 400).json({ error: otpMessage(otp) });
+    }
+    const hash = await bcrypt.hash(newPassword, 10);
+    await runQuery('UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?', [
+      hash, new Date().toISOString(), req.user!.id,
+    ]);
+    res.json({ success: true, message: "Parol muvaffaqiyatli o'zgartirildi" });
+  } catch (err: any) {
+    console.error('Change password confirm error:', err);
+    serverError(res, err, "Parolni o'zgartirishda xatolik yuz berdi");
   }
 });
 

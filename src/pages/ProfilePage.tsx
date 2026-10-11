@@ -7,6 +7,7 @@ import { useTranslate } from '../i18n/useTranslate.ts';
 import { ListingCard } from '../components/listings/ListingCard.tsx';
 import { AccountLinkingCard } from '../components/modals/AccountLinkingCard.tsx';
 import { PushNotificationsCard } from '../components/profile/PushNotificationsCard.tsx';
+import { ChangePasswordCard } from '../components/profile/ChangePasswordCard.tsx';
 import {
   MapPin,
   Calendar,
@@ -26,7 +27,6 @@ import {
   Loader2,
   MessageSquare,
   Settings,
-  Lock,
   Phone,
   Sparkles,
   Palette,
@@ -213,12 +213,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const photoInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
-
-  // Password state
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   const isOwner = currentUser?.id === userId;
 
@@ -418,33 +412,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       alert(err.message || t('profile.errSave'));
     } finally {
       setIsSavingProfile(false);
-    }
-  };
-
-  const handleChangePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newPassword !== confirmPassword) {
-      alert(t('profile.errPassMismatch'));
-      return;
-    }
-    if (newPassword.length < 6) {
-      alert(t('profile.errPassLen'));
-      return;
-    }
-    setIsChangingPassword(true);
-    try {
-      await apiRequest('/api/users/change-password', {
-        method: 'POST',
-        body: JSON.stringify({ currentPassword, newPassword }),
-      });
-      alert(t('profile.passOk'));
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-    } catch (err: any) {
-      alert(err.message || t('profile.errPassChange'));
-    } finally {
-      setIsChangingPassword(false);
     }
   };
 
@@ -1104,62 +1071,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             <AccountLinkingCard />
             <PushNotificationsCard />
 
-            <div className="bg-white rounded-3xl border-2 border-[#D3E5FD] p-4 sm:p-5 shadow-xs">
-              <h3 className="font-bold text-gray-900 text-sm mb-3 flex items-center gap-2">
-                <Lock className="w-4 h-4 text-[#1673E6]" />
-                <span>{t('profile.passTitle')}</span>
-              </h3>
-
-              <form onSubmit={handleChangePassword} className="space-y-3">
-                {currentUser?.has_password ? (
-                  <div>
-                    <label className="block text-xs font-bold text-gray-600 mb-1">{t('profile.currentPass')}</label>
-                    <input
-                      type="password"
-                      required
-                      value={currentPassword}
-                      onChange={(e) => setCurrentPassword(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-gray-200 text-sm font-medium focus:border-[#1673E6] focus:bg-white outline-none transition"
-                    />
-                  </div>
-                ) : (
-                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
-                    {t('profile.noPassHint')}
-                  </p>
-                )}
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-600 mb-1">{t('profile.newPass')}</label>
-                    <input
-                      type="password"
-                      required
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-gray-200 text-sm font-medium focus:border-[#1673E6] focus:bg-white outline-none transition"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-600 mb-1">{t('profile.confirmPass')}</label>
-                    <input
-                      type="password"
-                      required
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-gray-200 text-sm font-medium focus:border-[#1673E6] focus:bg-white outline-none transition"
-                    />
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isChangingPassword}
-                  className="w-full py-2.5 rounded-xl bg-gray-900 hover:bg-black text-white font-bold text-xs sm:text-sm shadow-sm transition cursor-pointer"
-                >
-                  {isChangingPassword ? t('profile.changing') : t('profile.updatePass')}
-                </button>
-              </form>
-            </div>
+            <ChangePasswordCard />
           </div>
         )}
       </div>
@@ -1757,61 +1669,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               <AccountLinkingCard />
               <PushNotificationsCard />
 
-              <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs">
-                <h3 className="font-bold text-slate-900 text-base mb-4 flex items-center gap-2">
-                  <Lock className="w-5 h-5 text-[#1673E6]" />
-                  <span>{t('profile.passTitle')}</span>
-                </h3>
-
-                <form onSubmit={handleChangePassword} className="space-y-3.5">
-                  {currentUser?.has_password ? (
-                    <div>
-                      <label className="block text-xs font-bold text-slate-600 mb-1">{t('profile.currentPass')}</label>
-                      <input
-                        type="password"
-                        required
-                        value={currentPassword}
-                        onChange={(e) => setCurrentPassword(e.target.value)}
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium focus:border-[#1673E6] focus:bg-white outline-none transition"
-                      />
-                    </div>
-                  ) : (
-                    <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
-                      {t('profile.noPassHint')}
-                    </p>
-                  )}
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-600 mb-1">{t('profile.newPass')}</label>
-                    <input
-                      type="password"
-                      required
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium focus:border-[#1673E6] focus:bg-white outline-none transition"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-600 mb-1">{t('profile.confirmPass')}</label>
-                    <input
-                      type="password"
-                      required
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium focus:border-[#1673E6] focus:bg-white outline-none transition"
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={isChangingPassword}
-                    className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white font-bold text-sm shadow-sm transition cursor-pointer mt-2"
-                  >
-                    {isChangingPassword ? t('profile.changing') : t('profile.updatePass')}
-                  </button>
-                </form>
-              </div>
+              <ChangePasswordCard />
             </div>
           </div>
         )}

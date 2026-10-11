@@ -2,7 +2,6 @@ import { serverError } from '../lib/error.ts';
 import { Router } from 'express';
 import multer from 'multer';
 import crypto from 'crypto';
-import bcrypt from 'bcryptjs';
 import { requireAuth, optionalAuth, AuthRequest } from '../auth/telegram.ts';
 import { queryOne, queryAll, runQuery } from '../db/database.ts';
 import { sanitizeUserUrl } from '../lib/urlSecurity.ts';
@@ -166,54 +165,10 @@ router.put('/me', requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-// ─── Parolni o'zgartirish (QA hisoboti P2) ──────────────────────────────
-// ProfilePage formasidan: POST /api/users/change-password { currentPassword, newPassword }.
-// Oldin bu endpoint YO'Q edi → 404. Bu yerda requireAuth bilan himoyalangan.
-router.post('/change-password', requireAuth, async (req: AuthRequest, res) => {
-  try {
-    const { currentPassword, newPassword } = req.body || {};
-
-    // Yangi parol — server tomonida ham tekshiriladi (faqat client'ga ishonmaymiz).
-    if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 6) {
-      return res.status(400).json({ error: "Yangi parol kamida 6 ta belgidan iborat bo'lishi kerak" });
-    }
-
-    const user = await queryOne<any>('SELECT id, password_hash FROM users WHERE id = ?', [req.user!.id]);
-    if (!user) return res.status(404).json({ error: 'Foydalanuvchi topilmadi' });
-
-    const hasPassword = Boolean(user.password_hash);
-
-    if (hasPassword) {
-      // Parol o'rnatilgan hisob: joriy parol majburiy va xeshga nisbatan tekshiriladi.
-      if (!currentPassword || typeof currentPassword !== 'string') {
-        return res.status(400).json({ error: 'Joriy parolni kiriting' });
-      }
-      const isMatch = await bcrypt.compare(currentPassword, user.password_hash);
-      if (!isMatch) {
-        return res.status(401).json({ error: "Joriy parol noto'g'ri" });
-      }
-      if (currentPassword === newPassword) {
-        return res.status(400).json({ error: 'Yangi parol oldingisidan farq qilishi kerak' });
-      }
-    }
-    // Parol o'rnatilmagan (Google/Telegram orqali ochilgan) hisob: foydalanuvchi
-    // allaqachon autentifikangan — shuning uchun joriy parol talab qilinmaydi va
-    // yangi parol o'rnatiladi (mos yo'l: "parolni qo'shish").
-
-    const passwordHash = await bcrypt.hash(newPassword, 10);
-    const now = new Date().toISOString();
-    await runQuery('UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?', [
-      passwordHash,
-      now,
-      req.user!.id,
-    ]);
-
-    // Xavfsizlik: parol/esh hech qachon logga yoki javobga chiqmaydi.
-    res.json({ success: true, password_set: true, created: !hasPassword });
-  } catch (err: any) {
-    serverError(res, err);
-  }
-});
+// ─── Parolni o'zgartirish / o'rnatish ───────────────────────────────────
+// Bu endpointlar xavfsizlik sababli /api/auth'ga ko'chirildi:
+//   POST /api/auth/set-password            (ro'yxatdan keyin majburiy qadam)
+//   POST /api/auth/change-password/send-code + /confirm  (email-kod orqali).
 
 // ─── Tasdiq nishoni (Verified badge): user self-service request ─────────────
 // P1-1/P1-2 flow:
