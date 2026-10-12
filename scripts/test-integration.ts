@@ -467,6 +467,52 @@ async function main() {
         assert((await isMediaStillReferenced(sharedRef)) === false, 'guard: unreferenced object no longer flagged (report #3)');
       }
 
+      // ── Chat ↔ bildirishnoma sinxronizatsiyasi ──
+      // Talab: xabar chatda o'qilsa (suhbat ochilsa) qo'ng'iroqchadagi chat
+      // bildirishnomasi ham 'o'qilgan' bo'lishi kerak.
+      {
+        const bobToken = generateToken(bob);
+        const cat = await queryOne<any>('SELECT id FROM categories LIMIT 1');
+        const region = await queryOne<any>('SELECT id FROM regions LIMIT 1');
+        const district = await queryOne<any>('SELECT id FROM districts LIMIT 1');
+        if (cat && region && district) {
+          const listingId = `lst_integ_chat_${RUN_ID}`;
+          await runQuery(
+            `INSERT INTO listings (id, owner_user_id, type, title, description, category_id, region_id, district_id, price_type, status, created_at, updated_at, expires_at)
+             VALUES (?, ?, 'SERVICE_OFFER', ?, ?, ?, ?, ?, 'FIXED', 'ACTIVE', NOW(), NOW(), NOW() + INTERVAL '30 days')`,
+            [listingId, bob.id, `Integ Chat Listing ${RUN_ID}`, 'desc', cat.id, region.id, district.id]
+          );
+
+          // 1) alice bob e'loni bo'yicha suhbat ochadi (recipient = bob)
+          const startRes = await req('/api/chat/start', authJson({ listing_id: listingId }, aliceToken));
+          const conv = await startRes.json();
+          assert(startRes.status === 200 && conv.id, 'chat: alice opens conversation on bob listing → 200');
+
+          // 2) alice xabar yuboradi → bob uchun O'QILMAGAN NEW_CHAT_MESSAGE tug'iladi
+          const sendRes = await req(`/api/chat/conversations/${conv.id}/messages`, authJson({ text: 'Salom, narqi qanday?' }, aliceToken));
+          assert(sendRes.status === 201, 'chat: alice sends message → 201');
+          const notifBefore = await queryOne<any>(
+            `SELECT read_at FROM notifications WHERE user_id = ? AND type = 'NEW_CHAT_MESSAGE' AND link = ?`,
+            [bob.id, `/chat?conv=${conv.id}`]
+          );
+          assert(!!notifBefore && notifBefore.read_at === null, 'chat: recipient gets UNREAD chat notification');
+
+          // 3) bob suhbatni ochadi (GET) → server chat bildirishnomasini 'o'qilgan' qiladi
+          const openRes = await req(`/api/chat/conversations/${conv.id}`, { headers: { authorization: `Bearer ${bobToken}` } });
+          assert(openRes.status === 200, 'chat: bob opens conversation → 200');
+          const notifAfter = await queryOne<any>(
+            `SELECT read_at FROM notifications WHERE user_id = ? AND type = 'NEW_CHAT_MESSAGE' AND link = ?`,
+            [bob.id, `/chat?conv=${conv.id}`]
+          );
+          assert(!!notifAfter && notifAfter.read_at !== null, 'chat sync: opening conversation marks chat notification READ');
+
+          try { await runQuery('DELETE FROM notifications WHERE link = ?', [`/chat?conv=${conv.id}`]); } catch {}
+          try { await runQuery('DELETE FROM listings WHERE id = ?', [listingId]); } catch {}
+        } else {
+          assert(false, 'chat sync: seeded category/region/district available for fixture');
+        }
+      }
+
       for (const id of [admin.id, lead.id, mod.id, plain.id]) {
         try { await runQuery('DELETE FROM users WHERE id = ?', [id]); } catch {}
       }

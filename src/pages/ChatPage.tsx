@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Conversation } from '../types/index.ts';
 import { apiRequest, uploadImageFile } from '../lib/api.ts';
 import { useAuth } from '../context/AuthContext.tsx';
+import { useNotifications } from '../context/NotificationContext.tsx';
 import {
   Send,
   Image as ImageIcon,
@@ -30,6 +31,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({
   onOpenListing,
 }) => {
   const { user } = useAuth();
+  const { refreshNotifications } = useNotifications();
   const { t } = useI18n();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConvId, setSelectedConvId] = useState<string | undefined>(initialConversationId);
@@ -79,10 +81,13 @@ export const ChatPage: React.FC<ChatPageProps> = ({
 
   useEffect(() => {
     if (selectedConvId) {
-      fetchMessages(selectedConvId);
+      // Suhbatni ochish server tomonida xabarlarni (va chat bildirishnomalarini)
+      // 'o'qilgan' qiladi — so'ng qo'ng'iroqchani darhol yangilaymiz (sinxron).
+      fetchMessages(selectedConvId).finally(() => refreshNotifications());
       const interval = setInterval(() => fetchMessages(selectedConvId), 4000);
       return () => clearInterval(interval);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedConvId]);
 
   useEffect(() => {

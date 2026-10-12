@@ -71,6 +71,7 @@ const en = {
     markAllRead: 'Mark all as read',
     noNotifications: 'No notifications yet',
     notifOpen: 'Open notification',
+    notifReadInChat: 'Read in chat',
     moderatorPanel: 'Moderator panel',
     chiefPanel: 'Chief moderator panel',
     adminPanel: 'Admin panel',

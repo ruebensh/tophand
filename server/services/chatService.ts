@@ -148,6 +148,16 @@ export async function getConversationMessages(
        WHERE conversation_id = ? AND sender_user_id != ? AND read_at IS NULL`,
       [now, conversationId, userId]
     );
+
+    // Chat ↔ bildirishnoma sinxronizatsiyasi: suhbatni ochgan ishtirokchining
+    // shu suhbatga oid o'qilmagan chat bildirishnomalari ham 'o'qilgan' bo'ladi
+    // (qo'ng'iroqchadagi belgi darhol kamayadi). Link `/chat?conv=<id>` ko'rinishida.
+    await runQuery(
+      `UPDATE notifications
+       SET read_at = ?
+       WHERE user_id = ? AND type = 'NEW_CHAT_MESSAGE' AND read_at IS NULL AND link = ?`,
+      [now, userId, `/chat?conv=${conversationId}`]
+    );
   }
 
   const messages = await queryAll<any>(

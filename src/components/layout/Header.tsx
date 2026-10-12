@@ -68,7 +68,7 @@ const CatalogRailIcon: React.FC<{ catalogId: string; icon: string; tone: string;
 
 export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
   const { user, logout, openLoginModal } = useAuth();
-  const { notifications, unreadCount, markAllAsRead, markAsRead } = useNotifications();
+  const { notifications, unreadCount, markAllAsRead, markAsRead, refreshNotifications } = useNotifications();
   const { t, localized } = useI18n();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -499,10 +499,22 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
                   {selectedNotif.link && (
                     <div className="px-5 pb-5">
                       <button
-                        onClick={() => { const link = selectedNotif.link; setSelectedNotif(null); setIsNotificationsOpen(false); if (link) onNavigate(link); }}
+                        onClick={() => {
+                          const link = selectedNotif.link;
+                          const isChat = selectedNotif.type === 'NEW_CHAT_MESSAGE' || (link || '').startsWith('/chat');
+                          setSelectedNotif(null);
+                          setIsNotificationsOpen(false);
+                          if (link) {
+                            onNavigate(link);
+                            // Chatga o'tganda qo'ng'iroqchani darhol sinxronlaymiz.
+                            if (isChat) refreshNotifications();
+                          }
+                        }}
                         className="w-full py-2.5 rounded-xl th-accent-bg text-white text-sm font-semibold hover:opacity-90 transition-opacity cursor-pointer"
                       >
-                        {t('nav.notifOpen')}
+                        {selectedNotif.type === 'NEW_CHAT_MESSAGE' || (selectedNotif.link || '').startsWith('/chat')
+                          ? t('nav.notifReadInChat')
+                          : t('nav.notifOpen')}
                       </button>
                     </div>
                   )}

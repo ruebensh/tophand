@@ -71,6 +71,7 @@ const ru = {
     markAllRead: 'Прочитать все',
     noNotifications: 'Пока нет уведомлений',
     notifOpen: 'Открыть уведомление',
+    notifReadInChat: 'Прочитать в чате',
     moderatorPanel: 'Панель модератора',
     chiefPanel: 'Панель главного модератора',
     adminPanel: 'Панель администратора',

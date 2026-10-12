@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../context/AuthContext.tsx';
+import { useNotifications } from '../../context/NotificationContext.tsx';
 import { apiRequest, uploadImageFile } from '../../lib/api.ts';
 import {
   X,
@@ -31,6 +32,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({
   listingId,
 }) => {
   const { user } = useAuth();
+  const { refreshNotifications } = useNotifications();
   const { t } = useI18n();
 
   const [activeConvId, setActiveConvId] = useState<string | undefined>(initialConvId);
@@ -69,6 +71,9 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({
           setConversationData(data.conversation);
           setMessages(data.messages);
           setPartner(data.partner);
+          // Suhbat ochildi — chat bildirishnomalari serverda 'o'qilgan' bo'ldi,
+          // qo'ng'iroqchani darhol sinxronlaymiz.
+          refreshNotifications();
         }
       } catch (err: any) {
         console.error('Failed to init chat:', err);

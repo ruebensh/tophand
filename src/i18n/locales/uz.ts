@@ -73,6 +73,7 @@ const uz = {
     markAllRead: "Barchasini o'qilgan qilish",
     noNotifications: 'Hozircha hech qanday bildirishnoma yo\'q',
     notifOpen: 'Bildirishnomani ochish',
+    notifReadInChat: "Chatda o'qish",
     moderatorPanel: 'Moderator paneli',
     chiefPanel: 'Bosh moderator paneli',
     adminPanel: 'Admin boshqaruvi',
