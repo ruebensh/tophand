@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { useNotifications } from '../../context/NotificationContext.tsx';
 import RichText from '../common/RichText.tsx';
+import { FormatBar, handleComposerKeyDown, autoGrow } from './RichComposer.tsx';
 import { apiRequest, uploadImageFile } from '../../lib/api.ts';
 import {
   X,
@@ -47,6 +48,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({
   const [reportTarget, setReportTarget] = useState<{ id: string; title: string } | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Initialize or fetch conversation
@@ -104,6 +106,11 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Yozish maydoni balandligini matnga moslashi (yuborishdan keyin ham qisqaradi)
+  useEffect(() => {
+    autoGrow(composerRef.current);
+  }, [text]);
 
   if (!isOpen) return null;
 
@@ -330,47 +337,52 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({
         </div>
 
         {/* Input Bar */}
-        <form
-          onSubmit={handleSendMessage}
-          className="p-3 bg-white border-t border-gray-100 flex items-center gap-2 shrink-0"
-        >
-          {/* Image button */}
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleImageUpload}
-            accept="image/*"
-            className="hidden"
-          />
-          <button
-            type="button"
-            disabled={isUploading}
-            onClick={() => fileInputRef.current?.click()}
-            className="p-2 rounded-full text-gray-500 hover:text-blue-600 hover:bg-gray-100 transition-colors disabled:opacity-50"
-            title={t('chat.attachTitle')}
-            aria-label={t('chat.attachAria')}
+        <div className="bg-white border-t border-gray-100 px-3 pt-2 pb-3 shrink-0">
+          <FormatBar textareaRef={composerRef} setText={setText} />
+          <form
+            onSubmit={handleSendMessage}
+            className="flex items-end gap-2"
           >
-            <ImageIcon className={`w-5 h-5 ${isUploading ? 'animate-pulse text-blue-600' : ''}`} />
-          </button>
+            {/* Image button */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleImageUpload}
+              accept="image/*"
+              className="hidden"
+            />
+            <button
+              type="button"
+              disabled={isUploading}
+              onClick={() => fileInputRef.current?.click()}
+              className="p-2 rounded-full text-gray-500 hover:text-blue-600 hover:bg-gray-100 transition-colors disabled:opacity-50"
+              title={t('chat.attachTitle')}
+              aria-label={t('chat.attachAria')}
+            >
+              <ImageIcon className={`w-5 h-5 ${isUploading ? 'animate-pulse text-blue-600' : ''}`} />
+            </button>
 
-          <input
-            type="text"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder={t('chat.inputPlaceholder')}
-            className="flex-1 bg-gray-50 border border-gray-200 rounded-full px-4 py-2 text-xs sm:text-sm text-gray-900 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
-          />
+            <textarea
+              ref={composerRef}
+              rows={1}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => handleComposerKeyDown(e, () => handleSendMessage())}
+              placeholder={t('chat.inputPlaceholder')}
+              className="flex-1 resize-none bg-gray-50 border border-gray-200 rounded-2xl px-4 py-2 text-xs sm:text-sm text-gray-900 leading-relaxed max-h-32 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+            />
 
-          <button
-            type="submit"
-            disabled={!text.trim() || isSending}
-            className="p-2.5 rounded-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white transition-colors disabled:opacity-40 disabled:pointer-events-none"
-            title={t('common.submit')}
-            aria-label={t('chat.sendAria')}
-          >
-            <Send className="w-4 h-4" />
-          </button>
-        </form>
+            <button
+              type="submit"
+              disabled={!text.trim() || isSending}
+              className="p-2.5 rounded-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white transition-colors disabled:opacity-40 disabled:pointer-events-none"
+              title={t('common.submit')}
+              aria-label={t('chat.sendAria')}
+            >
+              <Send className="w-4 h-4" />
+            </button>
+          </form>
+        </div>
       </div>
 
       {reportTarget && (

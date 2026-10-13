@@ -4,6 +4,7 @@ import { apiRequest, uploadImageFile } from '../lib/api.ts';
 import { useAuth } from '../context/AuthContext.tsx';
 import { useNotifications } from '../context/NotificationContext.tsx';
 import RichText from '../components/common/RichText.tsx';
+import { FormatBar, handleComposerKeyDown, autoGrow } from '../components/chat/RichComposer.tsx';
 import {
   Send,
   Image as ImageIcon,
@@ -47,6 +48,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({
   const [reportTarget, setReportTarget] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load conversations
@@ -94,6 +96,11 @@ export const ChatPage: React.FC<ChatPageProps> = ({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Yozish maydoni balandligini matnga moslashi (yuborishdan keyin ham qisqaradi)
+  useEffect(() => {
+    autoGrow(composerRef.current);
+  }, [text]);
 
   const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -376,42 +383,47 @@ export const ChatPage: React.FC<ChatPageProps> = ({
               </div>
 
               {/* Input Area */}
-              <form
-                onSubmit={handleSendMessage}
-                className="p-3 bg-white border-t border-gray-100 flex items-center gap-2 shrink-0"
-              >
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleImageUpload}
-                  accept="image/*"
-                  className="hidden"
-                />
-                <button
-                  type="button"
-                  disabled={isUploading}
-                  onClick={() => fileInputRef.current?.click()}
-                  className="p-2.5 rounded-full text-gray-500 hover:text-blue-600 hover:bg-gray-100 transition-colors"
+              <div className="bg-white border-t border-gray-100 px-3 pt-2 pb-3 shrink-0">
+                <FormatBar textareaRef={composerRef} setText={setText} />
+                <form
+                  onSubmit={handleSendMessage}
+                  className="flex items-end gap-2"
                 >
-                  <ImageIcon className="w-5 h-5" />
-                </button>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleImageUpload}
+                    accept="image/*"
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    disabled={isUploading}
+                    onClick={() => fileInputRef.current?.click()}
+                    className="p-2.5 rounded-full text-gray-500 hover:text-blue-600 hover:bg-gray-100 transition-colors"
+                  >
+                    <ImageIcon className="w-5 h-5" />
+                  </button>
 
-                <input
-                  type="text"
-                  value={text}
-                  onChange={(e) => setText(e.target.value)}
-                  placeholder={t('chat.inputPlaceholder')}
-                  className="flex-1 bg-gray-50 border border-gray-200 rounded-full px-4 py-2 text-xs sm:text-sm text-gray-900 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
-                />
+                  <textarea
+                    ref={composerRef}
+                    rows={1}
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                    onKeyDown={(e) => handleComposerKeyDown(e, () => handleSendMessage())}
+                    placeholder={t('chat.inputPlaceholder')}
+                    className="flex-1 resize-none bg-gray-50 border border-gray-200 rounded-2xl px-4 py-2 text-xs sm:text-sm text-gray-900 leading-relaxed max-h-32 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                  />
 
-                <button
-                  type="submit"
-                  disabled={!text.trim() || isSending}
-                  className="p-2.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40"
-                >
-                  <Send className="w-4 h-4" />
-                </button>
-              </form>
+                  <button
+                    type="submit"
+                    disabled={!text.trim() || isSending}
+                    className="p-2.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40"
+                  >
+                    <Send className="w-4 h-4" />
+                  </button>
+                </form>
+              </div>
             </>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-gray-400 text-center p-8">
