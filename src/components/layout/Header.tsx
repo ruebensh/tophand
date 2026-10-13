@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { useNotifications } from '../../context/NotificationContext.tsx';
+import RichText from '../common/RichText.tsx';
 import {
   Search,
   PlusCircle,
@@ -464,7 +465,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
                           <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${!n.read_at ? 'bg-[#1673E6]' : 'bg-transparent'}`} />
                           <div className="flex-1">
                             <p className="text-xs font-semibold text-gray-900">{n.title}</p>
-                            <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-2">{n.body}</p>
+                            <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-2"><RichText text={n.body} linkClassName="text-[#1673E6] underline underline-offset-2 break-all" /></p>
                             <span className="text-[10px] text-gray-400 mt-1 block">{formatDateAgo(n.created_at)}</span>
                           </div>
                         </div>
@@ -493,7 +494,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
                     </button>
                   </div>
                   <div className="p-5">
-                    <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{selectedNotif.body}</p>
+                    <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line"><RichText text={selectedNotif.body} linkClassName="text-[#1673E6] underline underline-offset-2 break-all" /></p>
                     <span className="mt-3 block text-[11px] text-gray-400">{formatDateAgo(selectedNotif.created_at)}</span>
                   </div>
                   {selectedNotif.link && (

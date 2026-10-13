@@ -3,6 +3,7 @@ import { Conversation } from '../types/index.ts';
 import { apiRequest, uploadImageFile } from '../lib/api.ts';
 import { useAuth } from '../context/AuthContext.tsx';
 import { useNotifications } from '../context/NotificationContext.tsx';
+import RichText from '../components/common/RichText.tsx';
 import {
   Send,
   Image as ImageIcon,
@@ -339,7 +340,18 @@ export const ChatPage: React.FC<ChatPageProps> = ({
                             />
                           </div>
                         )}
-                        {m.text && <p className="whitespace-pre-wrap">{m.text}</p>}
+                        {m.text && (
+                          <p className="whitespace-pre-wrap">
+                            <RichText
+                              text={m.text}
+                              linkClassName={
+                                isMine
+                                  ? 'text-white underline underline-offset-2 break-all'
+                                  : 'text-[#1673E6] underline underline-offset-2 break-all'
+                              }
+                            />
+                          </p>
+                        )}
                         <div
                           className={`mt-1 flex items-center justify-end gap-1 text-[10px] ${
                             isMine ? 'text-blue-100' : 'text-gray-400'
