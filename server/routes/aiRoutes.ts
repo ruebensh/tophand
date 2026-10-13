@@ -5,6 +5,7 @@ import { queryAll } from '../db/database.ts';
 import {
   prefillAttributes,
   composeDescription,
+  GEMINI_MODEL,
   type AttrSchemaField,
   type DescriptionInput,
 } from '../services/aiListingService.ts';
@@ -89,7 +90,7 @@ Javobni FAQAT quyidagi JSON formatda qaytaring (hech qanday qo'shimcha matnsiz y
 `;
 
         const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
+          model: GEMINI_MODEL,
           contents: prompt,
         });
 

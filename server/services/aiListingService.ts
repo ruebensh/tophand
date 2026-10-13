@@ -32,10 +32,15 @@ export function aiAvailable(): boolean {
 // Timeout/429/xatolik → yuqoridagi chaqiruvchi try/catch fallback'ga tushadi,
 // shunda e'lon yaratish HECH QACHON AI sababli to'xtab qolmaydi.
 const AI_TIMEOUT_MS = 8000;
+// Model nomi: Google eski modellarni yangi API kalitlaridan olib qo'yishi mumkin
+// (masalan `gemini-2.5-flash` → 404 "no longer available to new users"). Shuning
+// uchun nomni env orqali sozlanadigan qildik — kelajakda kodni o'zgartirmasdan
+// GEMINI_MODEL bilan yangilash mumkin. Default: xatoda tavsiya etilgan model.
+export const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
 async function genText(ai: GoogleGenAI, prompt: string): Promise<string> {
   return await Promise.race([
     ai
-      .models.generateContent({ model: 'gemini-2.5-flash', contents: prompt })
+      .models.generateContent({ model: GEMINI_MODEL, contents: prompt })
       .then((r: any) => (r?.text as string) || ''),
     new Promise<never>((_, rej) => setTimeout(() => rej(new Error('AI timeout')), AI_TIMEOUT_MS)),
   ]);
