@@ -19,6 +19,8 @@ import {
   getPublicMonetization,
   getCatalogs,
   getCategoryAttributes,
+  aiPrefillAttributes,
+  aiGenerateDescription,
   type PublicMonetization,
 } from '../lib/api.ts';
 import { useAuth } from '../context/AuthContext.tsx';
@@ -41,6 +43,8 @@ import {
   Building2,
   DollarSign,
   SlidersHorizontal,
+  Wand2,
+  TriangleAlert,
 } from 'lucide-react';
 
 interface CreateListingPageProps {
@@ -260,6 +264,13 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
   } | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
 
+  // ── AI atribut (filtr) to'ldirish + AI tavsif generatsiyasi ──
+  const [aiFilledKeys, setAiFilledKeys] = useState<string[]>([]);
+  const [isAttrPrefilling, setIsAttrPrefilling] = useState(false);
+  const [attrPrefillReason, setAttrPrefillReason] = useState('');
+  const [isGeneratingDesc, setIsGeneratingDesc] = useState(false);
+  const prefillSignatureRef = useRef('');
+
   const currentCatalogId = selectedCatalog?.id || '';
   const isJobs = currentCatalogId === 'jobs';
   const isServices = currentCatalogId === 'services';
@@ -292,6 +303,10 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
       setAttrSchema([]);
       return;
     }
+    // Kategoriya o'zgarganda AI to'ldirilgan izlarni tozalaymiz.
+    setAiFilledKeys([]);
+    setAttrPrefillReason('');
+    prefillSignatureRef.current = '';
     getCategoryAttributes(categoryId)
       .then(setAttrSchema)
       .catch(() => setAttrSchema([]));
@@ -446,6 +461,91 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
     }
   };
 
+  // ── AI: kategoriya filtrlarini (bo'sh maydonlarni) sarlavhadan to'ldiradi ──
+  const runAttrPrefill = async () => {
+    const tt = title.trim();
+    if (tt.length < 3 || !categoryId || attrSchema.length === 0) return;
+    setIsAttrPrefilling(true);
+    try {
+      const res = await aiPrefillAttributes({
+        title: tt,
+        description: customDescription,
+        category_id: categoryId,
+        existing: attributes,
+      });
+      const incoming = res?.values || {};
+      const merged: Record<string, string | number | boolean> = { ...attributes };
+      const added: string[] = [];
+      for (const [k, v] of Object.entries(incoming)) {
+        const cur = merged[k];
+        // FAQAT bo'sh maydonlarni to'ldiramiz — foydalanuvchi qiymatini buzmaymiz.
+        if (cur === undefined || cur === null || String(cur).trim() === '') {
+          merged[k] = v as string | number | boolean;
+          added.push(k);
+        }
+      }
+      setAttributes(merged);
+      setAiFilledKeys((prev) => Array.from(new Set([...prev, ...added])));
+      setAttrPrefillReason(res?.reasoning || '');
+    } catch (err) {
+      console.warn('AI attribute prefill xato:', err);
+    } finally {
+      setIsAttrPrefilling(false);
+    }
+  };
+
+  // Sarlavha + kategoriya o'zgarganda filtrlarni BIR MARTA avtomatik to'ldiramiz.
+  useEffect(() => {
+    const sig = `${categoryId}|${title.trim()}`;
+    if (!categoryId || title.trim().length < 3 || attrSchema.length === 0) return;
+    // Kategoriya yakuniy ( barg) tanlanmaguncha kutamiz.
+    if (subcategoriesOfParent.length > 0 && !isLeafSelected) return;
+    if (prefillSignatureRef.current === sig) return;
+    prefillSignatureRef.current = sig;
+    runAttrPrefill();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categoryId, title, attrSchema, isLeafSelected, subcategoriesOfParent]);
+
+  // ── AI tavsif uchun faktlar yig'ish (labellangan, lokalizatsiya qilingan) ──
+  const buildDescFacts = () => {
+    const attrList = attrSchema
+      .map((a) => {
+        const v = attributes[a.key];
+        return v !== undefined && v !== null && String(v).trim() !== ''
+          ? { label: a.label, value: String(v) }
+          : null;
+      })
+      .filter(Boolean) as { label: string; value: string }[];
+    const region = regions.find((r) => r.id === regionId);
+    const district = districts.find((d) => d.id === districtId);
+    const locName = [district ? localized(district) : null, region ? localized(region) : null]
+      .filter(Boolean).join(', ');
+    let priceText = '';
+    if (isJobs) {
+      if (salaryType === 'SALARY_NEGOTIABLE') priceText = t('create.salaryNegotiable');
+      else if (salaryType === 'SALARY_RANGE') priceText = `${salaryMin || '?'} – ${salaryMax || '?'} ${t('wallet.som')}`;
+      else priceText = salaryMin ? `${salaryMin} ${t('wallet.som')}` : '';
+    } else {
+      if (priceType === 'NEGOTIABLE') priceText = t('create.priceNegotiable');
+      else if (priceType === 'FREE') priceText = t('create.priceFree');
+      else if (priceType === 'RANGE') priceText = `${priceMin || '?'} – ${priceMax || '?'} ${t('wallet.som')}`;
+      else priceText = priceMin ? `${priceMin} ${t('wallet.som')}` : '';
+    }
+    return {
+      title: title.trim(),
+      typeLabel: selectedType ? t(`create.typeMeta.${selectedType}.label`) : undefined,
+      catalogName: selectedCatalog ? localized(selectedCatalog) : undefined,
+      categoryName: parentCategoryObj ? localized(parentCategoryObj) : undefined,
+      subcategoryName: isLeafSelected && selectedCategoryObj ? localized(selectedCategoryObj) : undefined,
+      attributes: attrList,
+      features: showEmployment ? selectedFeatures : [],
+      priceText: isJobs ? '' : priceText,
+      salaryText: isJobs ? priceText : '',
+      location: locName || undefined,
+      extra: customDescription.trim() || undefined,
+    };
+  };
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -558,12 +658,29 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
     setError('');
     const combinedSkills = Array.from(new Set(showEmployment ? selectedFeatures : []));
 
+    // Tavsif: yangi e'londa AI oxirida avtomatik to'liq tavsif + izoh yozadi
+    // (muvaffaqiyatsiz bo'lsa — avtomatik tuzilgan tavsif qoladi).
+    let descriptionToSend = autoGeneratedDescription;
+    if (!isEditing) {
+      setIsGeneratingDesc(true);
+      try {
+        const ai = await aiGenerateDescription(buildDescFacts());
+        if (ai?.description && ai.description.trim().length >= 15) {
+          descriptionToSend = ai.note ? `${ai.description.trim()}\n\n${ai.note.trim()}` : ai.description.trim();
+        }
+      } catch {
+        /* fallback: autoGeneratedDescription */
+      } finally {
+        setIsGeneratingDesc(false);
+      }
+    }
+
     try {
       const payload = {
         catalog_id: selectedCatalog.id,
         type: selectedType,
         title: title.trim(),
-        description: autoGeneratedDescription,
+        description: descriptionToSend,
         category_id: categoryId,
         region_id: regionId,
         district_id: districtId,
@@ -724,6 +841,52 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
           <h1 className="text-xl sm:text-2xl font-black text-gray-900">{localized(selectedCatalog)}</h1>
         </div>
         <p className="text-xs sm:text-sm text-gray-500 mt-1">{t('create.categoryTitle')}</p>
+      </div>
+      {/* NOM-birinchi: sarlavhani yozgach AI kategoriya/subkategoriya + filtrlarni avtomatik to'ldiradi */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <label className="text-xs font-bold text-gray-800">{t('create.name')} <span className="text-rose-500">*</span></label>
+          <button
+            type="button"
+            onClick={() => requestAiSuggestion(title)}
+            disabled={isAiLoading || !title.trim()}
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 text-[11px] font-bold transition-all border border-purple-200 cursor-pointer disabled:opacity-40"
+          >
+            <Sparkles className={`w-3.5 h-3.5 ${isAiLoading ? 'animate-spin' : ''}`} />
+            <span>{isAiLoading ? t('create.aiAnalyzing') : t('create.aiDetect')}</span>
+          </button>
+        </div>
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onBlur={() => { if (title.trim().length >= 5 && !categoryId && !aiSuggestion) requestAiSuggestion(title); }}
+          placeholder={t('create.titlePlaceholder')}
+          className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 text-xs sm:text-sm font-medium focus:bg-white focus:ring-2 focus:ring-blue-500 transition-all"
+        />
+        <p className="text-[11px] text-gray-500">{t('create.aiNameFirstHint')}</p>
+        {aiSuggestion && (
+          <div className="mt-1 p-3.5 rounded-2xl bg-gradient-to-r from-purple-50/90 via-indigo-50/80 to-blue-50/90 border border-purple-200 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center font-bold text-sm shrink-0 mt-0.5">✨</div>
+                <div>
+                  <span className="text-xs font-bold text-gray-900">
+                    {t('create.aiSuggestion')}: {categories.find((c) => c.id === aiSuggestion.category_id) ? localized(categories.find((c) => c.id === aiSuggestion.category_id)!) : t('create.aiFound')}
+                  </span>
+                  <p className="text-[11px] text-gray-600 mt-0.5 leading-snug">{aiSuggestion.reasoning_uz || t('create.aiReasonFallback')}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={applyAiSuggestion}
+                className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1.5"
+              >
+                <Check className="w-3.5 h-3.5" /> <span>{t('create.aiApply')}</span>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
       {parentCategories.length === 0 ? (
         <div className="text-center text-xs text-gray-400 py-10">{t('create.categoriesLoading')}</div>
@@ -928,20 +1091,47 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
             {/* DYNAMIC ATTRIBUTES (filtrlar: tanlangan subkategoriya yoki subkategoriyasiz ota kategoriya) */}
             {attrSchema.length > 0 && (subcategoriesOfParent.length === 0 || isLeafSelected) && (
               <div className="p-4 rounded-2xl bg-slate-50/70 border border-slate-100 space-y-3">
-                <label className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
-                  <SlidersHorizontal className="w-3.5 h-3.5 text-blue-600" />
-                  {t('create.paramsOf', { name: selectedCategoryObj ? localized(selectedCategoryObj) : t('create.category') })}
-                </label>
+                <div className="flex items-center justify-between gap-2">
+                  <label className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                    <SlidersHorizontal className="w-3.5 h-3.5 text-blue-600" />
+                    {t('create.paramsOf', { name: selectedCategoryObj ? localized(selectedCategoryObj) : t('create.category') })}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={runAttrPrefill}
+                    disabled={isAttrPrefilling || title.trim().length < 3}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 text-[11px] font-bold border border-purple-200 transition-all cursor-pointer disabled:opacity-40 shrink-0"
+                  >
+                    <Wand2 className={`w-3.5 h-3.5 ${isAttrPrefilling ? 'animate-pulse' : ''}`} />
+                    <span>{isAttrPrefilling ? t('create.aiPrefilling') : t('create.aiPrefillBtn')}</span>
+                  </button>
+                </div>
+
+                {/* Qizil eslatma: AI to'ldirgan ma'lumotlarni foydalanuvchi o'zi tekshirishi shart */}
+                <div className="flex items-start gap-1.5 text-[11px] font-semibold text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-2.5 py-2">
+                  <TriangleAlert className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                  <span>{t('create.aiReviewWarn')}</span>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {attrSchema.map((attr) => (
                     <div key={attr.id}>
-                      <label className="block text-[11px] font-semibold text-gray-600 mb-1">
-                        {attr.label} {attr.required && <span className="text-rose-500">*</span>}
+                      <label className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-600 mb-1">
+                        <span>{attr.label} {attr.required && <span className="text-rose-500">*</span>}</span>
+                        {aiFilledKeys.includes(attr.key) && (
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-purple-100 text-purple-700 text-[9px] font-bold">
+                            <Sparkles className="w-2.5 h-2.5" /> {t('create.aiBadge')}
+                          </span>
+                        )}
                       </label>
                       {renderAttrField(attr)}
                     </div>
                   ))}
                 </div>
+
+                {aiFilledKeys.length > 0 && attrPrefillReason && (
+                  <p className="text-[11px] text-purple-700/80 leading-snug">✨ {attrPrefillReason}</p>
+                )}
               </div>
             )}
 
@@ -1191,7 +1381,7 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
               </button>
               <button type="submit" disabled={isSubmitting || !showForm} className="flex-1 py-3.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm shadow-md transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2">
                 {isSubmitting ? (
-                  <span>{isEditing ? t('create.saving') : t('create.publishing')}</span>
+                  <span>{isGeneratingDesc ? t('create.aiWritingDesc') : (isEditing ? t('create.saving') : t('create.publishing'))}</span>
                 ) : (
                   <>
                     <CheckCircle2 className="w-4 h-4" />

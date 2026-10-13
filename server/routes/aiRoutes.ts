@@ -2,6 +2,19 @@ import { serverError } from '../lib/error.ts';
 import { Router } from 'express';
 import { GoogleGenAI } from '@google/genai';
 import { queryAll } from '../db/database.ts';
+import {
+  prefillAttributes,
+  composeDescription,
+  type AttrSchemaField,
+  type DescriptionInput,
+} from '../services/aiListingService.ts';
+import {
+  cacheGet,
+  cacheSet,
+  cacheKey,
+  normalizeTitle,
+  schemaVersionOf,
+} from '../services/aiCache.ts';
 
 const router = Router();
 
@@ -155,6 +168,96 @@ Javobni FAQAT quyidagi JSON formatda qaytaring (hech qanday qo'shimcha matnsiz y
     }
 
     res.json(aiResult);
+  } catch (err: any) {
+    serverError(res, err);
+  }
+});
+
+// POST /api/ai/prefill-attributes
+// Body: { title: string, description?: string, category_id: string, existing?: Record<string, any> }
+// Javob: { values: Record<key, value>, reasoning: string } — FAQAT bo'sh filtrlar uchun.
+router.post('/prefill-attributes', async (req, res) => {
+  try {
+    const { title, description, category_id, existing } = req.body || {};
+    if (!title || typeof title !== 'string' || title.trim().length < 2) {
+      return res.status(400).json({ error: 'Sarlavha (title) kiritilishi shart' });
+    }
+    if (!category_id) {
+      return res.status(400).json({ error: 'category_id talab qilinadi' });
+    }
+
+    // Kategoriya sxemasini (filtrlar) yuklaymiz.
+    const rows = await queryAll<any>(
+      `SELECT key, label_uz as label, type, options, unit, required
+       FROM category_attributes WHERE category_id = ? ORDER BY sort_order ASC`,
+      [category_id]
+    );
+    if (rows.length === 0) return res.json({ values: {}, reasoning: '' });
+
+    const toJsonArray = (v: any): string[] =>
+      Array.isArray(v) ? v : (v ? JSON.parse(v) : []);
+    const allFields: AttrSchemaField[] = rows.map((r) => ({
+      key: r.key,
+      label: r.label,
+      type: r.type,
+      options: toJsonArray(r.options),
+      unit: r.unit ?? null,
+      required: !!r.required,
+    }));
+
+    // Kategoriyadagi atribut sxemasining versiyasi — admin atributlarni
+    // o'zgartirsa eski kesh avtomatik bekor bo'ladi.
+    const version = schemaVersionOf(allFields);
+    const cKey = cacheKey('attr', `${category_id}|${version}|${normalizeTitle(title)}`);
+
+    // Foydalanuvchi allaqachon to'ldirgan maydonlarni chetlaymiz (faqat bo'shlarni to'ldiramiz).
+    const filled = existing && typeof existing === 'object' ? existing : {};
+    const isEmpty = (v: any) => v === undefined || v === null || String(v).trim() === '';
+    const emptyKeys = new Set(allFields.filter((f) => isEmpty(filled[f.key])).map((f) => f.key));
+    if (emptyKeys.size === 0) return res.json({ values: {}, reasoning: '' });
+
+    // Keshdan to'liq xarita (barcha field'lar) — keyin FAQAT bo'shlarga filtrlanadi.
+    const pickEmpty = (full: Record<string, any>) => {
+      const out: Record<string, any> = {};
+      for (const k of Object.keys(full)) if (emptyKeys.has(k)) out[k] = full[k];
+      return out;
+    };
+
+    const cachedFull = await cacheGet(cKey);
+    if (cachedFull && typeof cachedFull === 'object') {
+      return res.json({ values: pickEmpty(cachedFull), reasoning: '', cached: true });
+    }
+
+    // Miss: BUTUN sxema bo'yicha so'raymiz (natija keyingi bir xil e'lonlar uchun
+    // qayta ishlanishi uchun), so'ng to'liq xaritani keshlaymiz.
+    const result = await prefillAttributes({ title, description, fields: allFields });
+    if (result.values && Object.keys(result.values).length > 0) {
+      await cacheSet(cKey, result.values);
+    }
+    res.json({ values: pickEmpty(result.values), reasoning: result.reasoning, cached: false });
+  } catch (err: any) {
+    serverError(res, err);
+  }
+});
+
+// POST /api/ai/generate-description
+// Body: DescriptionInput (title, categoryName, attributes:[{label,value}], features, ...)
+// Javob: { description: string, note: string }
+router.post('/generate-description', async (req, res) => {
+  try {
+    const input = (req.body || {}) as DescriptionInput;
+    if (!input.title || typeof input.title !== 'string' || !input.title.trim()) {
+      return res.status(400).json({ error: 'Sarlavha (title) kiritilishi shart' });
+    }
+    // Kesh kaliti: butun faktlar payload'i (hash). Bir xil ma'lumot → bir xil tavsif.
+    const cKey = cacheKey('desc', JSON.stringify(input));
+    const cached = await cacheGet(cKey);
+    if (cached && typeof cached.description === 'string' && cached.description) {
+      return res.json({ description: cached.description, note: cached.note || '', cached: true });
+    }
+    const result = await composeDescription(input);
+    if (result.description) await cacheSet(cKey, { description: result.description, note: result.note || '' });
+    res.json({ ...result, cached: false });
   } catch (err: any) {
     serverError(res, err);
   }

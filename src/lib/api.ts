@@ -246,6 +246,50 @@ export function getCategoryAttributes(categoryId: string): Promise<CategoryAttri
   return apiRequest<CategoryAttribute[]>(`/api/categories/${encodeURIComponent(categoryId)}/attributes`);
 }
 
+// ── AI yordamchi (e'lon yaratish) ──
+export interface AiPrefillResult {
+  values: Record<string, string | number | boolean>;
+  reasoning: string;
+  cached?: boolean;
+}
+// Kategoriya filtrlarini sarlavha asosida (faqat bo'sh maydonlarga) to'ldiradi.
+export function aiPrefillAttributes(payload: {
+  title: string;
+  description?: string;
+  category_id: string;
+  existing?: Record<string, any>;
+}): Promise<AiPrefillResult> {
+  return apiRequest<AiPrefillResult>('/api/ai/prefill-attributes', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export interface AiDescriptionResult {
+  description: string;
+  note: string;
+  cached?: boolean;
+}
+// To'ldirilgan ma'lumotlar asosida e'lon tavsifi + izoh yozadi.
+export function aiGenerateDescription(payload: {
+  title: string;
+  typeLabel?: string;
+  catalogName?: string;
+  categoryName?: string;
+  subcategoryName?: string;
+  attributes?: { label: string; value: string }[];
+  features?: string[];
+  priceText?: string;
+  salaryText?: string;
+  location?: string;
+  extra?: string;
+}): Promise<AiDescriptionResult> {
+  return apiRequest<AiDescriptionResult>('/api/ai/generate-description', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
 export interface CategoryPopularResult {
   key: string | null;
   label: string;

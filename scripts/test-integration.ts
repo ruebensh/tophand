@@ -513,6 +513,67 @@ async function main() {
         }
       }
 
+      // ── AI yordamchi: filtr to'ldirish + tavsif generatsiyasi ──
+      // E'lon yaratish oqimidagi ikkita ochiq AI endpointni tekshiramiz.
+      {
+        const jsonPost = (body: any): RequestInit => ({
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const attrCat = await queryOne<any>(
+          `SELECT category_id FROM category_attributes GROUP BY category_id ORDER BY COUNT(*) DESC LIMIT 1`
+        );
+        let schemaKeys: string[] = [];
+        if (attrCat) {
+          const k = await queryOne<any>(
+            'SELECT array_agg(key) AS keys FROM category_attributes WHERE category_id = ?',
+            [attrCat.category_id]
+          );
+          schemaKeys = k?.keys || [];
+        }
+
+        // 1) prefill-attributes: 200 va qaytgan kalitlar sxemada (uydurma maydon yo'q).
+        const pre = await req('/api/ai/prefill-attributes', jsonPost({
+          title: 'Chevrolet Cobalt 2020 avtomat',
+          category_id: attrCat?.category_id,
+        }));
+        assert(pre.status === 200, 'ai: POST /api/ai/prefill-attributes → 200');
+        const preJson = await pre.json();
+        assert(preJson && typeof preJson.values === 'object', 'ai: prefill-attributes returns a values object');
+        assert(Object.keys(preJson.values || {}).every((k) => schemaKeys.includes(k)), 'ai: prefill values are all valid schema keys (no invented fields)');
+
+        // 2) sarlavhasiz → 400.
+        const bad = await req('/api/ai/prefill-attributes', jsonPost({ category_id: attrCat?.category_id }));
+        assert(bad.status === 400, 'ai: prefill-attributes without title → 400');
+
+        // 3) generate-description: 200 va haqiqiy tavsif (AI yo'q bo'lsa ham fallback ishlaydi).
+        const gd = await req('/api/ai/generate-description', jsonPost({
+          title: 'Chevrolet Cobalt 2020',
+          categoryName: 'Avtomobillar',
+          attributes: [{ label: 'Yili', value: '2020' }, { label: 'Uzatmalar qutisi', value: 'Avtomat' }],
+          priceText: '55 000 000 so‘m',
+        }));
+        assert(gd.status === 200, 'ai: POST /api/ai/generate-description → 200');
+        const gdJson = await gd.json();
+        assert(typeof gdJson.description === 'string' && gdJson.description.trim().length >= 15, 'ai: generate-description returns a real description (>=15 chars)');
+        
+                // 4) Kesh: bir xil tavsif payload'i → ikkinchi so'rov keshdan (cached:true).
+                // Fallback har doim tavsif ishlagani uchun bu Gemini kalitidan qat'iye ani.
+                const gd2 = await req('/api/ai/generate-description', jsonPost({
+                  title: 'Chevrolet Cobalt 2020',
+                  categoryName: 'Avtomobillar',
+                  attributes: [{ label: 'Yili', value: '2020' }, { label: 'Uzatmalar qutisi', value: 'Avtomat' }],
+                  priceText: '55 000 000 so‘m',
+                }));
+                const gd2Json = await gd2.json();
+                assert(gd2Json.cached === true, 'ai: generate-description second identical call hits cache (cached:true)');
+                assert(typeof gd2Json.description === 'string' && gd2Json.description === gdJson.description, 'ai: cached description matches original');
+        
+                // 5) prefill javobida `cached` bayrog'i boolean ko'rinishida qaytadi.
+                assert(typeof preJson.cached === 'boolean', 'ai: prefill-attributes returns a boolean cached flag');
+      }
+
       for (const id of [admin.id, lead.id, mod.id, plain.id]) {
         try { await runQuery('DELETE FROM users WHERE id = ?', [id]); } catch {}
       }
