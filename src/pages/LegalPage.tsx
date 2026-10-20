@@ -8,9 +8,10 @@
 //  uz lotin matnidan transliteratsiya qilinadi.
 // ============================================================================
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Mail, Phone, MapPin, ArrowLeft } from 'lucide-react';
 import { useI18n } from '../i18n/IntlContext.tsx';
+import { applyPageSeo, restoreDefaultSeo } from '../lib/seo.ts';
 import {
   getLegalDocs,
   LEGAL_ICONS,
@@ -21,12 +22,41 @@ import {
 
 export type { LegalKind };
 
+// Har bir huquqiy/axborot sahifasi uchun kanonik yo'l va indekslash siyosati.
+// 'about' Google'da ko'rinishi kerak; qolganlari (privacy/terms/contact) foydalanuvchi
+// va AdSense uchun ochiq qolsin, lekin qidiruv natijalarida ko'rsatilmasin (noindex).
+const LEGAL_PATH: Record<LegalKind, string> = {
+  about: '/about',
+  privacy: '/privacy',
+  terms: '/terms',
+  contact: '/contact',
+};
+const LEGAL_NOINDEX: Record<LegalKind, boolean> = {
+  about: false,
+  privacy: true,
+  terms: true,
+  contact: true,
+};
+
 export const LegalPage: React.FC<{ kind: LegalKind; onNavigate: (route: string) => void }> = ({
   kind,
   onNavigate,
 }) => {
   const { t, locale } = useI18n();
   const doc = getLegalDocs(locale)[kind];
+
+  // Per-sahifa <head> SEO: about indekslanadi (self-canonical), qolganlari noindex.
+  useEffect(() => {
+    if (!doc) return;
+    applyPageSeo({
+      title: `${doc.title} | TopHand`,
+      description: doc.subtitle,
+      canonical: window.location.origin + LEGAL_PATH[kind],
+      robots: LEGAL_NOINDEX[kind] ? 'noindex, follow' : undefined,
+    });
+    return () => restoreDefaultSeo();
+  }, [kind, doc?.title, doc?.subtitle]);
+
   if (!doc) return null;
 
   return (

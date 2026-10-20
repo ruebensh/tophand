@@ -1,7 +1,7 @@
 import { serverError } from '../lib/error.ts';
 import { Router } from 'express';
 import { queryAll } from '../db/database.ts';
-import { resolveLanding, regionIdToSlug } from '../services/seoService.ts';
+import { resolveLanding } from '../services/seoService.ts';
 import { searchListings } from '../services/listingService.ts';
 
 const router = Router();
@@ -68,60 +68,101 @@ router.get('/robots.txt', (req, res) => {
   );
 });
 
-// ─── sitemap.xml (statik sahifalar + faol e'lonlar) ──────────────────────
+// ─── sitemap.xml (statik + kategoriya landing + sifatli e'lonlar + rasmlar) ─
+
+/** Bitta <url> yozuvi — ixtiyoriy <image:image> bilan (Google Image sitemap). */
+interface SitemapEntry {
+  loc: string;
+  priority: string;
+  changefreq: string;
+  lastmod?: string;
+  image?: { loc: string; title: string };
+}
+
 router.get('/sitemap.xml', async (req, res) => {
   try {
     const base = siteBase(req);
-    const now = new Date().toISOString();
 
-    // Statik/yuqori ustuvorlikli sahifalar.
-    // E'LT: /categories yo'q — sahifa App.tsx'da olib tashlangan (QA-04),
-    // kategoriyalar Header mega-menyu orqali. Axborot/legal sahifalar indekslansin.
-    const staticUrls: { loc: string; priority: string; changefreq: string; lastmod?: string }[] = [
-      { loc: `${base}/`, priority: '1.0', changefreq: 'hourly', lastmod: now },
-      { loc: `${base}/about`, priority: '0.4', changefreq: 'monthly' },
-      { loc: `${base}/contact`, priority: '0.4', changefreq: 'monthly' },
-      { loc: `${base}/terms`, priority: '0.3', changefreq: 'yearly' },
-      { loc: `${base}/privacy`, priority: '0.3', changefreq: 'yearly' },
-    ];
-
-    // Faol (ACTIVE) e'lonlar — Google indekslashi uchun
-    const listings = await queryAll<{ id: string; updated_at: string | Date }>(
-      `SELECT id, updated_at FROM listings WHERE status = 'ACTIVE' ORDER BY updated_at DESC LIMIT 50000`
+    // Statik/yuqori ustuvorlikli sahifalar — Google'da faqat bosh sahifa va
+    // "biz haqimizda" ko'rsatilishi kerak. contact/terms/privacy noindex (sahifada),
+    // shuning uchun sitemap'da ham emas. Kategoriyalar /hudud/:shahar/:kategoriya
+    // landing'lari orqali indekslanadi (quydagi landingUrls).
+    //
+    // Faol (ACTIVE) SIFATLI e'lonlar — Google indekslashi uchun. Frontend
+    // ListingDetailPage ham xuddi shu mezon (rasm + tavsif>=40) bilan indexlay,
+    // qolganlarida noindex qo'yadi — shuning uchun sitemap ham shularni beradi.
+    // Har bir e'lon uchun cover rasmi ham olinadi (Google Image sitemap).
+    const listings = await queryAll<{
+      id: string;
+      title: string;
+      updated_at: string | Date;
+      image_url: string | null;
+    }>(
+      `SELECT l.id, l.title, l.updated_at,
+         (SELECT url FROM listing_images li
+           WHERE li.listing_id = l.id AND COALESCE(li.media_type,'image') = 'image'
+           ORDER BY li.sort_order ASC LIMIT 1) AS image_url
+       FROM listings l
+       WHERE l.status = 'ACTIVE'
+         AND length(btrim(l.description)) >= 40
+         AND EXISTS (SELECT 1 FROM listing_images li WHERE li.listing_id = l.id)
+       ORDER BY l.updated_at DESC LIMIT 50000`
     );
 
-    const listingUrls = listings.map((l) => ({
+    // Haqiqiy "oxirgi yangilanish" — so'rov vaqti EMAS, kontentning oxirgi tahriri.
+    // Google o'sib boruvchi soxta lastmod'ni e'tiborsiz qoldiradi.
+    const newest = listings.reduce<string>(
+      (acc, l) => {
+        const iso = l.updated_at ? new Date(l.updated_at).toISOString() : '';
+        return iso > acc ? iso : acc;
+      },
+      ''
+    );
+
+    // Nispiy (/uploads/..) yoki to'liq (R2) rasm URL'ni absolut kanonik URL'ga keltiradi.
+    const absImage = (u: string): string =>
+      /^https?:\/\//i.test(u) ? u : `${base}${u.startsWith('/') ? '' : '/'}${u}`;
+
+    const listingUrls: SitemapEntry[] = listings.map((l) => ({
       loc: `${base}/listing/${l.id}`,
       priority: '0.7',
       changefreq: 'daily',
-      lastmod: l.updated_at ? new Date(l.updated_at).toISOString() : now,
+      lastmod: l.updated_at ? new Date(l.updated_at).toISOString() : (newest || undefined),
+      image: l.image_url ? { loc: absImage(l.image_url), title: l.title } : undefined,
     }));
 
-    // Hudud landing sahifalari: faqat haqiqatan faol e'loni bor kombinatsiyalar
-    const landingRows = await queryAll<{ region_id: string; slug: string; c: number | string }>(
-      `SELECT l.region_id, c.slug, COUNT(*) AS c
-       FROM listings l
-       JOIN categories c ON l.category_id = c.id
-       WHERE l.status = 'ACTIVE'
-       GROUP BY l.region_id, c.slug
-       ORDER BY c DESC
-       LIMIT 3000`
+    // Katalog sahifalari: /?catalog=<id> — har bir faol katalog alohida indekslanadi.
+    // Dinamik: admin panel'dan yangi katalog qo'shilsa, `catalogs` jadvalidan o'qilib
+    // avtomatik sitemap'ga tushadi. lastmod = o'sha katalogdagi oxirgi e'lon vaqti.
+    // E'LT: shaharlar (/hudud/*) endi umuman indekslanmaydi — sitemap'da yo'q.
+    const catalogRows = await queryAll<{
+      id: string; name_uz: string; lastmod: string | Date | null;
+    }>(
+      `SELECT cat.id, cat.name_uz, MAX(l.updated_at) AS lastmod
+       FROM catalogs cat
+       LEFT JOIN categories kc ON kc.catalog_id = cat.id
+       LEFT JOIN listings l ON l.category_id = kc.id AND l.status = 'ACTIVE'
+       WHERE cat.is_active = 1
+       GROUP BY cat.id, cat.name_uz
+       ORDER BY cat.sort_order ASC`
     );
-    const regionHubSeen = new Set<string>();
-    const landingUrls: { loc: string; priority: string; changefreq: string; lastmod: string }[] = [];
-    for (const row of landingRows) {
-      const rslug = regionIdToSlug(row.region_id);
-      if (!regionHubSeen.has(rslug)) {
-        regionHubSeen.add(rslug);
-        landingUrls.push({ loc: `${base}/hudud/${rslug}`, priority: '0.8', changefreq: 'daily', lastmod: now });
-      }
-      landingUrls.push({ loc: `${base}/hudud/${rslug}/${row.slug}`, priority: '0.7', changefreq: 'daily', lastmod: now });
-    }
+    const catalogUrls: SitemapEntry[] = catalogRows.map((row) => ({
+      loc: `${base}/?catalog=${encodeURIComponent(row.id)}`,
+      priority: '0.8',
+      changefreq: 'daily',
+      lastmod: row.lastmod ? new Date(row.lastmod).toISOString() : (newest || undefined),
+    }));
 
-    const all = [...staticUrls, ...landingUrls, ...listingUrls];
+    const staticUrls: SitemapEntry[] = [
+      { loc: `${base}/`, priority: '1.0', changefreq: 'daily', lastmod: newest || undefined },
+      { loc: `${base}/about`, priority: '0.4', changefreq: 'monthly' },
+    ];
+
+    const all: SitemapEntry[] = [...staticUrls, ...catalogUrls, ...listingUrls];
     const body =
       `<?xml version="1.0" encoding="UTF-8"?>\n` +
-      `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
+      `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" ` +
+      `xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">\n` +
       all
         .map(
           (u) =>
@@ -130,6 +171,12 @@ router.get('/sitemap.xml', async (req, res) => {
             (u.lastmod ? `    <lastmod>${u.lastmod}</lastmod>\n` : '') +
             `    <changefreq>${u.changefreq}</changefreq>\n` +
             `    <priority>${u.priority}</priority>\n` +
+            (u.image
+              ? `    <image:image>\n` +
+                `      <image:loc>${escapeXml(u.image.loc)}</image:loc>\n` +
+                `      <image:title>${escapeXml(u.image.title)}</image:title>\n` +
+                `    </image:image>\n`
+              : '') +
             `  </url>\n`
         )
         .join('') +

@@ -9,6 +9,7 @@ import {
 } from './monetizationService.ts';
 import { charge, refund } from './walletService.ts';
 import { sanitizeUserUrlList } from '../lib/urlSecurity.ts';
+import { normalizeSkill } from '../db/skillsData.ts';
 
 /**
  * Admin / SUPER_ADMIN accounts are billing-exempt: they are never charged and
@@ -755,6 +756,19 @@ export async function createListing(userId: string, data: any) {
       await refund(userId, price, { ref_type: 'LISTING_CREATE', ref_id: id, note: "E'lon yaratilmagani uchun pul qaytarildi" }).catch(() => {});
     }
     throw err;
+  }
+
+  // Best-effort: ishlatilgan standart skills'ning usage_count'ini oshirish
+  // (top-list sifatida ko'rinadigan qilish). Xato bo'lsa e'lon yaratishni BUZMAYDI.
+  try {
+    const skillList: string[] = Array.isArray(data.skills) ? data.skills : [];
+    for (const sk of skillList) {
+      const norm = normalizeSkill(String(sk));
+      if (!norm) continue;
+      await runQuery('UPDATE job_skills SET usage_count = usage_count + 1 WHERE norm = ?', [norm]);
+    }
+  } catch {
+    /* kuzatuv ma'lumoti — muvaffaqiyatsiz bo'lsa e'tiborsiz qoldiramiz */
   }
 
   return getListingById(id, userId);

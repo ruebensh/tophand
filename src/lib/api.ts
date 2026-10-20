@@ -12,6 +12,23 @@ export function removeStoredToken() {
   localStorage.removeItem(TOKEN_KEY);
 }
 
+// Admin statistika: LOGOUT hodisasini best-effort xabar qiladi (user_events).
+// sendBeacon header yubora olmasligi uchun fetch keepalive ishlatiladi —
+// brauzer yopilganda ham so'rov ketib qolish ehtimoli yuqori.
+export function reportLogout(): void {
+  try {
+    const token = getStoredToken();
+    if (!token) return;
+    fetch('/api/auth/logout', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      keepalive: true,
+    }).catch(() => {});
+  } catch {
+    /* statistika hech narsani buzmasligi kerak */
+  }
+}
+
 export async function apiRequest<T = any>(
   endpoint: string,
   options: RequestInit & { timeoutMs?: number } = {}
@@ -244,6 +261,17 @@ export function getCategoryTree(catalogId?: string, scope?: string): Promise<Cat
 
 export function getCategoryAttributes(categoryId: string): Promise<CategoryAttribute[]> {
   return apiRequest<CategoryAttribute[]>(`/api/categories/${encodeURIComponent(categoryId)}/attributes`);
+}
+
+// ─── Skills autosuggest (job_skills lug'ati) ───────────────────────────
+export interface SkillSuggestion {
+  name: string;
+  category_hint?: string | null;
+}
+// q bo'lsa prefix+contains bo'yicha; bo'lmasa top-usage ro'yxat qaytadi.
+export function getSkills(q: string, limit = 10): Promise<SkillSuggestion[]> {
+  const params = new URLSearchParams({ q: q.trim(), limit: String(limit) });
+  return apiRequest<SkillSuggestion[]>(`/api/skills?${params.toString()}`);
 }
 
 // ── AI yordamchi (e'lon yaratish) ──

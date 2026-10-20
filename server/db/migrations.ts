@@ -395,5 +395,22 @@ export async function runMigrations() {
     await seedSetting(`promo_price_${catalogId}`, '0');
   }
 
+  // ── Admin statistika: saytga kirish/chiqish hodisalari (user_events) ──
+  // Hozirgacha login tarixi umuman saqlanmagan edi; admin paneldagi
+  // "Saytga kirganlar" grafigi shu jadvaldan o'tkaziladi. Fire-and-forget
+  // yoziladi (authRoutes), shuning uchun FK qo'yilmaydi — user o'chirilsa ham
+  // log qatori buzilmasligi kerak.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS user_events (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      event_type TEXT NOT NULL CHECK (event_type IN ('LOGIN','LOGOUT')),
+      auth_method TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_user_events_type_time ON user_events(event_type, created_at)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_user_events_user ON user_events(user_id, created_at)`);
+
   console.log('✅ Schema migrations complete.');
 }

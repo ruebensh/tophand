@@ -23,6 +23,8 @@ for (const k of [
   'R2_PUBLIC_URL', 'R2_PRIVATE_BUCKET_NAME', 'R2_ACCOUNT_ID',
   'BREVO_API_KEY', 'BREVO_SENDER_EMAIL', 'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER',
   'SMTP_PASS', 'SMTP_FROM', 'ADMIN_EMAIL',
+  // GSC: testlar hech qachon haqiqiy Google hisobiga ulinmasligi kerak.
+  'GSC_CLIENT_EMAIL', 'GSC_PRIVATE_KEY', 'GSC_SITE_URL',
 ]) process.env[k] = '';
 
 // SAFETY (critical): integration tests must NEVER touch a real/remote database.
@@ -513,6 +515,45 @@ async function main() {
         }
       }
 
+      // ── SEO: sitemap.xml professional + Google Image sitemap ──
+      {
+        const cat = await queryOne<any>('SELECT id FROM categories LIMIT 1');
+        const region = await queryOne<any>('SELECT id FROM regions LIMIT 1');
+        const district = await queryOne<any>('SELECT id FROM districts LIMIT 1');
+        if (cat && region && district) {
+          const seoListing = `lst_sitemap_${RUN_ID}`;
+          await runQuery(
+            `INSERT INTO listings (id, owner_user_id, type, title, description, category_id, region_id, district_id, price_type, status, created_at, updated_at, expires_at)
+             VALUES (?, ?, 'SERVICE_OFFER', ?, ?, ?, ?, ?, 'FIXED', 'ACTIVE', NOW(), NOW(), NOW() + INTERVAL '30 days')`,
+            [seoListing, bob.id, `Usta xizmati ${RUN_ID}`, 'Sifatli mezon uchun yetarlicha uzun tavsif matni.', cat.id, region.id, district.id]
+          );
+          await runQuery(
+            `INSERT INTO listing_images (id, listing_id, url, sort_order, media_type, created_at) VALUES (?, ?, ?, 0, 'image', NOW())`,
+            [`img_sitemap_${RUN_ID}`, seoListing, '/uploads/listings/seo-test.webp']
+          );
+
+          const sm = await req('/sitemap.xml');
+          const xml = await sm.text();
+          assert(sm.status === 200 && /<urlset[^>]*xmlns:image="[^"]*sitemap-image/.test(xml), 'seo: /sitemap.xml 200 + image namespace declared');
+          assert(xml.includes(`/listing/${seoListing}`), 'seo: quality listing URL present in sitemap');
+          const blkStart = xml.indexOf(`/listing/${seoListing}`);
+          const within = xml.slice(blkStart, xml.indexOf('</url>', blkStart));
+          assert(/<image:loc>[^<]*\/uploads\/listings\/seo-test\.webp<\/image:loc>/.test(within), 'seo: listing has <image:loc> (Image sitemap)');
+          assert(/<lastmod>/.test(within) && !new RegExp(`<lastmod>${new Date().toISOString().slice(0, 10)}T00:00`).test(within), 'seo: listing lastmod is a real content timestamp');
+
+          const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
+          assert(!xml.includes('/hudud/'), 'seo: no /hudud/ (city) URLs in sitemap');
+          assert(locs.some((l) => /\/\?catalog=.+/.test(l)), 'seo: catalog (?catalog=) URLs present in sitemap');
+          assert(!locs.some((l) => /\/(contact|terms|privacy)$/.test(l)), 'seo: no contact/terms/privacy in sitemap (noindex pages excluded)');
+          assert(!/changefreq>hourly</.test(xml), 'seo: request-time "hourly" lastmod noise removed');
+
+          try { await runQuery('DELETE FROM listing_images WHERE listing_id = ?', [seoListing]); } catch {}
+          try { await runQuery('DELETE FROM listings WHERE id = ?', [seoListing]); } catch {}
+        } else {
+          assert(false, 'seo: seeded category/region/district available for sitemap fixture');
+        }
+      }
+
       // ── AI yordamchi: filtr to'ldirish + tavsif generatsiyasi ──
       // E'lon yaratish oqimidagi ikkita ochiq AI endpointni tekshiramiz.
       {
@@ -572,6 +613,104 @@ async function main() {
         
                 // 5) prefill javobida `cached` bayrog'i boolean ko'rinishida qaytadi.
                 assert(typeof preJson.cached === 'boolean', 'ai: prefill-attributes returns a boolean cached flag');
+      }
+
+      // ─── Skills autosuggest (job_skills lug'ati) ───
+      {
+        const all = await req('/api/skills?limit=5');
+        assert(all.status === 200, 'skills: GET /api/skills → 200');
+        const allJson = await all.json();
+        assert(Array.isArray(allJson) && allJson.length > 0, 'skills: seed present (top list non-empty)');
+        assert(allJson.length <= 5, 'skills: limit param respected');
+
+        const po = await req('/api/skills?q=po');
+        const poJson = await po.json();
+        assert(Array.isArray(poJson), 'skills: q filter returns an array');
+        assert(poJson.every((x: any) => typeof x.name === 'string'), 'skills: each item has a string name');
+        assert(poJson.some((x: any) => String(x.name).toLowerCase().includes('po')), 'skills: q matches returned names (e.g. PostgreSQL/Postman)');
+      }
+
+      // ─── Admin aktivlik: user_events + /visits + GSC konfiguratsiyasi ───
+      {
+        const hdrA = (tk: string) => ({ authorization: `Bearer ${tk}` });
+        await runQuery('DELETE FROM user_events WHERE user_id IN (?, ?)', [alice.id, bob.id]);
+
+        // POST /api/auth/logout → LOGOUT yoziladi (requireAuth).
+        const noTok = await req('/api/auth/logout', { method: 'POST' });
+        assert(noTok.status === 401, 'activity: logout talabi tokensiz → 401');
+        const lo = await req('/api/auth/logout', { method: 'POST', headers: hdrA(aliceToken) });
+        assert(lo.status === 200, 'activity: POST /api/auth/logout → 200');
+        const loRow = await queryOne<any>(
+          "SELECT * FROM user_events WHERE user_id = ? AND event_type = 'LOGOUT' ORDER BY created_at DESC LIMIT 1",
+          [alice.id]
+        );
+        assert(!!loRow, 'activity: logout user_eventsga LOGOUT yozdi');
+
+        // CHECK cheklovi: noma'lum event_type rad etilishi kerak.
+        let chkRejected = false;
+        try {
+          await runQuery(
+            "INSERT INTO user_events (id, user_id, event_type, created_at) VALUES ('uev_integ_bad', ?, 'HACK', NOW())",
+            [alice.id]
+          );
+        } catch { chkRejected = true; }
+        assert(chkRejected, 'activity: user_events CHECK constraint rejects unknown event_type');
+
+        // /api/admin/visits — admin-only + 0-to'ldirilgan kunlik seriya.
+        const forbidden = await req('/api/admin/visits?days=14', { headers: hdrA(userToken) });
+        assert(forbidden.status === 403, 'activity: GET /api/admin/visits USER uchun yopiq (403)');
+        // Bob uchun navbatda 2 ta LOGIN qo'shamiz (bugun, UTC bo'yicha).
+        for (let i = 0; i < 2; i++) {
+          await runQuery(
+            "INSERT INTO user_events (id, user_id, event_type, auth_method, created_at) VALUES (?, ?, 'LOGIN', 'PASSWORD', NOW())",
+            [`uev_integ_${RUN_ID}_${i}`, bob.id]
+          );
+        }
+        const vs = await req('/api/admin/visits?days=14', { headers: hdrA(adminToken) });
+        assert(vs.status === 200, 'activity: GET /api/admin/visits admin → 200');
+        const vsJson = await vs.json();
+        assert(vsJson.days === 14 && Array.isArray(vsJson.series) && vsJson.series.length === 14, 'activity: visits series 14 kun (0-to\'ldirish)');
+        const utcToday = new Date().toISOString().slice(0, 10);
+        const todayRow = (vsJson.series || []).find((r: any) => r.date === utcToday);
+        assert(!!todayRow && Number(todayRow.logins) >= 2, 'activity: bugungi LOGINlar soniyada ko\'rindi (bob x2)');
+        const aliceRowIn14 = (vsJson.series || []).reduce((s: number, r: any) => s + Number(r.logouts), 0);
+        assert(aliceRowIn14 >= 1, 'activity: LOGOUT hisobi series\'ga tushdi');
+
+        // Oylik /visits?months=12 — generate_series(interval) SQL runtime'da ishlashi, 12 oy.
+        const vm = await req('/api/admin/visits?months=12', { headers: hdrA(adminToken) });
+        const vmJson = await vm.json();
+        assert(vm.status === 200 && vmJson.months === 12 && Array.isArray(vmJson.series) && vmJson.series.length === 12, 'activity: visits?months=12 → 12 oylik seriya');
+        const utcMonth = new Date().toISOString().slice(0, 7);
+        const monthRow = (vmJson.series || []).find((r: any) => r.month === utcMonth);
+        assert(!!monthRow && Number(monthRow.logins) >= 2, 'activity: joriy oy LOGINlari oylik seriyada ko\'rindi');
+
+        // GSC: konfiguratsiyasiz → NOT_CONFIGURED (test env'da GSC_* bo'shatildi).
+        await runQuery("DELETE FROM system_settings WHERE key IN ('gsc_client_email','gsc_private_key','gsc_site_url')").catch(() => {});
+        const ga = await req('/api/admin/gsc-analytics', { headers: hdrA(adminToken) });
+        const gaJson = await ga.json();
+        assert(ga.status === 200 && gaJson.status === 'NOT_CONFIGURED', 'activity: gsc-analytics konfiguratsiyasiz → NOT_CONFIGURED');
+        const gaM = await req('/api/admin/gsc-analytics?months=12', { headers: hdrA(adminToken) });
+        const gaMJson = await gaM.json();
+        assert(gaM.status === 200 && gaMJson.status === 'NOT_CONFIGURED', 'activity: gsc-analytics?months=12 konfiguratsiyasiz → NOT_CONFIGURED');
+        const gc = await req('/api/admin/gsc/config', { headers: hdrA(adminToken) });
+        const gcJson = await gc.json();
+        assert(gc.status === 200 && gcJson.configured === false, 'activity: gsc/config configured=false holda keladi');
+        assert(!('private_key' in gcJson), 'activity: gsc/config private_key QAYTARMAYDI');
+
+        // PUT qismiy config → configured qolmaydi; GET'da secret aks etmasligi kerak.
+        const putRes = await req('/api/admin/gsc/config', {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json', ...hdrA(adminToken) },
+          body: JSON.stringify({ client_email: `integ_${RUN_ID}@example.iam.gserviceaccount.com`, site_url: 'https://www.tophand.uz/' }),
+        });
+        assert(putRes.status === 200, 'activity: PUT /api/admin/gsc/config → 200');
+        const gc2 = await req('/api/admin/gsc/config', { headers: hdrA(adminToken) });
+        const gc2Json = await gc2.json();
+        assert(gc2Json.configured === false && gc2Json.client_email.includes('integ_'), 'activity: gsc/config PUT saqlaydi, lekin to\'liq bo\'lmaguncha configured=false');
+        assert(!JSON.stringify(gc2Json).includes('PRIVATE KEY'), 'activity: gsc/config javobida secret yo\'q');
+
+        try { await runQuery('DELETE FROM user_events WHERE user_id IN (?, ?)', [alice.id, bob.id]); } catch {}
+        try { await runQuery("DELETE FROM system_settings WHERE key IN ('gsc_client_email','gsc_private_key','gsc_site_url')"); } catch {}
       }
 
       for (const id of [admin.id, lead.id, mod.id, plain.id]) {

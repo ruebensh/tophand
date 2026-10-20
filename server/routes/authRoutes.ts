@@ -7,6 +7,7 @@ import { queryOne, runQuery, queryAll, runTransaction } from '../db/database.ts'
 import { sendVerificationCodeEmail } from '../services/emailService.ts';
 import { reqLang, type MsgLocale } from '../i18n/messages.ts';
 import { notifyWelcome } from '../services/notificationService.ts';
+import { recordUserEvent } from '../services/userEventService.ts';
 import { sanitizeUserUrl } from '../lib/urlSecurity.ts';
 import { INSECURE_ALLOWED, EXPOSED } from '../lib/envSecurity.ts';
 
@@ -287,6 +288,8 @@ async function loginHandler(req: any, res: any) {
       }
 
       const token = generateToken(adminUser);
+      // Admin statistika: muvaffaqiyatli kirish (user_events, fire-and-forget).
+      recordUserEvent(adminUser.id, 'LOGIN', 'PASSWORD');
       return res.json({ token, user: serializeUser(adminUser), is_admin: true });
     }
 
@@ -318,6 +321,7 @@ async function loginHandler(req: any, res: any) {
           }
           // Blok haqiqiy ko'tarildi — tizimga kiritamiz.
           const token = generateToken(fresh);
+          recordUserEvent(fresh.id, 'LOGIN', 'PASSWORD');
           return res.json({ token, user: serializeUser(fresh), is_admin: fresh.role === 'ADMIN' });
         }
       }
@@ -330,6 +334,7 @@ async function loginHandler(req: any, res: any) {
     }
 
     const token = generateToken(user);
+    recordUserEvent(user.id, 'LOGIN', 'PASSWORD');
     res.json({ token, user: serializeUser(user), is_admin: user.role === 'ADMIN' });
   } catch (err: any) {
     console.error('Login error:', err);
@@ -339,6 +344,20 @@ async function loginHandler(req: any, res: any) {
 
 router.post('/login', loginHandler);
 router.post('/admin-login', loginHandler);
+
+// ─── Logout: faqat statistika uchun LOGOUT hodisasini yozadi ─────────────
+// JWT be-state bo'lgani uchun "chiqirish" mexanik ta'siri yo'q; endpoint
+// brauzer yopilganda sendBeacon orqali ham yuboriladi (best-effort).
+router.post('/logout', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    // Await: LOGOUT muvalaffaqiyatli yozilganidan so'ng javob qaytaramiz
+    // (recordUserEvent ichida xato yutiladi — shuning uchun 500 bo'lmaydi).
+    await recordUserEvent(req.user!.id, 'LOGOUT', null);
+    res.json({ success: true });
+  } catch (err: any) {
+    serverError(res, err);
+  }
+});
 
 // ─── Step 1: Start email registration → send verification code ──────────
 router.post('/register/send-code', async (req, res) => {
@@ -447,6 +466,9 @@ router.post('/register', async (req, res) => {
 
     const newUser = await queryOne<any>('SELECT * FROM users WHERE id = ?', [userId]);
     const token = generateToken(newUser);
+
+    // Admin statistika: yangi hisobdan birinchi kirish.
+    recordUserEvent(userId, 'LOGIN', 'REGISTER');
 
     // Welcome notification for the new account (signed by the TopHand team).
     notifyWelcome(userId).catch(() => {});
@@ -690,6 +712,8 @@ router.post('/google', async (req, res) => {
 
     const token = generateToken(user);
     const safe = serializeUser(user);
+    // Admin statistika: Google orqali kirish.
+    recordUserEvent(user.id, 'LOGIN', 'GOOGLE');
     res.json({ token, user: safe, is_new: created, needs_profile: !safe.is_profile_complete, is_admin: user.role === 'ADMIN' });
   } catch (err: any) {
     console.error('Google login error:', err);

@@ -17,6 +17,7 @@ import {
   purgeVerificationMedia,
 } from '../services/moderationService.ts';
 import { getAdvancedAnalytics } from '../services/autoModerationService.ts';
+import { getGscAnalytics, getGscMonthly, getGscConfigStatus, clearGscCache } from '../services/gscService.ts';
 import { queryAll, queryOne, runQuery, persistDb } from '../db/database.ts';
 import { processAndStoreLogo, processAndStoreFavicon } from '../services/storageService.ts';
 import { deleteStoredMediaIfUnreferenced } from '../services/mediaCleanupService.ts';
@@ -656,6 +657,132 @@ router.get('/analytics', async (_req, res) => {
   try {
     const data = await getAdvancedAnalytics();
     res.json(data);
+  } catch (err: any) {
+    serverError(res, err);
+  }
+});
+
+// ── Saytga kirganlar: oylik yoki kunlik LOGIN/LOGOUT/noyob mehmonlar ──
+// ?months=N -> so'nggi N oy (har oy alohida nuqta, chiziqli grafik uchun).
+// ?days=N   -> so'nggi N kun (mini-sparkline). Bo'sh davrlar 0 bilan to'ladi.
+router.get('/visits', async (req, res) => {
+  try {
+    const monthsParam = req.query.months != null ? Number(req.query.months) : null;
+    if (monthsParam && monthsParam >= 1) {
+      const months = Math.min(24, Math.max(1, monthsParam));
+      const series = await queryAll<{ month: string; unique_visitors: string; logins: string; logouts: string }>(`
+        SELECT TO_CHAR(d.m, 'YYYY-MM') AS month,
+               COALESCE(a.unique_visitors, 0) AS unique_visitors,
+               COALESCE(a.logins, 0) AS logins,
+               COALESCE(a.logouts, 0) AS logouts
+        FROM generate_series(
+               DATE_TRUNC('month', NOW() AT TIME ZONE 'UTC')::timestamp - ($1::INTEGER * INTERVAL '1 month'),
+               DATE_TRUNC('month', NOW() AT TIME ZONE 'UTC')::date,
+               '1 month'
+             ) AS d(m)
+        LEFT JOIN (
+          SELECT DATE_TRUNC('month', created_at AT TIME ZONE 'UTC')::date AS m,
+                 COUNT(DISTINCT user_id) AS unique_visitors,
+                 COUNT(*) FILTER (WHERE event_type = 'LOGIN') AS logins,
+                 COUNT(*) FILTER (WHERE event_type = 'LOGOUT') AS logouts
+          FROM user_events
+          WHERE created_at >= (DATE_TRUNC('month', NOW() AT TIME ZONE 'UTC')::timestamp - ($1::INTEGER * INTERVAL '1 month'))
+          GROUP BY 1
+        ) a ON a.m = d.m::date
+        ORDER BY d.m`, [months - 1]);
+      const totals = series.reduce(
+        (acc, r) => ({
+          logins: acc.logins + Number(r.logins),
+          logouts: acc.logouts + Number(r.logouts),
+          unique_visitors: acc.unique_visitors + Number(r.unique_visitors),
+        }),
+        { logins: 0, logouts: 0, unique_visitors: 0 }
+      );
+      return res.json({ months, series, totals });
+    }
+
+    const days = Math.min(90, Math.max(1, Number(req.query.days) || 14));
+    const series = await queryAll<{ date: string; unique_visitors: string; logins: string; logouts: string }>(`
+      SELECT TO_CHAR(d.day, 'YYYY-MM-DD') AS date,
+             COALESCE(a.unique_visitors, 0) AS unique_visitors,
+             COALESCE(a.logins, 0) AS logins,
+             COALESCE(a.logouts, 0) AS logouts
+      FROM generate_series(DATE_TRUNC('day', NOW() AT TIME ZONE 'UTC')::date - ($1)::INTEGER, DATE_TRUNC('day', NOW() AT TIME ZONE 'UTC')::date, '1 day') AS d(day)
+      LEFT JOIN (
+        SELECT (created_at AT TIME ZONE 'UTC')::date AS day,
+               COUNT(DISTINCT user_id) AS unique_visitors,
+               COUNT(*) FILTER (WHERE event_type = 'LOGIN') AS logins,
+               COUNT(*) FILTER (WHERE event_type = 'LOGOUT') AS logouts
+        FROM user_events
+        WHERE created_at >= DATE_TRUNC('day', NOW() AT TIME ZONE 'UTC')::date - ($1)::INTEGER
+        GROUP BY 1
+      ) a ON a.day = d.day::DATE
+      ORDER BY d.day`, [days - 1]);
+    const totals = series.reduce(
+      (acc, r) => ({
+        logins: acc.logins + Number(r.logins),
+        logouts: acc.logouts + Number(r.logouts),
+        unique_visitors: acc.unique_visitors + Number(r.unique_visitors),
+      }),
+      { logins: 0, logouts: 0, unique_visitors: 0 }
+    );
+    res.json({ days, series, totals });
+  } catch (err: any) {
+    serverError(res, err);
+  }
+});
+
+// ── Brauzerda qidiruv + sayt clicklari (Google Search Console) ──
+// ?months=N -> oylik (chiziqli grafik, so'nggi N oy); aks holda ?days kunlik.
+router.get('/gsc-analytics', async (req, res) => {
+  try {
+    if (req.query.months != null) {
+      const months = Math.min(16, Math.max(1, Number(req.query.months) || 12));
+      return res.json(await getGscMonthly(months));
+    }
+    const days = Math.min(120, Math.max(7, Number(req.query.days) || 28));
+    const data = await getGscAnalytics(days);
+    res.json(data);
+  } catch (err: any) {
+    serverError(res, err);
+  }
+});
+
+// GSC konfiguratsiyasi holati — secret qiymatlar qaytarilmaydi.
+router.get('/gsc/config', async (_req, res) => {
+  try {
+    res.json(await getGscConfigStatus());
+  } catch (err: any) {
+    serverError(res, err);
+  }
+});
+
+// GSC konfiguratsiyasini saqlash (private_key bo'sh bo'lsa — o'zgarmaydi).
+router.put('/gsc/config', async (req: AuthRequest, res) => {
+  try {
+    const { client_email, site_url, private_key } = req.body || {};
+    if (typeof client_email === 'string' && client_email.trim()) {
+      await setSetting('gsc_client_email', client_email.trim(), req.user!.id);
+    }
+    if (typeof site_url === 'string' && site_url.trim()) {
+      await setSetting('gsc_site_url', site_url.trim(), req.user!.id);
+    }
+    if (typeof private_key === 'string' && private_key.trim()) {
+      await setSetting('gsc_private_key', private_key.trim(), req.user!.id);
+    }
+    clearGscCache();
+    // Audit: secret qiymatlar yozilmaydi.
+    const auditId = `audit_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
+    await runQuery(
+      `INSERT INTO audit_logs (id, actor_user_id, action, target_type, target_id, metadata, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [auditId, req.user!.id, 'UPDATE_GSC_CONFIG', 'SYSTEM', 'gsc_config', JSON.stringify({
+        client_email_updated: typeof client_email === 'string' && client_email.trim() ? true : false,
+        site_url_updated: typeof site_url === 'string' && site_url.trim() ? true : false,
+        private_key_updated: typeof private_key === 'string' && private_key.trim() ? true : false,
+      }), new Date().toISOString()]
+    );
+    res.json({ success: true });
   } catch (err: any) {
     serverError(res, err);
   }

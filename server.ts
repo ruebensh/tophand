@@ -31,6 +31,7 @@ import settingRoutes from './server/routes/settingRoutes.ts';
 import reviewRoutes from './server/routes/reviewRoutes.ts';
 import catalogRoutes from './server/routes/catalogRoutes.ts';
 import aiRoutes from './server/routes/aiRoutes.ts';
+import skillRoutes from './server/routes/skillRoutes.ts';
 import walletRoutes from './server/routes/walletRoutes.ts';
 import monetizationRoutes from './server/routes/monetizationRoutes.ts';
 import adsRoutes from './server/routes/adsRoutes.ts';
@@ -143,6 +144,8 @@ function mutateLimiter(opts: { windowMs: number; max: number; message: string; s
 const contentLimiter = mutateLimiter({ windowMs: 15 * 60 * 1000, max: 60, scope: '/api/content', message: "Juda ko'p amallar. Birozdan so'ng urinib ko'ring." });
 const chatLimiter = mutateLimiter({ windowMs: 60 * 1000, max: 60, scope: '/api/chat', message: "Juda ko'p xabar. Biroz kuting." });
 const aiLimiter = mutateLimiter({ windowMs: 60 * 60 * 1000, max: 120, scope: '/api/ai', message: "AI chegarasi oshdi. Birozdan so'ng urinib ko'ring." });
+// Skills autosuggest — GET (o'qish), lekin suiiste'molddan himoya uchun limiter.
+const skillsLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 600, scope: '/api/skills', message: "So'rov chegarasi oshdi. Birozdan so'ng urinib ko'ring." });
 const uploadLimiter = mutateLimiter({ windowMs: 15 * 60 * 1000, max: 120, scope: '/api/upload', message: "Yuklash chegarasi oshdi. Birozdan so'ng urinib ko'ring." });
 // P2-4: umumiy mutation guard (users, saved, notifications, push, moderation,
 // messaging, admin, settings, theme, ads yozuvlari).
@@ -240,6 +243,7 @@ app.use('/api/chat', chatLimiter, chatRoutes);
 app.use('/api/saved-listings', mutateGuard, savedRoutes);
 app.use('/api/locations', locationRoutes);
 app.use('/api/catalogs', catalogRoutes);
+app.use('/api/skills', skillsLimiter, skillRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/ai', aiLimiter, aiRoutes);
 app.use('/api/organizations', contentLimiter, organizationRoutes);

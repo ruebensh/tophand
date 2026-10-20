@@ -5,6 +5,7 @@ import { ListingTypeBadge } from '../components/listings/ListingTypeBadge.tsx';
 import { Translated } from '../components/common/Translated.tsx';
 import { PriceDisplay } from '../components/listings/PriceDisplay.tsx';
 import { getContactTimeLabel, formatDateAgo, isOfficialAccount, isStaffAccount } from '../lib/utils.ts';
+import { applyPageSeo, restoreDefaultSeo } from '../lib/seo.ts';
 import { useAuth } from '../context/AuthContext.tsx';
 import { useGeo } from '../context/GeoContext.tsx';
 import { useI18n } from '../i18n/IntlContext.tsx';
@@ -93,6 +94,68 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
   // Foydalanuvchi GPS koordinatalari — e'lon manziligacha bo'lgan masofani
   // client-side (haversine) hisoblash uchun.
   const { coords } = useGeo();
+
+  // ── Per-sahifa SEO ── E'lon Google'da mustaqil indekslanishi uchun o'z
+  // title/description/canonical + JSON-LD qo'yiladi ("usta", "santexnik" kabi
+  // uzun dumli so'rovlarda chiqishi uchun). Faqat SIFATLI (ACTIVE + rasm +
+  // yetarli tavsif) e'lonlar indekslanadi; qolganlari noindex. Narx/telefon
+  // indekslanadigan kontentga ATALMAYDI (maxfiylik/spam). Chiqganda bosh
+  // sahifa head holatiga qaytariladi.
+  useEffect(() => {
+    if (!listing) return;
+    const LISTING_LD_ID = 'listing-jsonld';
+    const base = window.location.origin;
+    const canonical = `${base}/listing/${listing.id}`;
+    const clean = (s: string) => (s || '').replace(/\s+/g, ' ').trim();
+    const abs = (u: string) => (/^https?:\/\//i.test(u) ? u : base + (u.startsWith('/') ? u : '/' + u));
+    const catName = clean(listing.category_name || '');
+    const locName = [clean(listing.district_name || ''), clean(listing.region_name || '')].filter(Boolean).join(', ');
+    const tTitle = clean(title) || clean(listing.title) || "E'lon";
+    const tDesc = clean(description) || clean(listing.description);
+    const imgs = (listing.images || []).map(abs);
+
+    const pageTitle = [tTitle, catName, locName].filter(Boolean).join(' — ') + ' | TopHand';
+    const pageDesc =
+      (tDesc ? tDesc.slice(0, 155) : '') ||
+      `${tTitle}${catName ? ' — ' + catName : ''}${locName ? ', ' + locName : ''}. TopHand'da.`;
+
+    const isQuality = listing.status === 'ACTIVE' && imgs.length > 0 && tDesc.length >= 40;
+
+    const breadcrumb = {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'TopHand', item: base + '/' },
+        ...(catName
+          ? [{ '@type': 'ListItem' as const, position: 2, name: catName, item: `${base}/?q=${encodeURIComponent(catName)}` }]
+          : []),
+        { '@type': 'ListItem', position: catName ? 3 : 2, name: tTitle, item: canonical },
+      ],
+    };
+    const product = isQuality
+      ? {
+          '@context': 'https://schema.org',
+          '@type': 'Product',
+          name: tTitle,
+          description: tDesc.slice(0, 300),
+          image: imgs,
+          brand: { '@type': 'Brand', name: 'TopHand' },
+          ...(locName ? { areaServed: { '@type': 'Place', name: locName } } : {}),
+        }
+      : null;
+    const jsonLd = product ? [product, breadcrumb] : breadcrumb;
+
+    applyPageSeo({
+      title: pageTitle,
+      description: pageDesc,
+      canonical,
+      ogImage: imgs[0],
+      robots: isQuality ? undefined : 'noindex, follow',
+      jsonLdId: LISTING_LD_ID,
+      jsonLd,
+    });
+    return () => restoreDefaultSeo([LISTING_LD_ID]);
+  }, [listing, title, description, intlLocale]);
   const distanceToListing = React.useMemo(() => {
     const lat = listing?.latitude;
     const lon = listing?.longitude;

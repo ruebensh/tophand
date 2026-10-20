@@ -252,6 +252,15 @@
   animation: badge-gentle-glow 3s ease-in-out infinite;
 }
 
+/* Wizard qadam almashinuvi — silliq kirish (fade + yuqoriga siljish). */
+@keyframes wizard-step-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.wizard-step-anim {
+  animation: wizard-step-in 0.28s ease-out;
+}
+
 /* Prevent horizontal scroll on all screens.
    `clip` (not `hidden`): gorizontal oqishni oladi, lekin scroll konteyner
    yaratmaydi — shunda ichidagi `position: sticky` header viewport'ga nisbatan

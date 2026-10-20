@@ -1,7 +1,8 @@
-import { pool } from './database.ts';
+import { pool, runQuery } from './database.ts';
 import { CATALOGS_LIST, ALL_CATALOG_CATEGORIES } from './categoriesData.ts';
 import { syncCategoryAttributes } from './attributesData.ts';
 import { UZBEKISTAN_DISTRICTS } from './districtsData.ts';
+import { JOB_SKILLS, normalizeSkill } from './skillsData.ts';
 import { runMigrations } from './migrations.ts';
 
 // ─── Table creation helpers ────────────────────────────────────────────
@@ -576,6 +577,22 @@ export async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_translation_cache_lookup ON translation_cache(src_hash, target_lang);
   `);
 
+  // ─── job_skills (Avito-style): ish e'loni uchun standartlashtirilgan ko'nikmalar
+  //     lug'ati — autosuggest manbasi. `norm` unique (qidiruv kaliti). ───
+  await createTableIfNotExists(`
+    CREATE TABLE IF NOT EXISTS job_skills (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      norm TEXT UNIQUE NOT NULL,
+      category_hint TEXT,
+      usage_count INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_job_skills_usage ON job_skills(usage_count DESC, name);
+  `);
+
   // ─── Idempotent schema migrations FIRST (adds listings.attributes, categories.scope,
   //     category_attributes table, drops the rigid type CHECK) so seeding can use them ───
   await runMigrations();
@@ -725,5 +742,32 @@ async function seedInitialData() {
   // Seed per-category attribute schemas (Avito-style structured attributes)
   await syncCategoryAttributes();
 
+  // Seed standardized skills dictionary (Avito-style autosuggest source)
+  await seedJobSkills();
+
   console.log(`✅ Reference data synced: ${regions.length} regions and ${UZBEKISTAN_DISTRICTS.length} districts.`);
+}
+
+// ─── Seed job skills (non-destructive: admin edits preserved) ───────────
+// normdan barqaror, noASCII-safe id hash (djb2). Sluglash Cyrillic/unicode'li
+// normlarni bir xil id'ga yiqqani uchun PK to'qnashuv berardi; hash buni yo'q.
+function skillIdFor(norm: string): string {
+  let h = 5381;
+  for (let i = 0; i < norm.length; i++) h = ((h << 5) + h + norm.charCodeAt(i)) >>> 0;
+  return `skl_${h.toString(36)}_${norm.length}`;
+}
+
+async function seedJobSkills() {
+  for (const skill of JOB_SKILLS) {
+    const norm = normalizeSkill(skill.name);
+    if (!norm) continue;
+    const id = skillIdFor(norm);
+    // ON CONFLICT DO NOTHING — mavjud yozuv (nom/usage_count) o'zgarmaydi.
+    await runQuery(
+      `INSERT INTO job_skills (id, name, norm, category_hint, usage_count)
+       VALUES (?, ?, ?, ?, 0)
+       ON CONFLICT (norm) DO NOTHING`,
+      [id, skill.name.trim(), norm, skill.category_hint || null]
+    );
+  }
 }

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User } from '../types/index.ts';
-import { apiRequest, getStoredToken, setStoredToken, removeStoredToken } from '../lib/api.ts';
+import { apiRequest, getStoredToken, setStoredToken, removeStoredToken, reportLogout } from '../lib/api.ts';
 
 interface ProfileCompleteData {
   first_name?: string;
@@ -86,6 +86,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     refreshUser();
   }, []);
+
+  // Admin statistika: brauzer yopilganda/tab reload bo'lganda LOGOUT xabar
+  // qilinadi (best-effort; fetch keepalive). Faqat token bor bolganda yuboriladi.
+  useEffect(() => {
+    if (!token) return;
+    const onUnload = () => reportLogout();
+    window.addEventListener('pagehide', onUnload);
+    return () => window.removeEventListener('pagehide', onUnload);
+  }, [token]);
 
   // isNewAccount → hard gate (cannot skip). Existing account → soft (can skip).
   const _afterLogin = (res: { token: string; user: User; is_new?: boolean; needs_profile?: boolean }, isNewAccount?: boolean) => {
@@ -255,6 +264,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
+    // Statistika: token o'chirilgunga qadar LOGOUT hodisasini xabar qilamiz.
+    reportLogout();
     removeStoredToken();
     setToken(null);
     setUser(null);

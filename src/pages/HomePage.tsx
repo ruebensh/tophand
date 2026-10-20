@@ -31,6 +31,7 @@ import { useAds } from '../context/AdsContext.tsx';
 import { AdSlot } from '../components/ads/AdSlot.tsx';
 import { INLINE_AD_EVERY } from '../components/ads/adConfig.ts';
 import { useI18n } from '../i18n/IntlContext.tsx';
+import { applyPageSeo, restoreDefaultSeo } from '../lib/seo.ts';
 
 interface HomePageProps {
   initialType?: ListingType;
@@ -643,6 +644,29 @@ export const HomePage: React.FC<HomePageProps> = ({
   const isClean = isLanding || isCatalogLanding;
   const selectedCatalog = catalogs.find((c) => c.id === selectedCatalogId);
   const selectedCatalogName = selectedCatalog ? localized(selectedCatalog) : '';
+
+  // ── Katalog sahifasi uchun per-sahifa SEO: /?catalog=<id> — har bir katalog o'z
+  //    title/description/canonical'ini oladi (shaharlar indekslanmaydi). Bosh
+  //    sahifa yoki filtr holatida esa asl (homepage) head qiymatlariga qaytamiz.
+  useEffect(() => {
+    if (isCatalogLanding && selectedCatalog) {
+      const name = localized(selectedCatalog);
+      const desc = selectedCatalog.description
+        ? `${selectedCatalog.description}. ${name} bo'yicha ${totalCount} ta faol e'lon — TopHand.`
+        : `${name} bo'yicha ${totalCount} ta faol e'lon — xizmatlar, tovarlar va ish e'lonlari. TopHand'da.`;
+      applyPageSeo({
+        title: `${name} — ${totalCount} ta e'lon | TopHand`,
+        description: desc,
+        canonical: `${window.location.origin}/?catalog=${selectedCatalog.id}`,
+      });
+    } else {
+      restoreDefaultSeo();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCatalogLanding, selectedCatalog?.id, totalCount, intlLocale]);
+
+  // Sahifadan butunlay chiqqanda bosh sahifa head holatiga qaytarish.
+  useEffect(() => () => restoreDefaultSeo(), []);
 
   // Landing'dagi 4 ta asosiy kategoriya (turi) kartochkasi
   const TYPE_CARDS: { type: ListingType; catalogId: string; label: string; hint: string; Icon: any }[] = [

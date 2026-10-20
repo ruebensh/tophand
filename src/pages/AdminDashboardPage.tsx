@@ -31,6 +31,8 @@ import {
   Users2,
   Send,
   Megaphone,
+  Activity,
+  Globe,
   X,
 } from 'lucide-react';
 import { formatDateAgo } from '../lib/utils.ts';
@@ -45,6 +47,8 @@ import { CategoryEditModal } from '../components/admin/CategoryEditModal.tsx';
 import { OrganizationEditModal } from '../components/admin/OrganizationEditModal.tsx';
 import { FiltersAdminSection } from '../components/admin/FiltersAdminSection.tsx';
 import { AdsManagerSection } from '../components/admin/AdsManagerSection.tsx';
+import { VisitsModal, BrowserStatsModal } from '../components/admin/ActivityModals.tsx';
+import { LineChart } from '../components/admin/LineChart.tsx';
 import { Category, Catalog } from '../types/index.ts';
 import { CategoryChip } from '../components/common/CategoryIcon.tsx';
 
@@ -69,6 +73,10 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   const [overview, setOverview] = useState<any>(null);
   const [analytics, setAnalytics] = useState<any>(null);
   const [isStatsLoading, setIsStatsLoading] = useState(false);
+  // Saytga kirganlar (user_events) — mini grafik + modal, GSC modal holati.
+  const [visits14, setVisits14] = useState<any>(null);
+  const [isVisitsModalOpen, setIsVisitsModalOpen] = useState(false);
+  const [isBrowserModalOpen, setIsBrowserModalOpen] = useState(false);
 
   // Users tab
   const [usersList, setUsersList] = useState<any[]>([]);
@@ -113,12 +121,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   const fetchOverviewAndAnalytics = async () => {
     setIsStatsLoading(true);
     try {
-      const [overviewData, analyticsData] = await Promise.all([
+      const [overviewData, analyticsData, visitsData] = await Promise.all([
         apiRequest('/api/admin/overview'),
         apiRequest('/api/admin/analytics').catch(() => null),
+        apiRequest('/api/admin/visits?days=14').catch(() => null),
       ]);
       setOverview(overviewData);
       if (analyticsData) setAnalytics(analyticsData);
+      if (visitsData) setVisits14(visitsData);
     } catch (err) {
       console.error('Error fetching admin overview/analytics:', err);
     } finally {
@@ -410,6 +420,34 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
             </div>
           )}
 
+          {/* Saytga kirish/chiqish — mini grafik (14 kun); batafsil modalga ochadi */}
+          {visits14 && (
+            <div
+              className="bg-white rounded-3xl p-5 border border-gray-100 shadow-xs cursor-pointer hover:border-blue-200 transition-colors"
+              onClick={() => setIsVisitsModalOpen(true)}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-blue-600" />
+                  <h4 className="font-bold text-sm text-gray-900">{t('admin.loginActivityTitle')}</h4>
+                </div>
+                <span className="text-[11px] text-gray-500 font-medium">
+                  {t('admin.logins')}: <strong className="text-blue-600">{visits14.totals?.logins ?? 0}</strong>
+                  <span className="mx-1.5 text-gray-300">|</span>
+                  {t('admin.logouts')}: <strong className="text-rose-500">{visits14.totals?.logouts ?? 0}</strong>
+                </span>
+              </div>
+              <div className="h-16">
+                <LineChart
+                  labels={(visits14.series || []).map((r: any) => String(r.date))}
+                  series={[{ name: t('admin.logins'), color: '#2563eb', values: (visits14.series || []).map((r: any) => Number(r.logins)) }]}
+                  height={64}
+                  compact
+                />
+              </div>
+            </div>
+          )}
+
           {/* Kengaytirilgan Statistika (Advanced Analytics Section) */}
           {analytics && (
             <div className="space-y-6">
@@ -420,9 +458,26 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                     {t('admin.analyticsTitle')}
                   </h3>
                 </div>
-                <span className="text-xs text-gray-500 font-medium">
-                  {t('admin.trackedTotal')} <strong>{analytics.total_tracked_events || 0}</strong>
-                </span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-xs text-gray-500 font-medium hidden sm:inline">
+                    {t('admin.trackedTotal')} <strong>{analytics.total_tracked_events || 0}</strong>
+                  </span>
+                  {/* Kirganlar va brauzer qidiruvlari modallari */}
+                  <button
+                    onClick={() => setIsVisitsModalOpen(true)}
+                    className="px-3 py-1.5 rounded-full bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Users className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">{t('admin.visitsModalTitle')}</span>
+                  </button>
+                  <button
+                    onClick={() => setIsBrowserModalOpen(true)}
+                    className="px-3 py-1.5 rounded-full bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Globe className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">{t('admin.browserModalBtn')}</span>
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1403,6 +1458,10 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         catalogs={catalogsList}
         onSaved={fetchCategories}
       />
+
+      {/* Saytga kirganlar + brauzer qidiruvlari (GSC) modallari */}
+      <VisitsModal isOpen={isVisitsModalOpen} onClose={() => setIsVisitsModalOpen(false)} />
+      <BrowserStatsModal isOpen={isBrowserModalOpen} onClose={() => setIsBrowserModalOpen(false)} />
 
       {/* Permanent Ban Dialog */}
       {selectedUserForBan && (

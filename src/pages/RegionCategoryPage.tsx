@@ -4,6 +4,7 @@ import { apiRequest } from '../lib/api.ts';
 import { Listing } from '../types/index.ts';
 import { ListingCard } from '../components/listings/ListingCard.tsx';
 import { useI18n } from '../i18n/IntlContext.tsx';
+import { applyPageSeo, restoreDefaultSeo } from '../lib/seo.ts';
 
 interface LandingData {
   region: { id: string; name_uz: string; slug: string };
@@ -20,25 +21,8 @@ interface Props {
   onOpenListing: (id: string) => void;
 }
 
-// SPA ichida sahifa almashtirilganda HTML head meta'larni yangilash
-function setMeta(name: string, content: string, attr: 'name' | 'property' = 'name') {
-  let el = document.head.querySelector<HTMLMetaElement>(`meta[${attr}="${name}"]`);
-  if (!el) {
-    el = document.createElement('meta');
-    el.setAttribute(attr, name);
-    document.head.appendChild(el);
-  }
-  el.setAttribute('content', content);
-}
-function setCanonical(href: string) {
-  let el = document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]');
-  if (!el) {
-    el = document.createElement('link');
-    el.rel = 'canonical';
-    document.head.appendChild(el);
-  }
-  el.href = href;
-}
+// SPA ichida sahifa almashtirilganda HTML head meta'lari umumiy seo.ts
+// yordamchisi orqali boshqariladi (applyPageSeo / restoreDefaultSeo).
 
 export const RegionCategoryPage: React.FC<Props> = ({ regionSlug, categorySlug, onNavigate, onOpenListing }) => {
   const { t, localized } = useI18n();
@@ -62,11 +46,14 @@ export const RegionCategoryPage: React.FC<Props> = ({ regionSlug, categorySlug, 
       const desc = res.category
         ? `${res.region.name_uz} bo'yicha ${res.category.name_uz} xizmatlari va e'lonlari (${res.count} ta). Narxlar, telefon raqamlari va mutaxassislar — TopHand'da.`
         : `${res.region.name_uz} bo'ylab mahalliy xizmatlar, mutaxassislar va ish e'lonlari. ${res.count} ta faol e'lon.`;
-      document.title = title;
-      setMeta('description', desc);
-      setMeta('og:title', title, 'property');
-      setMeta('og:description', desc, 'property');
-      setCanonical(`${base}/hudud/${regionSlug}${categorySlug ? `/${categorySlug}` : ''}`);
+      applyPageSeo({
+        title,
+        description: desc,
+        canonical: `${base}/hudud/${regionSlug}${categorySlug ? `/${categorySlug}` : ''}`,
+        // Shaharlar (/hudud/*) Google'da umuman ko'rsatilmasin — indekslash endi
+        // kataloglar bo'yicha (/?catalog=...). Sahifa foydalanuvchi uchun ochiq qoladi.
+        robots: 'noindex, follow',
+      });
     } catch (e: any) {
       if (String(e.message || '').includes('404') || String(e.message || '').includes('topilmadi')) {
         setNotFound(true);
@@ -79,6 +66,9 @@ export const RegionCategoryPage: React.FC<Props> = ({ regionSlug, categorySlug, 
   useEffect(() => {
     load();
   }, [load]);
+
+  // Sahifadan chiqqanda bosh sahifa head holatiga qaytarish (bleed oldini oladi).
+  useEffect(() => () => restoreDefaultSeo(), []);
 
   const heading = data?.category
     ? `${localized(data.category)} — ${localized(data.region)}`
