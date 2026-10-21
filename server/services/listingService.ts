@@ -632,7 +632,73 @@ export async function getListingById(id: string, current_user_id?: string) {
   return listing;
 }
 
-export async function createListing(userId: string, data: any) {
+/**
+ * Kategoriya atribut qoidalarini o'qiydi: majburiy belgisi + `meta.depends_on`
+ * kaskad (bog'liq) konventsiyasi. depends_on = { key: '<parentKey>', map: { '<parentQiymat>': [<ruxsat etilgan variantlar>] } }.
+ */
+interface AttributeRule {
+  key: string;
+  label: string;
+  required: boolean;
+  dependsOn: { key: string; map?: Record<string, string[]> } | null;
+}
+
+async function getAttributeRules(categoryId: string): Promise<AttributeRule[]> {
+  const rows = await queryAll<{ key: string; label_uz: string; required: number; meta: any }>(
+    'SELECT key, label_uz, required, meta FROM category_attributes WHERE category_id = ?',
+    [categoryId]
+  );
+  const toObj = (v: any): Record<string, any> =>
+    (v && typeof v === 'object' && !Array.isArray(v)) ? v : (v ? JSON.parse(v) : {});
+  return rows.map((r) => {
+    const dep = toObj(r.meta).depends_on;
+    return {
+      key: r.key,
+      label: r.label_uz,
+      required: Number(r.required) === 1,
+      dependsOn: dep && typeof dep === 'object' && dep.key ? { key: String(dep.key), map: dep.map } : null,
+    };
+  });
+}
+
+/**
+ * Atributlarni kategoriya sxemasiga qarab tekshiradi (majburiy + bog'liq qiymatlar).
+ * Xato bo'lsa birinchi mos xabar matnini qaytaradi, aks holda null.
+ */
+async function validateListingAttributes(
+  categoryId: string,
+  attributes: Record<string, any>
+): Promise<string | null> {
+  const rules = await getAttributeRules(categoryId);
+  const isEmpty = (v: any) => v === undefined || v === null || String(v).trim() === '';
+
+  const missing = rules.filter((r) => r.required && isEmpty(attributes[r.key]));
+  if (missing.length > 0) {
+    return `Majburiy atributlarni to'ldiring: ${missing.map((m) => m.label).join(', ')}`;
+  }
+
+  // Bog'liq (kaskad) atributlar: ota-qiymat tanlanganida, bola qiymati ruxsat
+  // etilganlar ro'yxatida bo'lishi shart (map berilgan bo'lsa).
+  for (const r of rules) {
+    if (!r.dependsOn || isEmpty(attributes[r.key])) continue;
+    const parentVal = attributes[r.dependsOn.key];
+    if (isEmpty(parentVal)) continue;
+    const map = r.dependsOn.map;
+    if (!map) continue;
+    const allowed = map[String(parentVal)];
+    if (Array.isArray(allowed) && allowed.length > 0) {
+      const childVals = String(attributes[r.key]).split(',').map((s) => s.trim()).filter(Boolean);
+      const bad = childVals.filter((c) => !allowed.includes(c));
+      if (bad.length > 0) {
+        return `“${r.label}” qiymati “${String(parentVal)}” uchun ruxsat etilmagan`;
+      }
+    }
+  }
+  return null;
+}
+
+export async function createListing(userId: string, data: any, opts: { draft?: boolean } = {}) {
+  const draft = opts.draft === true;
   const id = `lst_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
   const now = new Date().toISOString();
 
@@ -676,18 +742,13 @@ export async function createListing(userId: string, data: any) {
     throw new Error(`Bu katalog uchun “${data.type}” e’lon turi ruxsat etilmagan`);
   }
 
-  // Structured attributes: normalize + enforce the category's required schema.
+  // Structured attributes: normalize. Majburiy + bog'liq sxema tekshiruvi faqat
+  // e'lon JOYLANGANDA bajariladi — qoralama (DRAFT) yetimovlanishi mumkin.
   const attributes: Record<string, any> =
     data.attributes && typeof data.attributes === 'object' ? data.attributes : {};
-  const requiredRows = await queryAll<{ key: string; label_uz: string }>(
-    'SELECT key, label_uz FROM category_attributes WHERE category_id = ? AND required = 1',
-    [data.category_id]
-  );
-  const missing = requiredRows.filter(
-    (r) => attributes[r.key] === undefined || attributes[r.key] === null || attributes[r.key] === ''
-  );
-  if (missing.length > 0) {
-    throw new Error(`Majburiy atributlarni to'ldiring: ${missing.map((m) => m.label_uz).join(', ')}`);
+  if (!draft) {
+    const attrErr = await validateListingAttributes(data.category_id, attributes);
+    if (attrErr) throw new Error(attrErr);
   }
 
   // Faza 2 + 7: configurable active-days cycle + charge listing price when PAID
@@ -695,11 +756,14 @@ export async function createListing(userId: string, data: any) {
   const activeDays = resolveActiveDays(cfg);
   const expiresAt = new Date(Date.now() + activeDays * 24 * 60 * 60 * 1000).toISOString();
   // Admin accounts are billing-exempt — never charged, balance untouched.
-  const price = (await isBillingExempt(userId)) ? 0 : getListingPrice(cfg, catalogId);
+  // Qoralama (DRAFT) HEC QACHON to'lanmaydi — to'lov faqat joylashda (ACTIVE).
+  const price = draft ? 0 : (await isBillingExempt(userId)) ? 0 : getListingPrice(cfg, catalogId);
   // Charge FIRST so an insufficient balance aborts before any DB write.
   if (price > 0) {
     await charge(userId, price, { ref_type: 'LISTING_CREATE', ref_id: id, note: "E'lon joylash" });
   }
+
+  const statusVal = draft ? 'DRAFT' : 'ACTIVE';
 
   try {
   await runQuery(
@@ -708,7 +772,7 @@ export async function createListing(userId: string, data: any) {
       region_id, district_id, latitude, longitude, price_type, price_min, price_max,
       currency, salary_type, salary_min, salary_max, work_format, experience_level,
       skills, contact_time, contact_custom_text, attributes, status, created_at, updated_at, expires_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, 'ACTIVE', ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?)`,
     [
       id,
       userId,
@@ -735,6 +799,7 @@ export async function createListing(userId: string, data: any) {
       data.contact_time || 'ANY_TIME',
       data.contact_custom_text || null,
       JSON.stringify(attributes),
+      statusVal,
       now,
       now,
       expiresAt,
@@ -772,6 +837,52 @@ export async function createListing(userId: string, data: any) {
   }
 
   return getListingById(id, userId);
+}
+
+/**
+ * Qoralama (DRAFT) e'lonni joylash: to'liq atribut validatsiyasi + narx
+ * hisobi/undiruvi bajariladi va status 'ACTIVE'ga o'zgartiriladi. Moderator
+ * navbati / izdoshlarga bildirish route qatlamida qo'shiladi (createListing
+ * ACTIVE yo'linikidan bir xil). Bu funksiya faqat yangi statusni tayyorlaydi.
+ */
+export async function publishDraft(listingId: string, userId: string) {
+  const listing = await queryOne<any>('SELECT * FROM listings WHERE id = ?', [listingId]);
+  if (!listing) throw new Error("E'lon topilmadi");
+  if (listing.owner_user_id !== userId) throw new Error("Faqat o'zingizning qoralama e'loningizni joylashingiz mumkin");
+  if (listing.status !== 'DRAFT') throw new Error("Bu e'lon qoralama emas");
+
+  let attributes: Record<string, any> = listing.attributes;
+  if (typeof attributes === 'string') {
+    try { attributes = JSON.parse(attributes || '{}'); } catch { attributes = {}; }
+  }
+  if (!attributes || typeof attributes !== 'object') attributes = {};
+
+  // Joylashda endi to'liq sxema tekshiruvi bajariladi.
+  const attrErr = await validateListingAttributes(listing.category_id, attributes);
+  if (attrErr) throw new Error(attrErr);
+
+  const cfg = await getMonetizationConfig();
+  const activeDays = resolveActiveDays(cfg);
+  const price = (await isBillingExempt(userId)) ? 0 : getListingPrice(cfg, listing.catalog_id);
+  if (price > 0) {
+    await charge(userId, price, { ref_type: 'LISTING_CREATE', ref_id: listingId, note: "E'lon joylash" });
+  }
+
+  const now = new Date().toISOString();
+  const expiresAt = new Date(Date.now() + activeDays * 24 * 60 * 60 * 1000).toISOString();
+  try {
+    await runQuery(
+      `UPDATE listings SET status = 'ACTIVE', attributes = ?::jsonb, expires_at = ?, updated_at = ? WHERE id = ?`,
+      [JSON.stringify(attributes), expiresAt, now, listingId]
+    );
+  } catch (err) {
+    if (price > 0) {
+      await refund(userId, price, { ref_type: 'LISTING_CREATE', ref_id: listingId, note: "E'lon joylashda amalga oshmaganligi uchun pul qaytarildi" }).catch(() => {});
+    }
+    throw err;
+  }
+
+  return getListingById(listingId, userId);
 }
 
 export async function renewListing(listingId: string, userId: string) {

@@ -61,6 +61,15 @@ export interface WizardController {
   videoInputRef: React.RefObject<HTMLInputElement | null>;
   // ── Edit mode ──
   isEditing: boolean;
+  // ── Qoralama (DRAFT) holati ──
+  // Yuklangan e'lon DRAFT bo'lsa true — Submit tugmasi "joylash" ma'nosini beradi.
+  isDraftEditing: boolean;
+  isSavingDraft: boolean;
+  lastDraftSavedAt: number | null;
+  // ── Bot-himoya (captcha) ──
+  // null => o'fiq (vidjet chizilmaydi). Token vidjet callback'i orqali keladi.
+  captchaSitekey: string | null;
+  onCaptchaChange: (token: string) => void;
   // ── Handlers ──
   chooseCatalog: (cat: Catalog) => void;
   chooseType: (type: ListingType) => void;
@@ -74,6 +83,7 @@ export interface WizardController {
   handleVideoUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   handleRemoveVideo: (index: number) => void;
   handleDetectGPS: () => void;
+  saveDraft: () => void;
 }
 
 const WizardControllerContext = createContext<WizardController | null>(null);

@@ -25,6 +25,8 @@ for (const k of [
   'SMTP_PASS', 'SMTP_FROM', 'ADMIN_EMAIL',
   // GSC: testlar hech qachon haqiqiy Google hisobiga ulinmasligi kerak.
   'GSC_CLIENT_EMAIL', 'GSC_PRIVATE_KEY', 'GSC_SITE_URL',
+  // Captcha: testlar o'fiq holatda ishlashi kerak (server tekshiruvi o'tkaziladi).
+  'TURNSTILE_SECRET_KEY', 'TURNSTILE_SITEKEY',
 ]) process.env[k] = '';
 
 // SAFETY (critical): integration tests must NEVER touch a real/remote database.
@@ -711,6 +713,80 @@ async function main() {
 
         try { await runQuery('DELETE FROM user_events WHERE user_id IN (?, ?)', [alice.id, bob.id]); } catch {}
         try { await runQuery("DELETE FROM system_settings WHERE key IN ('gsc_client_email','gsc_private_key','gsc_site_url')"); } catch {}
+      }
+
+      // ── Qoralama (DRAFT) + bog'liq atributlar + captcha-o'fiq ──
+      // Admin billing-exempt => narxdan qat'iye to'ovsiz; captcha test muhitida
+      // o'fiq (TURNSTILE_SECRET_KEY bo'shatilgan), shuning uchun token shart emas.
+      {
+        const sendReq = (method: string, p: string, body?: any, token?: string) =>
+          fetch(base + p, {
+            method,
+            headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) },
+            body: body === undefined ? undefined : JSON.stringify(body),
+          });
+
+        // 1) Ommaviy security: captcha o'fiq => sitekey null.
+        const sec = await req('/api/settings/security');
+        const secJson = await sec.json();
+        assert(sec.status === 200 && secJson.turnstile_sitekey === null, 'draft: GET /api/settings/security → 200 + sitekey null (captcha off)');
+
+        const phoneCat = await queryOne<any>("SELECT id, catalog_id FROM categories WHERE id = 'el_phone_mob'");
+        const region = await queryOne<any>('SELECT id FROM regions LIMIT 1');
+        const district = await queryOne<any>('SELECT id FROM districts LIMIT 1');
+        if (phoneCat && region && district) {
+          const baseFields = {
+            catalog_id: phoneCat.catalog_id,
+            type: 'SELL',
+            category_id: phoneCat.id,
+            region_id: region.id,
+            district_id: district.id,
+            price_type: 'FIXED',
+            price_min: 3000000,
+          };
+
+          // 2) Qoralama yaratish (publish=false) — majburiy atribut (holat) yo'q, baribir 201.
+          const draftRes = await sendReq('POST', '/api/listings', { ...baseFields, title: `Qora iPhone ${RUN_ID}`, description: 'qoralama tavsif', attributes: { brend: 'iPhone' }, publish: false }, adminToken);
+          const draft = await draftRes.json();
+          assert(draftRes.status === 201 && draft.status === 'DRAFT', 'draft: POST publish=false → 201 + status DRAFT (attr validatsiya yumshoq)');
+          const draftId = draft.id as string;
+
+          // 3) Qoralama not-ACTIVE: begubaga (USER, staff emas) ko'rinmaydi (404), egasiga (admin) ko'rinadi.
+          const strangerView = await req(`/api/listings/${draftId}`, { headers: { authorization: `Bearer ${aliceToken}` } });
+          assert(strangerView.status === 404, 'draft: non-owner GET /:id → 404 (DRAFT ommaga yopiq)');
+          const ownerView = await req(`/api/listings/${draftId}`, { headers: { authorization: `Bearer ${adminToken}` } });
+          assert(ownerView.status === 200, 'draft: owner GET /:id → 200');
+
+          // 4) Qoralama qidiruvda chiqmaydi (searchListings status='ACTIVE' filtrlaydi).
+          const searchRes = await req(`/api/listings?category_id=${phoneCat.id}&limit=50`);
+          const searchArr = await searchRes.json();
+          const items = Array.isArray(searchArr) ? searchArr : (searchArr.items || searchArr.listings || []);
+          assert(!items.some((x: any) => x.id === draftId), 'draft: DRAFT listing excluded from public search');
+
+          // 5) Joylash (publish) majburiy atribut (holat) yo'qligi sababli 400.
+          const pubMissing = await sendReq('POST', `/api/listings/${draftId}/publish`, {}, adminToken);
+          assert(pubMissing.status === 400, 'draft: publish with missing required attr → 400');
+
+          // 6) Bog'liq (kaskad) atribut: brend=iPhone, model=Samsung modeli → 400.
+          await sendReq('PUT', `/api/listings/${draftId}`, { attributes: { brend: 'iPhone', holat: 'Yangi', model: 'Galaxy S24' } }, adminToken);
+          const pubBadDep = await sendReq('POST', `/api/listings/${draftId}/publish`, {}, adminToken);
+          assert(pubBadDep.status === 400, 'draft: publish with dependent-model mismatch (iPhone→Galaxy) → 400');
+
+          // 7) To'g'ri qiymatlar bilan joylash → 200 + ACTIVE.
+          await sendReq('PUT', `/api/listings/${draftId}`, { attributes: { brend: 'iPhone', holat: 'Yangi', model: 'iPhone 15' } }, adminToken);
+          const pubOk = await sendReq('POST', `/api/listings/${draftId}/publish`, {}, adminToken);
+          const pubOkJson = await pubOk.json();
+          assert(pubOk.status === 200 && pubOkJson.listing?.status === 'ACTIVE', 'draft: publish from draft with valid attrs → 200 + ACTIVE');
+
+          // 8) Endi ochiq GET /:id 200 (ACTIVE).
+          const publicView = await req(`/api/listings/${draftId}`);
+          assert(publicView.status === 200, 'draft: after publish, public GET /:id → 200 (ACTIVE)');
+
+          try { await runQuery('DELETE FROM listing_images WHERE listing_id = ?', [draftId]); } catch {}
+          try { await runQuery('DELETE FROM listings WHERE id = ?', [draftId]); } catch {}
+        } else {
+          assert(false, 'draft: seeded el_phone_mob category + region + district available');
+        }
       }
 
       for (const id of [admin.id, lead.id, mod.id, plain.id]) {

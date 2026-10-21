@@ -1,8 +1,19 @@
 import { serverError } from '../lib/error.ts';
 import { Router } from 'express';
 import { queryOne } from '../db/database.ts';
+import { getTurnstileSiteKey } from '../lib/captcha.ts';
 
 const router = Router();
+
+// Public: bot-himoya (captcha) konfiguratsiyasi — FAQAT ochiq sitekey qaytadi.
+// Sitekey bo'lmasa, xususiyat o'fiq: klient vidjet chizmaydi, server tekshirmaydi.
+router.get('/security', async (_req, res) => {
+  try {
+    res.json({ turnstile_sitekey: getTurnstileSiteKey() });
+  } catch (err: any) {
+    serverError(res, err);
+  }
+});
 
 // Public endpoint to retrieve active logo and version timestamp
 router.get('/logo', async (_req, res) => {

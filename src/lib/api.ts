@@ -178,6 +178,17 @@ export function getPublicMonetization(): Promise<PublicMonetization> {
   return apiRequest<PublicMonetization>('/api/monetization/public');
 }
 
+// ─── Bot-himoya (captcha) ommaviy konfiguratsiyasi ────────────────────
+// Faqat ochiq sitekey qaytadi. null => xususiyat o'fiq (vidjet chizilmaydi,
+// server tekshiruvini o'tkazib yuboradi). Secret kalit HEC QACHON bu yerdan
+// chiqmaydi.
+export interface PublicSecurity {
+  turnstile_sitekey: string | null;
+}
+export function getPublicSecurity(): Promise<PublicSecurity> {
+  return apiRequest<PublicSecurity>('/api/settings/security');
+}
+
 // ─── Ichki Reklama menejeri ──────────────────────────────────────────────
 import type { AdCampaign, AdCampaignBuckets } from '../types/index.ts';
 

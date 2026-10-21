@@ -62,6 +62,9 @@ export interface JobPostingPayload {
   organization_id?: string;
   images: string[];
   videos: string[];
+  // Qoralama/joylash + bot-himoya (server `publish===false` bo'lsa DRAFT qiladi).
+  publish?: boolean;
+  captchaToken?: string;
 }
 
 // RHF omboridagi barcha wizard maydonlari. Qiymatlar qadam almashinuvida

@@ -108,7 +108,8 @@ export async function runMigrations() {
   await addColumnIfNotExists('listing_images', 'media_type', "TEXT DEFAULT 'image' CHECK (media_type IN ('image','video'))");
   await addColumnIfNotExists('listing_images', 'thumbnail_url', 'TEXT');
 
-  // ── Listing lifecycle: allow an owner to CLOSE a fulfilled request as COMPLETED ──
+  // ── Listing lifecycle: allow an owner to CLOSE a fulfilled request as COMPLETED,
+  //    and to save an unfinished listing as DRAFT (owner-only, not public). ──
   await addColumnIfNotExists('listings', 'completed_at', 'TIMESTAMPTZ');
   await pool.query(`
     DO $$
@@ -130,7 +131,7 @@ export async function runMigrations() {
   `);
   await pool.query(`
     ALTER TABLE listings ADD CONSTRAINT listings_status_check
-      CHECK (status IN ('ACTIVE','HIDDEN','ARCHIVED','REMOVED','COMPLETED'))
+      CHECK (status IN ('DRAFT','ACTIVE','HIDDEN','ARCHIVED','REMOVED','COMPLETED'))
   `);
 
   // ── Faza 7: wallets ──
@@ -380,6 +381,23 @@ export async function runMigrations() {
   await addColumnIfNotExists('category_attributes', 'section', `TEXT DEFAULT 'Asosiy'`);
   await addColumnIfNotExists('category_attributes', 'meta', `JSONB DEFAULT '{}'::jsonb`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_cat_attr_popular ON category_attributes(category_id, is_popular, popular_order)`);
+
+  // ── Bog'liq (kaskad) atribut: mavjud bazalarda `model` qatori eski (text,
+  //    depends_on'siz) bo'lib qoladi, chunki seed `ON CONFLICT DO NOTHING` bilan
+  //    ishlaydi (admin tahrirlarini asraydi). Shu idempotent migratsiya flagship
+  //    namunani (Mobil telefonlar) faqat depends_on BO'LMAGANDAGINA kaskad
+  //    variantiga yangilaydi. Yangi bazada jadval hali bo'sh — UPDATE 0 qatorga
+  //    ta'sir qiladi, so'ng seed to'g'ri (depends_on'li) qatorni kiritadi.
+  await pool.query(`
+    UPDATE category_attributes
+    SET type = 'select',
+        options = '["iPhone 11","iPhone 12","iPhone 13","iPhone 14","iPhone 15","iPhone 16","Galaxy A15","Galaxy A55","Galaxy S23","Galaxy S24","Galaxy Note 20","Xiaomi 13","Xiaomi 14","Redmi Note 13","Poco X6","Redmi 12","Redmi 13","Redmi Note 12","Redmi Note 13 Pro"]'::jsonb,
+        meta = jsonb_set(COALESCE(meta, '{}'::jsonb), '{depends_on}',
+          '{"key":"brend","map":{"iPhone":["iPhone 11","iPhone 12","iPhone 13","iPhone 14","iPhone 15","iPhone 16"],"Samsung":["Galaxy A15","Galaxy A55","Galaxy S23","Galaxy S24","Galaxy Note 20"],"Xiaomi":["Xiaomi 13","Xiaomi 14","Redmi Note 13","Poco X6"],"Redmi":["Redmi 12","Redmi 13","Redmi Note 12","Redmi Note 13 Pro"]}}'::jsonb,
+          true)
+    WHERE category_id = 'el_phone_mob' AND key = 'model'
+      AND (meta IS NULL OR meta -> 'depends_on' IS NULL)
+  `);
 
   // 4c) Range (od/do) filtrlari uchun qiymatli-tez tekshiruv indeksini qo'llab-quvvatlash.
   //     attributes->>'key' ifoda ko'rinishidagi indekslar keyinchalik qo'shiladi; hozircha

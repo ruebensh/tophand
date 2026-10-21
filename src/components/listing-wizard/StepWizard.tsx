@@ -1,6 +1,6 @@
 // ============================================================================
-//  StepWizard — 4 qadamli qobiq (FormProvider ichida ishlaydi).
-//  step indeksi (component state), progress bar ("Qadam n / 4"), oldinga/orqaga
+//  StepWizard — 6 qadamli qobiq (FormProvider ichida ishlaydi).
+//  step indeksi (component state), progress bar ("Qadam n / 6"), oldinga/orqaga
 //  tugmalar, CSS o'tish animatsiyasi. Holat saqlanadi: barcha maydonlar bitta
 //  RHF store'da — qadam almashinuvida reset bo'lmaydi. "Keyingisi" faqat joriy
 //  qadam maydonlarini trigger() bilan tekshiradi. Oxirgi qadamda Submit.
@@ -8,15 +8,18 @@
 
 import React, { useState } from 'react';
 import { useFormContext } from 'react-hook-form';
-import { ArrowLeft, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle2, Save } from 'lucide-react';
 import type { WizardFormValues } from '../../types/wizard.ts';
 import { useWizardController } from './wizardContext.tsx';
 import CategorySelector from './CategorySelector.tsx';
-import DynamicFieldRenderer from './DynamicFieldRenderer.tsx';
+import StepPhotos from './StepPhotos.tsx';
+import StepAttributes from './StepAttributes.tsx';
+import StepDescription from './StepDescription.tsx';
 import LocationStep from './LocationStep.tsx';
 import SummaryReview from './SummaryReview.tsx';
+import CaptchaWidget from './CaptchaWidget.tsx';
 
-const STEP_KEYS = ['category', 'details', 'location', 'summary'] as const;
+const STEP_KEYS = ['category', 'photos', 'attributes', 'description', 'location', 'summary'] as const;
 
 interface Props {
   // Yakuniy Submit — konteyner RHF handleSubmit(natijasi)ni beradi (to'liq
@@ -37,20 +40,21 @@ const StepWizard: React.FC<Props> = ({ onFinalSubmit, onInvalid, isSubmitting, s
   const [stepError, setStepError] = useState('');
 
   const total = STEP_KEYS.length;
+  const isLastStep = step === total - 1;
 
   // Joriy qadamning tekshiriladigan maydonlari (inline validatsiya).
   const stepFieldNames = (s: number): string[] => {
     if (s === 0) return ['catalogId', 'type', 'title', 'categoryId'];
-    if (s === 1) {
+    if (s === 1) return []; // Fotolar — ixtiyoriy.
+    if (s === 2) {
+      // Parametrlar: majburiy atributlar + (bandlik bo'lsa) ish turi.
       const names: string[] = attrSchema.filter((a) => a.required).map((a) => `attributes.${a.key}`);
-      // Maosh/narx minimal sharti — zod superRefine e'lon qiladi, biz tekshiramiz.
-      if (isJobs) names.push('salaryMin');
-      else names.push('priceMin');
       if (showEmployment) names.push('workFormat');
       return names;
     }
-    if (s === 2) return ['regionId', 'districtId'];
-    return [];
+    if (s === 3) return [isJobs ? 'salaryMin' : 'priceMin']; // Tavsif/narx.
+    if (s === 4) return ['regionId', 'districtId']; // Lokatsiya.
+    return []; // Xulosa (submit).
   };
 
   const goNext = async () => {
@@ -89,8 +93,10 @@ const StepWizard: React.FC<Props> = ({ onFinalSubmit, onInvalid, isSubmitting, s
   const renderStep = () => {
     switch (step) {
       case 0: return <CategorySelector />;
-      case 1: return <DynamicFieldRenderer />;
-      case 2: return <LocationStep />;
+      case 1: return <StepPhotos />;
+      case 2: return <StepAttributes />;
+      case 3: return <StepDescription />;
+      case 4: return <LocationStep />;
       default: return <SummaryReview onEdit={jumpTo} />;
     }
   };
@@ -127,8 +133,16 @@ const StepWizard: React.FC<Props> = ({ onFinalSubmit, onInvalid, isSubmitting, s
         {renderStep()}
       </div>
 
+      {/* BOT-HIMOYA: faqat oxirgi qadamda va sitekey bo'lganda chiziladi. */}
+      {isLastStep && ctl.captchaSitekey && (
+        <div className="mt-6 flex flex-col items-center gap-1.5">
+          <span className="text-[11px] font-semibold text-gray-500">{t('create.captchaHint')}</span>
+          <CaptchaWidget sitekey={ctl.captchaSitekey} onChange={ctl.onCaptchaChange} />
+        </div>
+      )}
+
       {/* ACTIONS */}
-      <div className="pt-6 mt-6 border-t border-gray-100 flex items-center gap-3">
+      <div className="pt-6 mt-6 border-t border-gray-100 flex items-center gap-3 flex-wrap">
         <button
           type="button"
           onClick={goBack}
@@ -136,6 +150,19 @@ const StepWizard: React.FC<Props> = ({ onFinalSubmit, onInvalid, isSubmitting, s
         >
           <ArrowLeft className="w-4 h-4" /> {step === 0 ? t('create.cancel') : t('wizard.back')}
         </button>
+
+        {/* Qoralama saqlash — oxirgi qadamda (sarlavha/kategoriya/lokatsiya to'lgan). */}
+        {isLastStep && (
+          <button
+            type="button"
+            onClick={ctl.saveDraft}
+            disabled={isSubmitting || ctl.isSavingDraft}
+            className="py-3 px-5 rounded-full border border-blue-200 hover:bg-blue-50 text-blue-700 font-bold text-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+          >
+            <Save className="w-4 h-4" />
+            <span>{ctl.isSavingDraft ? t('create.draftSaving') : t('create.draftSave')}</span>
+          </button>
+        )}
 
         {step < total - 1 ? (
           <button
@@ -153,15 +180,22 @@ const StepWizard: React.FC<Props> = ({ onFinalSubmit, onInvalid, isSubmitting, s
             className="flex-1 py-3.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm shadow-md transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
           >
             {isSubmitting ? (
-              <span>{ctl.isGeneratingDesc ? t('create.aiWritingDesc') : (ctl.isEditing ? t('create.saving') : t('create.publishing'))}</span>
+              <span>{ctl.isGeneratingDesc ? t('create.aiWritingDesc') : (ctl.isEditing && !ctl.isDraftEditing ? t('create.saving') : t('create.publishing'))}</span>
             ) : (
               <>
                 <CheckCircle2 className="w-4 h-4" />
-                <span>{ctl.isEditing ? t('create.saveChanges') : t('create.publish')}</span>
+                <span>{ctl.isEditing && !ctl.isDraftEditing ? t('create.saveChanges') : t('create.publish')}</span>
                 <ArrowRight className="w-4 h-4" />
               </>
             )}
           </button>
+        )}
+
+        {/* Qoralama saqlanganligi haqida yengil belgi. */}
+        {ctl.lastDraftSavedAt && (
+          <span className="w-full text-center text-[11px] font-semibold text-emerald-600">
+            ✓ {t('create.draftSaved')}
+          </span>
         )}
       </div>
     </div>

@@ -7,7 +7,7 @@
 
 import React from 'react';
 import { useWatch, useFormContext } from 'react-hook-form';
-import { Pencil, Image as ImageIcon, Video, MapPin, SlidersHorizontal, Tag, PhoneCall, FolderTree } from 'lucide-react';
+import { Pencil, Image as ImageIcon, Video, MapPin, SlidersHorizontal, Tag, PhoneCall, FolderTree, DollarSign } from 'lucide-react';
 import type { WizardFormValues } from '../../types/wizard.ts';
 import { useWizardController } from './wizardContext.tsx';
 
@@ -82,8 +82,8 @@ const SummaryReview: React.FC<{ onEdit: (step: number) => void }> = ({ onEdit })
         <Row k={t('create.subcategory')} v={parentCategory ? localized(parentCategory) : (category ? localized(category) : undefined)} />
       </GroupCard>
 
-      {/* TAFSILOTLAR + ATRIBUTLAR */}
-      <GroupCard title={t('wizard.step.details')} icon={<SlidersHorizontal className="w-3.5 h-3.5 text-blue-600" />} onEdit={() => onEdit(1)}>
+      {/* PARAMETRLAR + ATRIBUTLAR */}
+      <GroupCard title={t('wizard.step.attributes')} icon={<SlidersHorizontal className="w-3.5 h-3.5 text-blue-600" />} onEdit={() => onEdit(2)}>
         {filledAttrs.length > 0 ? (
           filledAttrs.map((a) => <Row key={a.id} k={a.label} v={String(v.attributes[a.key])} />)
         ) : (
@@ -95,8 +95,6 @@ const SummaryReview: React.FC<{ onEdit: (step: number) => void }> = ({ onEdit })
             <Row k={t('create.experience')} v={v.experienceLevel} />
           </>
         )}
-        {isJobs && <Row k={t('create.salaryTitle')} v={salaryText} />}
-        {!isJobs && <Row k={t('create.priceTitle')} v={priceText} />}
         {v.skills && v.skills.length > 0 && (
           <div className="pt-1">
             <div className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 mb-1"><Tag className="w-3 h-3" /> {isJobs ? t('wizard.skillsTitle') : t('create.features')}</div>
@@ -107,11 +105,17 @@ const SummaryReview: React.FC<{ onEdit: (step: number) => void }> = ({ onEdit })
             </div>
           </div>
         )}
+      </GroupCard>
+
+      {/* TAVSIF VA NARX */}
+      <GroupCard title={t('wizard.step.description')} icon={<DollarSign className="w-3.5 h-3.5 text-blue-600" />} onEdit={() => onEdit(3)}>
+        {isJobs && <Row k={t('create.salaryTitle')} v={salaryText} />}
+        {!isJobs && <Row k={t('create.priceTitle')} v={priceText} />}
         {v.customDescription?.trim() && <Row k={t('create.descExtra')} v={v.customDescription.trim()} />}
       </GroupCard>
 
       {/* LOKATSIYA */}
-      <GroupCard title={t('wizard.step.location')} icon={<MapPin className="w-3.5 h-3.5 text-blue-600" />} onEdit={() => onEdit(2)}>
+      <GroupCard title={t('wizard.step.location')} icon={<MapPin className="w-3.5 h-3.5 text-blue-600" />} onEdit={() => onEdit(4)}>
         <Row k={t('create.regionLabel')} v={region ? localized(region) : undefined} />
         <Row k={t('create.districtLabel')} v={district ? localized(district) : undefined} />
         {v.latitude && v.longitude && <Row k="GPS" v={`${v.latitude.toFixed(4)}, ${v.longitude.toFixed(4)}`} />}
@@ -133,7 +137,7 @@ const SummaryReview: React.FC<{ onEdit: (step: number) => void }> = ({ onEdit })
       </GroupCard>
 
       {/* ALOQA */}
-      <GroupCard title={t('create.contactTimeLabel')} icon={<PhoneCall className="w-3.5 h-3.5 text-blue-600" />} onEdit={() => onEdit(1)}>
+      <GroupCard title={t('create.contactTimeLabel')} icon={<PhoneCall className="w-3.5 h-3.5 text-blue-600" />} onEdit={() => onEdit(3)}>
         <Row
           k={t('create.contactTimeLabel')}
           v={

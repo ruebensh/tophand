@@ -26,6 +26,7 @@ import {
   uploadImageFile,
   uploadVideoFile,
   getPublicMonetization,
+  getPublicSecurity,
   getCatalogs,
   getCategoryAttributes,
   aiPrefillAttributes,
@@ -83,6 +84,16 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
   const [isLocating, setIsLocating] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isUploadingVideo, setIsUploadingVideo] = useState(false);
+
+  // ── Qoralama (DRAFT) + bot-himoya (captcha) ──
+  const [captchaSitekey, setCaptchaSitekey] = useState<string | null>(null);
+  const [isDraftEditing, setIsDraftEditing] = useState(false);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [lastDraftSavedAt, setLastDraftSavedAt] = useState<number | null>(null);
+  const captchaTokenRef = useRef<string>('');
+  // Saqlangan qoralama id'si — keyincha PUT bilan yangilanadi (takror POST bo'lmaydi).
+  const draftIdRef = useRef<string | null>(null);
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── AI state ──
   const [aiSuggestion, setAiSuggestion] = useState<AiSuggestion | null>(null);
@@ -145,6 +156,7 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
     apiRequest<Region[]>('/api/locations/regions').then(setRegions).catch(console.error);
     apiRequest<Organization[]>('/api/organizations/my/list').then(setUserOrgs).catch(console.error);
     getPublicMonetization().then(setMonetization).catch(() => {});
+    getPublicSecurity().then((s) => setCaptchaSitekey(s?.turnstile_sitekey ?? null)).catch(() => setCaptchaSitekey(null));
   }, []);
 
   // ── Categories depend on catalog + (jobs) scope ──
@@ -192,6 +204,8 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
       try {
         const l = await apiRequest<any>(`/api/listings/${editListingId}`);
         if (!l) return;
+        // Qoralama sifatida ochilgan bo'lsa — keyincha "joylash" oqimi ishlaydi.
+        if (l.status === 'DRAFT') { setIsDraftEditing(true); draftIdRef.current = l.id; }
         const skillsArr: string[] = Array.isArray(l.skills) ? l.skills : (() => { try { return JSON.parse(l.skills || '[]'); } catch { return []; } })();
         const attrs = typeof l.attributes === 'string' ? JSON.parse(l.attributes || '{}') : (l.attributes || {});
         const media: string[] = Array.isArray(l.images) ? l.images : [];
@@ -456,32 +470,15 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
     return parts.join('. ') + (parts.length ? '.' : '');
   }, [attrSchema, showEmployment, parentCategoryObj, selectedCategoryObj, isLeafSelected, localized, t]);
 
-  // ── Submit ──
-  const handleValid = useCallback(async (d: WizardFormValues) => {
-    setSubmitError('');
-    setIsSubmitting(true);
+  // ── Payload quruvchi (submit + qoralama uchun umumiy) ──
+  // `opts.publish=false` => server DRAFT qiladi (token/validatsiya yengil).
+  const buildPayload = useCallback((d: WizardFormValues, description: string, opts: { publish: boolean }): JobPostingPayload => {
     const combinedSkills = Array.from(new Set(showEmployment ? d.skills : []));
-
-    let descriptionToSend = composeDescription(d);
-    if (!isEditing) {
-      setIsGeneratingDesc(true);
-      try {
-        const ai = await aiGenerateDescription(buildDescFacts(d));
-        if (ai?.description && ai.description.trim().length >= 15) {
-          descriptionToSend = ai.note ? `${ai.description.trim()}\n\n${ai.note.trim()}` : ai.description.trim();
-        }
-      } catch {
-        /* fallback: composeDescription */
-      } finally {
-        setIsGeneratingDesc(false);
-      }
-    }
-
-    const payload: JobPostingPayload = {
+    return {
       catalog_id: d.catalogId,
       type: d.type as ListingType,
       title: d.title.trim(),
-      description: descriptionToSend,
+      description,
       category_id: d.categoryId,
       region_id: d.regionId,
       district_id: d.districtId,
@@ -502,10 +499,46 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
       organization_id: d.organizationId || undefined,
       images: d.images,
       videos: d.videos,
+      publish: opts.publish,
+      captchaToken: opts.publish ? captchaTokenRef.current || undefined : undefined,
     };
+  }, [showEmployment, isJobs]);
+
+  // ── Submit (joylash) ──
+  const handleValid = useCallback(async (d: WizardFormValues) => {
+    setSubmitError('');
+    setIsSubmitting(true);
+
+    // Qoralamadan joylash: draftId mavjud (sessiya ichida saqlangan yoki DRAFT
+    // sifatida ochilgan). Bunday holatda avval PUT bilan ma'lumotni yangilaymiz,
+    // so'ng /:id/publish chaqiramiz (to'liq validatsiya + narx + ACTIVE).
+    const isDraftPublish = isDraftEditing || !!draftIdRef.current;
+
+    let descriptionToSend = composeDescription(d);
+    // AI tavsif: yangi e'lon yoki qoramadan birinchi joylashda; ACTIVE editda skip.
+    if (!isEditing || isDraftEditing) {
+      setIsGeneratingDesc(true);
+      try {
+        const ai = await aiGenerateDescription(buildDescFacts(d));
+        if (ai?.description && ai.description.trim().length >= 15) {
+          descriptionToSend = ai.note ? `${ai.description.trim()}\n\n${ai.note.trim()}` : ai.description.trim();
+        }
+      } catch {
+        /* fallback: composeDescription */
+      } finally {
+        setIsGeneratingDesc(false);
+      }
+    }
+
+    const payload = buildPayload(d, descriptionToSend, { publish: true });
 
     try {
-      if (isEditing && editListingId) {
+      if (isDraftPublish) {
+        const id = draftIdRef.current || editListingId!;
+        await apiRequest(`/api/listings/${id}`, { method: 'PUT', body: JSON.stringify({ ...payload, publish: undefined, captchaToken: undefined }) });
+        const res = await apiRequest<any>(`/api/listings/${id}/publish`, { method: 'POST', body: JSON.stringify({ captchaToken: captchaTokenRef.current || undefined }) });
+        onCreated(res?.listing?.id || id);
+      } else if (isEditing && editListingId) {
         const updated = await apiRequest<any>(`/api/listings/${editListingId}`, { method: 'PUT', body: JSON.stringify(payload) });
         onCreated(updated?.id || editListingId);
       } else {
@@ -516,7 +549,61 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
       setSubmitError(err.message || (isEditing ? t('create.errEdit') : t('create.errCreate')));
       setIsSubmitting(false);
     }
-  }, [showEmployment, isJobs, isEditing, editListingId, composeDescription, buildDescFacts, onCreated, t]);
+  }, [isDraftEditing, isEditing, editListingId, composeDescription, buildDescFacts, buildPayload, onCreated, t]);
+
+  // ── Qoralama saqlash (publish=false) ──
+  // Birinchi marta POST bilan DRAFT yaratadi; keyingi saqlashlar shu id'ga PUT.
+  const saveDraft = useCallback(async () => {
+    setSubmitError('');
+    const d = getValues();
+    // Minimal talab: NOT NULL ustunlar + yo'l validatsiyasi (tur/kategoriya/lokatsiya/sarlavha).
+    if (!d.catalogId || !d.type || !d.categoryId || !d.title.trim() || !d.regionId || !d.districtId) {
+      setSubmitError(t('create.draftNeedFields'));
+      return;
+    }
+    setIsSavingDraft(true);
+    try {
+      const payload = buildPayload(d, composeDescription(d), { publish: false });
+      const id = draftIdRef.current || (isEditing ? editListingId : null);
+      if (id) {
+        await apiRequest(`/api/listings/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+        draftIdRef.current = id;
+      } else {
+        const res = await apiRequest<any>('/api/listings', { method: 'POST', body: JSON.stringify(payload) });
+        draftIdRef.current = res.id;
+      }
+      setIsDraftEditing(true);
+      setLastDraftSavedAt(Date.now());
+    } catch (err: any) {
+      setSubmitError(err.message || t('create.errDraftSave'));
+    } finally {
+      setIsSavingDraft(false);
+    }
+  }, [getValues, buildPayload, composeDescription, isEditing, editListingId, t]);
+
+  // ── Avtosaqlash: faqat mavjud qoralama (id) bo'lganda, o'zgarishlardan ~2.5s keyin PUT ──
+  useEffect(() => {
+    if (!isDraftEditing) return;
+    const sub = watch(() => {
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = setTimeout(() => {
+        const id = draftIdRef.current;
+        if (!id) return;
+        const d = getValues();
+        if (!d.title.trim() || !d.categoryId || !d.regionId || !d.districtId) return;
+        const payload = buildPayload(d, composeDescription(d), { publish: false });
+        apiRequest(`/api/listings/${id}`, { method: 'PUT', body: JSON.stringify(payload) })
+          .then(() => setLastDraftSavedAt(Date.now()))
+          .catch(() => { /* jim o'tamiz */ });
+      }, 2500);
+    });
+    return () => {
+      sub.unsubscribe();
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    };
+  }, [isDraftEditing, watch, getValues, buildPayload, composeDescription]);
+
+  const onCaptchaChange = useCallback((token: string) => { captchaTokenRef.current = token; }, []);
 
   const handleInvalid = useCallback(() => {
     setSubmitError(t('wizard.fixErrors'));
@@ -538,14 +625,18 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
     aiSuggestion, isAiLoading, aiFilledKeys, isAttrPrefilling, attrPrefillReason, isGeneratingDesc,
     isUploadingImage, isUploadingVideo, isLocating, fileInputRef, videoInputRef,
     isEditing,
+    isDraftEditing, isSavingDraft, lastDraftSavedAt,
+    captchaSitekey, onCaptchaChange,
     chooseCatalog, chooseType, selectCategory, requestAiSuggestion, applyAiSuggestion, runAttrPrefill,
     handleToggleFeature, handleImageUpload, handleRemoveImage, handleVideoUpload, handleRemoveVideo, handleDetectGPS,
+    saveDraft,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [
     catalogs, categories, regions, districts, userOrgs, attrSchema, monetization, isJobs, isServices, showEmployment,
     isLeafSelected, subcategoriesOfParent, parentCategories, t, localized, intlLocale, user?.name, aiSuggestion, isAiLoading,
     aiFilledKeys, isAttrPrefilling, attrPrefillReason, isGeneratingDesc, isUploadingImage, isUploadingVideo, isLocating,
-    isEditing, chooseCatalog, chooseType, selectCategory, requestAiSuggestion, applyAiSuggestion, runAttrPrefill,
+    isEditing, isDraftEditing, isSavingDraft, lastDraftSavedAt, captchaSitekey, onCaptchaChange, saveDraft,
+    chooseCatalog, chooseType, selectCategory, requestAiSuggestion, applyAiSuggestion, runAttrPrefill,
     handleToggleFeature, handleImageUpload, handleRemoveImage, handleVideoUpload, handleRemoveVideo, handleDetectGPS,
   ]);
 

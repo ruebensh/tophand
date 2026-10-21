@@ -1,18 +1,17 @@
 // ============================================================================
-//  DynamicFieldRenderer — WIZARD Step 2 (Dinamik atributlar + forma bloklari).
-//  Kategoriya atribut sxemasini RHF Controller orqali chiqaradi; ustiga AI
-//  to'ldirish tugmasi + aiFilledKeys badge + qizil ko'rik eslatmasi (mavjud
-//  logika saqlanadi). Jobs/sell shartli bloklar: maosh/narx, bandlik, ko'nikma
-//  autosuggest, afzalliklar, media, aloqa, tashkilot, qo'shimcha izoh.
+//  StepAttributes — WIZARD Step 3 (Parametrlar / dinamik atributlar).
+//  Asl DynamicFieldRenderer'dagi atribut mantiqi shu yerga ko'chirildi:
+//  tashkilot tanlash + kategoriya atribut sxemasi (RHF Controller) + ustida AI
+//  to'ldirish tugmasi + aiFilledKeys badge + qizil ko'rik eslatmasi + xizmatlar
+//  afzalliklari (services) / ko'nikmalar (jobs autosuggest) + bandlik bloklari.
 // ============================================================================
 
-import React, { useState } from 'react';
+import React, { useEffect } from 'react';
 import { Controller, useFormContext } from 'react-hook-form';
 import {
-  Sparkles, Wand2, TriangleAlert, Check, UploadCloud, X,
-  Building2, DollarSign, SlidersHorizontal, ShieldCheck, ChevronDown, Tag,
+  Sparkles, Wand2, TriangleAlert, Check, Building2, SlidersHorizontal, ShieldCheck, Tag,
 } from 'lucide-react';
-import type { CategoryAttribute, WorkFormat, ContactTime, PriceType, SalaryType } from '../../types/index.ts';
+import type { CategoryAttribute, WorkFormat } from '../../types/index.ts';
 import type { WizardFormValues } from '../../types/wizard.ts';
 import { useWizardController } from './wizardContext.tsx';
 import { INPUT_CLS, chipCls, FieldError, SelectAttrField, MultiselectAttrField } from './fields.tsx';
@@ -20,9 +19,40 @@ import { PRESET_FEATURES } from './wizardMeta.ts';
 import AutosuggestInput from './AutosuggestInput.tsx';
 
 // Bitta dinamik atribut maydoni — turiga qarab kontrol tanlanadi, RHF'ga bog'lanadi.
+// `meta.depends_on` bo'lsa: ota-maydon qiymatiga qarab variantlar filtrlanadi
+// (kaskad, masalan Brend→Model) va noto'g'ri tanlangan bola-qiymat tozalanadi.
 const AttrField: React.FC<{ attr: CategoryAttribute }> = ({ attr }) => {
   const { t } = useWizardController();
-  const { control } = useFormContext<WizardFormValues>();
+  const { control, watch, getValues, setValue } = useFormContext<WizardFormValues>();
+
+  const dependsOn = (attr.meta?.depends_on ?? null) as
+    | { key?: string; map?: Record<string, string[]> }
+    | null;
+  const parentKey = dependsOn?.key || '';
+  const parentVal = parentKey ? watch(`attributes.${parentKey}`) : undefined;
+
+  // Ruxsat etilgan variantlar: ota tanlangan va map'da bor bo'lsa — subset,
+  // aks holda barcha variantlar (ota bo'sh yoki map'da yo'q).
+  const allowed =
+    dependsOn?.map && parentVal != null && String(parentVal).trim() !== ''
+      ? dependsOn.map[String(parentVal)]
+      : undefined;
+  const effectiveAttr: CategoryAttribute = Array.isArray(allowed)
+    ? { ...attr, options: (attr.options || []).filter((o) => allowed.includes(o)) }
+    : attr;
+
+  // Ota o'zgarganda, bola qiymati endi ruxsat etilmagan bo'lsa — tozalaymiz.
+  useEffect(() => {
+    if (!parentKey || !dependsOn?.map) return;
+    const a = dependsOn.map[String(parentVal ?? '')];
+    if (!Array.isArray(a)) return;
+    const cur = getValues(`attributes.${attr.key}` as any);
+    if (cur != null && String(cur).trim() !== '' && !a.includes(String(cur))) {
+      setValue(`attributes.${attr.key}` as any, undefined as any, { shouldValidate: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parentKey, parentVal]);
+
   return (
     <Controller
       control={control}
@@ -36,7 +66,7 @@ const AttrField: React.FC<{ attr: CategoryAttribute }> = ({ attr }) => {
         switch (attr.type) {
           case 'select':
           case 'color':
-            control_$ = <SelectAttrField attr={attr} value={typeof val === 'string' ? val : ''} onChange={setAttr} />;
+            control_$ = <SelectAttrField attr={effectiveAttr} value={typeof val === 'string' ? val : ''} onChange={setAttr} />;
             break;
           case 'bool':
             control_$ = (
@@ -50,7 +80,7 @@ const AttrField: React.FC<{ attr: CategoryAttribute }> = ({ attr }) => {
             );
             break;
           case 'multiselect':
-            control_$ = <MultiselectAttrField attr={attr} value={typeof val === 'string' ? val : ''} onChange={setAttr} />;
+            control_$ = <MultiselectAttrField attr={effectiveAttr} value={typeof val === 'string' ? val : ''} onChange={setAttr} />;
             break;
           case 'number':
           case 'year':
@@ -101,20 +131,23 @@ const AttrField: React.FC<{ attr: CategoryAttribute }> = ({ attr }) => {
   );
 };
 
-const DynamicFieldRenderer: React.FC = () => {
+const StepAttributes: React.FC = () => {
   const ctl = useWizardController();
   const { t, attrSchema, userOrgs, isJobs, isServices, showEmployment } = ctl;
-  const { control, register, watch, formState: { errors } } = useFormContext<WizardFormValues>();
+  const { control, register, watch } = useFormContext<WizardFormValues>();
 
-  const [isCustomDescOpen, setIsCustomDescOpen] = useState(false);
   const type_ = watch('type');
   const skills = watch('skills') || [];
-  const organizationId = watch('organizationId');
 
   const orgVisible = userOrgs.length > 0 && (type_ === 'JOB_OPENING' || type_ === 'SERVICE_OFFER' || type_ === 'SELL');
 
   return (
     <div className="space-y-6">
+      <div className="text-center max-w-lg mx-auto">
+        <h2 className="text-lg font-black text-gray-900">{t('wizard.step.attributes')}</h2>
+        <p className="text-xs text-gray-500 mt-1">{t('wizard.attributesHint')}</p>
+      </div>
+
       {/* ORGANIZATION */}
       {orgVisible && (
         <div>
@@ -275,163 +308,8 @@ const DynamicFieldRenderer: React.FC = () => {
           </div>
         </div>
       )}
-
-      {/* PRICING / SALARY */}
-      {isJobs ? (
-        <div className="p-4 rounded-2xl bg-purple-50/50 border border-purple-100 space-y-3">
-          <h4 className="font-bold text-xs text-purple-900 uppercase tracking-wider flex items-center gap-1.5">
-            <DollarSign className="w-3.5 h-3.5 text-purple-600" /> {t('create.salaryTitle')}
-          </h4>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <select {...register('salaryType')} className="bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-xs font-bold focus:ring-2 focus:ring-purple-500">
-              <option value="SALARY_FIXED">{t('create.salaryFixed')}</option>
-              <option value="SALARY_RANGE">{t('create.salaryRange')}</option>
-              <option value="SALARY_NEGOTIABLE">{t('create.salaryNegotiable')}</option>
-            </select>
-            <div className="space-y-1">
-              {watch('salaryType') !== 'SALARY_NEGOTIABLE' && (
-                <input type="number" placeholder={t('create.salaryMinPh')} {...register('salaryMin')} className="bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium focus:ring-2 focus:ring-purple-500 w-full" />
-              )}
-              <FieldError message={(errors.salaryMin as any)?.message} />
-            </div>
-            <div className="space-y-1">
-              {watch('salaryType') === 'SALARY_RANGE' && (
-                <input type="number" placeholder={t('create.salaryMaxPh')} {...register('salaryMax')} className="bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium focus:ring-2 focus:ring-purple-500 w-full" />
-              )}
-              <FieldError message={(errors.salaryMax as any)?.message} />
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="p-4 rounded-2xl bg-blue-50/50 border border-blue-100 space-y-3">
-          <h4 className="font-bold text-xs text-blue-900 uppercase tracking-wider flex items-center gap-1.5">
-            <DollarSign className="w-3.5 h-3.5 text-blue-600" /> {t('create.priceTitle')}
-          </h4>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <select {...register('priceType')} className="bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-xs font-bold focus:ring-2 focus:ring-blue-500">
-              <option value="FIXED">{t('create.priceFixed')}</option>
-              <option value="FROM">{t('create.priceFrom')}</option>
-              <option value="RANGE">{t('create.priceRange')}</option>
-              <option value="NEGOTIABLE">{t('create.priceNegotiable')}</option>
-              <option value="FREE">{t('create.priceFree')}</option>
-            </select>
-            <div className="space-y-1">
-              {watch('priceType') !== 'NEGOTIABLE' && watch('priceType') !== 'FREE' && (
-                <input type="number" placeholder={t('create.amountPh')} {...register('priceMin')} className="bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium focus:ring-2 focus:ring-blue-500 w-full" />
-              )}
-              <FieldError message={(errors.priceMin as any)?.message} />
-            </div>
-            <div className="space-y-1">
-              {watch('priceType') === 'RANGE' && (
-                <input type="number" placeholder={t('create.salaryMaxPh')} {...register('priceMax')} className="bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium focus:ring-2 focus:ring-blue-500 w-full" />
-              )}
-              <FieldError message={(errors.priceMax as any)?.message} />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* CONTACT TIME */}
-      <div>
-        <label className="block text-xs font-bold text-gray-800 mb-2">{t('create.contactTimeLabel')}</label>
-        <Controller
-          control={control}
-          name="contactTime"
-          render={({ field }) => (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {[{ id: 'ANY_TIME', label: t('create.ctAny') }, { id: 'MORNING', label: t('create.ctMorning') }, { id: 'AFTERNOON', label: t('create.ctAfternoon') }, { id: 'EVENING', label: t('create.ctEvening') }].map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => field.onChange(item.id as ContactTime)}
-                  className={`py-2 px-2 rounded-xl text-xs font-bold border transition-all text-center cursor-pointer ${
-                    field.value === item.id ? 'bg-blue-600 text-white border-blue-600 shadow-xs' : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          )}
-        />
-      </div>
-
-      {/* QO'SHIMCHA IZOH */}
-      <div className="p-4 rounded-2xl bg-linear-to-br from-blue-50/60 to-indigo-50/60 border border-blue-100">
-        <button type="button" onClick={() => setIsCustomDescOpen(!isCustomDescOpen)} className="text-[11px] font-bold text-blue-700 hover:text-blue-900 flex items-center gap-1 cursor-pointer">
-          <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isCustomDescOpen ? 'rotate-180' : ''}`} />
-          <span>{isCustomDescOpen ? t('create.closeExtra') : t('create.openExtra')}</span>
-        </button>
-        {isCustomDescOpen && (
-          <textarea rows={3} {...register('customDescription')} placeholder={t('create.extraPh')} className="mt-2.5 w-full bg-white border border-blue-200 rounded-xl p-3 text-xs font-medium focus:ring-2 focus:ring-blue-500" />
-        )}
-      </div>
-
-      {/* IMAGES */}
-      <Controller
-        control={control}
-        name="images"
-        render={({ field }) => (
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-bold text-gray-800">{t('create.imagesLabel')}</label>
-              <span className="text-[11px] text-gray-400">{field.value.length}/8</span>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {field.value.map((url, idx) => (
-                <div key={idx} className="relative aspect-square rounded-2xl overflow-hidden border border-gray-200">
-                  <img src={url} alt={`Upload ${idx}`} className="w-full h-full object-cover" />
-                  <button type="button" onClick={() => ctl.handleRemoveImage(idx)} className="absolute top-1.5 right-1.5 p-1 rounded-full bg-rose-600 text-white shadow-md cursor-pointer">
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                  {idx === 0 && <span className="absolute bottom-1.5 left-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-sm bg-blue-600 text-white">{t('create.cover')}</span>}
-                </div>
-              ))}
-              {field.value.length < 8 && (
-                <button type="button" disabled={ctl.isUploadingImage} onClick={() => ctl.fileInputRef.current?.click()} className="aspect-square rounded-2xl border-2 border-dashed border-gray-300 hover:border-blue-500 hover:bg-blue-50/30 flex flex-col items-center justify-center p-3 transition-colors cursor-pointer">
-                  <UploadCloud className={`w-6 h-6 text-gray-400 mb-1 ${ctl.isUploadingImage ? 'animate-bounce text-blue-600' : ''}`} />
-                  <span className="text-[11px] font-bold text-gray-600">{ctl.isUploadingImage ? t('create.uploading') : t('create.uploadImage')}</span>
-                </button>
-              )}
-            </div>
-            <input type="file" ref={ctl.fileInputRef} onChange={ctl.handleImageUpload} accept="image/*" multiple className="hidden" />
-          </div>
-        )}
-      />
-
-      {/* VIDEOS */}
-      <Controller
-        control={control}
-        name="videos"
-        render={({ field }) => (
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-bold text-gray-800">{t('create.videosLabel')}</label>
-              <span className="text-[11px] text-gray-400">{field.value.length}/2</span>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {field.value.map((url, idx) => (
-                <div key={idx} className="relative aspect-square rounded-2xl overflow-hidden border border-gray-200 bg-black">
-                  <video src={url} className="w-full h-full object-cover" muted playsInline />
-                  <button type="button" onClick={() => ctl.handleRemoveVideo(idx)} className="absolute top-1.5 right-1.5 p-1 rounded-full bg-rose-600 text-white shadow-md cursor-pointer">
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                  <span className="absolute bottom-1.5 left-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-sm bg-violet-600 text-white">{t('create.videoTag')}</span>
-                </div>
-              ))}
-              {field.value.length < 2 && (
-                <button type="button" disabled={ctl.isUploadingVideo} onClick={() => ctl.videoInputRef.current?.click()} className="aspect-square rounded-2xl border-2 border-dashed border-gray-300 hover:border-violet-500 hover:bg-violet-50/30 flex flex-col items-center justify-center p-3 transition-colors cursor-pointer">
-                  <UploadCloud className={`w-6 h-6 text-gray-400 mb-1 ${ctl.isUploadingVideo ? 'animate-bounce text-violet-600' : ''}`} />
-                  <span className="text-[11px] font-bold text-gray-600">{ctl.isUploadingVideo ? t('create.uploading') : t('create.uploadVideo')}</span>
-                </button>
-              )}
-            </div>
-            <input type="file" ref={ctl.videoInputRef} onChange={ctl.handleVideoUpload} accept="video/mp4,video/webm" className="hidden" />
-          </div>
-        )}
-      />
     </div>
   );
 };
 
-export default DynamicFieldRenderer;
+export default StepAttributes;

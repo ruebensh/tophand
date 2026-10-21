@@ -8,11 +8,13 @@ import {
   searchListings,
   getListingById,
   createListing,
+  publishDraft,
   renewListing,
   promoteListing,
   recordListingEvent,
   getListingStats,
 } from '../services/listingService.ts';
+import { verifyCaptcha } from '../lib/captcha.ts';
 import { autoFlagContentIfProfane, logSearchOrFilter } from '../services/autoModerationService.ts';
 import { enqueueListing } from '../services/moderationAssignService.ts';
 import { notifyFirstListing, createNotification } from '../services/notificationService.ts';
@@ -20,6 +22,57 @@ import { refundListingCreation } from '../services/walletService.ts';
 import { queryOne, queryAll, runQuery } from '../db/database.ts';
 
 const router = Router();
+
+// Joylash (ACTIVE) bo'lgandagi qo'shimcha yon ta'sirlar: ochilis sanoqi,
+// izdoshlarga xabar, matn skanerlash, moderator navbati. Qoralama (DRAFT)
+// yaratishda CHAQIRILMAYDI — ular faqat e'lon ommaga chiqqanda bajariladi.
+async function applyPublishSideEffects(listing: any, userId: string, userName?: string) {
+  try {
+    const cnt = await queryOne<{ count: number }>(
+      'SELECT COUNT(*) as count FROM listings WHERE owner_user_id = ?',
+      [userId]
+    );
+    if (Number(cnt?.count || 0) === 1) {
+      notifyFirstListing(userId, listing.title).catch(() => {});
+    }
+  } catch (e) {
+    console.error('First-listing milestone check failed:', e);
+  }
+
+  try {
+    const followers = await queryAll<{ follower_user_id: string }>(
+      'SELECT follower_user_id FROM follows WHERE followed_user_id = ?',
+      [userId]
+    );
+    const ownerName = userName || 'Siz obuna bo‘lgan mutaxassis';
+    const now = new Date().toISOString();
+    for (const f of followers) {
+      const notifId = `notif_${crypto.randomUUID().slice(0, 16)}`;
+      await runQuery(
+        `INSERT INTO notifications (id, user_id, type, title, body, link, created_at)
+         VALUES (?, ?, 'NEW_LISTING_FROM_FOLLOWED', ?, ?, ?, ?)`,
+        [
+          notifId,
+          f.follower_user_id,
+          `${ownerName} yangi e’lon joyladi`,
+          `${ownerName} yangi e’lon berdi: "${listing.title}"`,
+          `/listing/${listing.id}`,
+          now,
+        ]
+      );
+    }
+  } catch (notifErr) {
+    console.error('Failed to notify followers:', notifErr);
+  }
+
+  autoFlagContentIfProfane(
+    'LISTING',
+    listing.id,
+    userId,
+    `${listing.title} ${listing.description}`
+  );
+  enqueueListing(listing.id).catch(() => {});
+}
 
 // Search and filter listings
 router.get('/', optionalAuth, async (req: AuthRequest, res) => {
@@ -174,8 +227,16 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'E’lon turi noto‘g‘ri tanlangan' });
     }
 
-    if (!title || title.trim().length < 5) {
-      return res.status(400).json({ error: 'E’lon sarlavhasi kamida 5 ta belgidan iborat bo‘lishi kerak' });
+    // publish=false → qoralama (DRAFT) sifatida saqlash; aks holda darhol ACTIVE.
+    const publish = req.body.publish !== false;
+    const captchaToken = req.body.captchaToken;
+
+    if (!title || title.trim().length < (publish ? 5 : 1)) {
+      return res.status(400).json({
+        error: publish
+          ? 'E’lon sarlavhasi kamida 5 ta belgidan iborat bo‘lishi kerak'
+          : 'Qoralama uchun kamida sarlavha kiriting',
+      });
     }
 
     // Auto-generate description if omitted or short (user doesn't need to manually type essays)
@@ -204,6 +265,15 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
       }
     }
 
+    // Bot-himoya: faqat joylashda (DRAFT emas). TURNSTILE_SECRET_KEY o'rnatilgan
+    // bo'lsa token talab qilinadi; o'rnatilmagan bo'lsa tekshiruv o'tkazib yuboriladi.
+    if (publish) {
+      const cap = await verifyCaptcha(captchaToken, req.ip);
+      if (cap.enabled && !cap.ok) {
+        return res.status(400).json({ error: cap.error || 'Captcha tasdiqlanmadi', code: 'CAPTCHA_FAILED' });
+      }
+    }
+
     const listing = await createListing(req.user!.id, {
       type,
       catalog_id,
@@ -229,58 +299,15 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
       attributes: attributes && typeof attributes === 'object' ? attributes : {},
       images: Array.isArray(images) ? images : [],
       videos: Array.isArray(videos) ? videos : [],
-    });
+    }, { draft: !publish });
 
-    // Debut milestone: congratulate the owner on publishing their very first listing.
-    try {
-      const cnt = await queryOne<{ count: number }>(
-        'SELECT COUNT(*) as count FROM listings WHERE owner_user_id = ?',
-        [req.user!.id]
-      );
-      if (Number(cnt?.count || 0) === 1) {
-        notifyFirstListing(req.user!.id, listing.title).catch(() => {});
-      }
-    } catch (e) {
-      console.error('First-listing milestone check failed:', e);
+    // Qoralama (DRAFT) — yon ta'sirlarsiz, faqat egasiga ko'rinadi.
+    if (!publish) {
+      return res.status(201).json(listing);
     }
 
-    // Notify all followers about this new listing
-    try {
-      const followers = await queryAll<{ follower_user_id: string }>(
-        'SELECT follower_user_id FROM follows WHERE followed_user_id = ?',
-        [req.user!.id]
-      );
-      const ownerName = req.user!.name || 'Siz obuna bo‘lgan mutaxassis';
-      const now = new Date().toISOString();
-      for (const f of followers) {
-        const notifId = `notif_${crypto.randomUUID().slice(0, 16)}`;
-        await runQuery(
-          `INSERT INTO notifications (id, user_id, type, title, body, link, created_at)
-           VALUES (?, ?, 'NEW_LISTING_FROM_FOLLOWED', ?, ?, ?, ?)`,
-          [
-            notifId,
-            f.follower_user_id,
-            `${ownerName} yangi e’lon joyladi`,
-            `${ownerName} yangi e’lon berdi: "${listing.title}"`,
-            `/listing/${listing.id}`,
-            now,
-          ]
-        );
-      }
-    } catch (notifErr) {
-      console.error('Failed to notify followers:', notifErr);
-    }
-
-    // Auto-scan content for profanity
-    autoFlagContentIfProfane(
-      'LISTING',
-      listing.id,
-      req.user!.id,
-      `${listing.title} ${listing.description}`
-    );
-
-    // Faza 17: enqueue for moderation distribution (auto-approve if clean + enabled)
-    enqueueListing(listing.id).catch(() => {});
+    // Ommaga chiqqan e'lon uchun yon ta'sirlar (xabarlar, moderator, spam-skan).
+    await applyPublishSideEffects(listing, req.user!.id, req.user!.name);
 
     res.status(201).json(listing);
   } catch (err: any) {
@@ -421,6 +448,26 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res) => {
     res.json(updated);
   } catch (err: any) {
     serverError(res, err);
+  }
+});
+
+// Qoralamani (DRAFT) joylash: to'liq validatsiya + narx + status ACTIVE +
+// yon ta'sirlar (xabarlar/moderator/spam). Faqat e'lon egasi chaqira oladi.
+router.post('/:id/publish', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const cap = await verifyCaptcha(req.body?.captchaToken, req.ip);
+    if (cap.enabled && !cap.ok) {
+      return res.status(400).json({ error: cap.error || 'Captcha tasdiqlanmadi', code: 'CAPTCHA_FAILED' });
+    }
+    const listing = await publishDraft(req.params.id, req.user!.id);
+    await applyPublishSideEffects(listing, req.user!.id, req.user!.name);
+    res.json({ success: true, listing });
+  } catch (err: any) {
+    // Biz-bil bilan bog'liq xatolar (balans yetarli emas / validatsiya) → 400/402.
+    if (err?.name === 'InsufficientFundsError') {
+      return res.status(402).json({ error: err.message, code: err.name });
+    }
+    res.status(400).json({ error: err.message });
   }
 });
 

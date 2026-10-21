@@ -134,6 +134,17 @@ const PHONE_BRANDS = [
   'Honor', 'Nokia', 'OnePlus', 'Tecno', 'Infinix',
 ];
 
+// Bog'liq (kaskad) atribut namunalari: brend tanlanganda, model ro'yxati shu
+// brendga xos modellarga filtrlanadi (`meta.depends_on.map`). `options` — barcha
+// modellarning umumiy to'plami (filtr yo'q tanlanganda ko'rsatiladi).
+const PHONE_MODELS: Record<string, string[]> = {
+  iPhone: ['iPhone 11', 'iPhone 12', 'iPhone 13', 'iPhone 14', 'iPhone 15', 'iPhone 16'],
+  Samsung: ['Galaxy A15', 'Galaxy A55', 'Galaxy S23', 'Galaxy S24', 'Galaxy Note 20'],
+  Xiaomi: ['Xiaomi 13', 'Xiaomi 14', 'Redmi Note 13', 'Poco X6'],
+  Redmi: ['Redmi 12', 'Redmi 13', 'Redmi Note 12', 'Redmi Note 13 Pro'],
+};
+const ALL_PHONE_MODELS = [...new Set(Object.values(PHONE_MODELS).flat())];
+
 const CATEGORY_OVERRIDES: Record<string, AttributeDef[]> = {
   // ── Transport › Avtomobillar (flagship) ──
   trn_avto: [
@@ -197,7 +208,12 @@ const CATEGORY_OVERRIDES: Record<string, AttributeDef[]> = {
   // ── Elektronika › Mobil telefonlar (flagship) ──
   el_phone_mob: [
     A('brend', 'Brend', 'select', { options: PHONE_BRANDS, section: 'Asosiy', isPopular: true, popularOrder: 1, popularValues: PHONE_BRANDS }),
-    A('model', 'Model', 'text', { section: 'Asosiy' }),
+    // `model` — `brend`ga bog'liq: tanlangan brendning modellari qoladi (kaskad).
+    A('model', 'Model', 'select', {
+      options: ALL_PHONE_MODELS,
+      section: 'Asosiy',
+      meta: { depends_on: { key: 'brend', map: PHONE_MODELS } },
+    }),
     A('holat', 'Holat', 'multiselect', { options: ['Yangi', 'Ishlatilgan', 'Qayta tiklangan'], section: 'Holat', required: true }),
     A('xotira', 'O’z xotirasi', 'multiselect', { options: ['16', '32', '64', '128', '256', '512', '1TB'], unit: 'GB', section: 'Texnik' }),
     A('operativ', 'Operativ xotira (RAM)', 'select', { options: ['2', '3', '4', '6', '8', '12', '16'], unit: 'GB', section: 'Texnik' }),
