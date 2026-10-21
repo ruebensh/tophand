@@ -216,15 +216,17 @@ export function AdSlot({
 
     const onClick = () => trackAdEvent(camp.id, 'click');
 
+    // CTA — banner/box ichidagi tugma ko'rinishi. Butun banner allaqachon <a>
+    // bilan o'ralgan, shuning uchun bu <span> bo'ladi (ichma-ich <a> HTML
+    // invalidligi va React hydration xatosining oldini oladi). Klik ota-<a> ga
+    // ko'tarilib, yo'naltirish va click-tracking avtomatik ishlaydi.
     const cta = (
-      <a
-        {...linkProps}
-        onClick={onClick}
+      <span
         className="inline-flex items-center gap-1 rounded-full bg-[#1673E6] px-3.5 py-1.5 text-[11px] sm:text-xs font-bold text-white shadow-xs hover:bg-blue-700 transition-colors whitespace-nowrap"
       >
         {camp.cta_label || t('ads.ctaDefault')}
         <span aria-hidden>→</span>
-      </a>
+      </span>
     );
 
     const yt = camp.type === 'video' && camp.video_url ? youtubeId(camp.video_url) : null;
