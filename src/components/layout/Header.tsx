@@ -78,6 +78,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
   const [notifPos, setNotifPos] = useState<{ top: number; right: number } | null>(null);
   const [selectedNotif, setSelectedNotif] = useState<Notification | null>(null);
   const [isMegaOpen, setIsMegaOpen] = useState(false);
+  const [megaKey, setMegaKey] = useState(0);
   const [isMapOpen, setIsMapOpen] = useState(false);
   const [catalogs, setCatalogs] = useState<Catalog[]>([]);
   const [megaCatalogId, setMegaCatalogId] = useState<string>('');
@@ -231,6 +232,13 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
     onNavigate(route);
   };
 
+  const openMega = () => {
+    setIsMegaOpen((v) => {
+      if (!v) setMegaKey((k) => k + 1);
+      return !v;
+    });
+  };
+
   // Bitta ota-kategoriyaning ochiq/yopiq holatini almashtirish
   const toggleParent = (id: string) => {
     setExpandedParents((prev) => {
@@ -252,6 +260,8 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
     const linkCatalog = activeCatalogId || megaCatalogId;
 
     // Kategoriyalar ustunlari (ikkala rejimda ham bir xil).
+    // Stagger counter — har bir element 20ms kechikish oladi
+    let staggerIdx = 0;
     const tree = (
       <div className={`${mobile ? 'columns-1' : 'columns-2 xl:columns-3'} gap-x-6`}>
         {megaTree.length === 0 && (
@@ -262,23 +272,26 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
           const isExpanded = expandedParents.has(parent.id);
           const visibleSubs = isExpanded ? subs : subs.slice(0, MEGA_SUB_LIMIT);
           const hiddenCount = subs.length - MEGA_SUB_LIMIT;
+          const parentDelay = staggerIdx++ * 22;
           return (
             <div key={parent.id} className="break-inside-avoid mb-4">
               <button
                 type="button"
                 onClick={() => go(`/?catalog=${linkCatalog}&category=${parent.id}`)}
-                className="text-[12px] font-bold text-[#172B4D] hover:text-[#1673E6] text-left cursor-pointer truncate"
+                className="mega-parent-item text-[12px] font-bold text-[#172B4D] hover:text-[#1673E6] text-left cursor-pointer truncate"
+                style={{ '--mi': `${parentDelay}ms` } as React.CSSProperties}
               >
                 {localized(parent)}
               </button>
               {subs.length > 0 && (
                 <div className="mt-1 space-y-0.5">
-                  {visibleSubs.map((sub) => (
+                  {visibleSubs.map((sub, si) => (
                     <button
                       key={sub.id}
                       type="button"
                       onClick={() => go(`/?catalog=${linkCatalog}&category=${sub.id}`)}
-                      className="block w-full text-left text-[11px] text-[#5E6C84] hover:text-[#1673E6] cursor-pointer truncate"
+                      className="mega-sub-item block w-full text-left text-[11px] text-[#5E6C84] hover:text-[#1673E6] cursor-pointer truncate"
+                      style={{ '--si': `${parentDelay + 12 + si * 16}ms` } as React.CSSProperties}
                     >
                       {localized(sub)}
                     </button>
@@ -321,12 +334,13 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
             </button>
           </div>
           <div className={`${mobile ? 'columns-1' : 'columns-2 xl:columns-3'} gap-x-6`}>
-            {subContext.subs.map((sub) => (
+            {subContext.subs.map((sub, si) => (
               <button
                 key={sub.id}
                 type="button"
                 onClick={() => go(`/?catalog=${linkCatalog}&category=${sub.id}`)}
-                className="break-inside-avoid mb-2 block w-full text-left text-[12px] font-medium text-[#172B4D] hover:text-[#1673E6] cursor-pointer truncate"
+                className="mega-parent-item break-inside-avoid mb-2 block w-full text-left text-[12px] font-medium text-[#172B4D] hover:text-[#1673E6] cursor-pointer truncate"
+                style={{ '--mi': `${si * 24}ms` } as React.CSSProperties}
               >
                 {localized(sub)}
               </button>
@@ -366,15 +380,16 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
       <>
         {/* Chap: 13 katalog ro'yxati */}
         <div className={`${mobile ? 'w-[78px] shrink-0' : 'w-60 shrink-0'} border-r border-gray-100 bg-[#F9FAFB] overflow-y-auto py-2 ${mobile ? 'pb-[calc(var(--mobile-nav-h)+12px+env(safe-area-inset-bottom))]' : ''}`}>
-          {catalogs.map((cat) => (
+          {catalogs.map((cat, ci) => (
             <button
               key={cat.id}
               type="button"
               onMouseEnter={() => { if (!mobile) setMegaCatalogId(cat.id); }}
               onClick={() => setMegaCatalogId(cat.id)}
-              className={`w-full flex transition-colors cursor-pointer ${
+              className={`mega-cat-item w-full flex transition-colors cursor-pointer ${
                 mobile ? 'flex-col items-center gap-1 px-1.5 py-2.5 text-center' : 'items-center gap-2.5 px-3 py-2 text-left'
               } ${megaCatalogId === cat.id ? 'bg-white text-[#1673E6] font-bold' : 'text-[#172B4D] hover:bg-white/70'}`}
+              style={{ '--mi': `${ci * 28}ms` } as React.CSSProperties}
             >
               <CatalogRailIcon catalogId={cat.id} icon={cat.icon} tone={CAT_TONE[cat.id]} mobile={mobile} />
               <span className={mobile ? 'text-[9px] leading-tight line-clamp-2' : 'text-[13px] truncate'}>{localized(cat)}</span>
@@ -453,7 +468,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
                 <div
                   ref={notifPanelRef}
                   style={{ position: 'fixed', top: notifPos?.top ?? 0, right: notifPos?.right ?? 8, zIndex: 120 }}
-                  className="w-80 sm:w-96 bg-white rounded-2xl border border-gray-100 shadow-xl overflow-hidden"
+                  className="mega-panel-enter w-80 sm:w-96 bg-white rounded-2xl border border-gray-100 shadow-2xl overflow-hidden"
                 >
                   <div className="p-3.5 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
                     <span className="font-bold text-sm text-gray-900">{t('nav.notifications')}</span>
@@ -490,12 +505,12 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
 
             {selectedNotif && createPortal(
               <div
-                className="fixed inset-0 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+                className="fixed inset-0 flex items-center justify-center p-4 apple-backdrop"
                 style={{ zIndex: 200 }}
                 onClick={() => setSelectedNotif(null)}
               >
                 <div
-                  className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150"
+                  className="w-full max-w-md bg-white rounded-3xl shadow-[0_24px_60px_rgba(0,0,0,0.25)] border border-white/60 overflow-hidden apple-modal"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-gray-100">
@@ -559,7 +574,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
                 </button>
 
                 {isUserMenuOpen && (
-                  <div className="absolute right-0 mt-2 w-60 bg-white rounded-2xl border border-gray-100 shadow-xl py-1.5 z-50 divide-y divide-gray-100">
+                  <div className="mega-panel-enter absolute right-0 mt-2 w-60 bg-white rounded-2xl border border-gray-100 shadow-2xl py-1.5 z-50 divide-y divide-gray-100">
                     <div className="p-3">
                       <p className="font-bold text-xs text-gray-900 truncate">{user.name}</p>
                       {/* QA-06: Telegram username bo'lmasa — email ko'rsatamiz; u ham
@@ -653,7 +668,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
           <div className="relative shrink-0" ref={megaRef}>
             <button
               type="button"
-              onClick={() => setIsMegaOpen((v) => !v)}
+              onClick={openMega}
               className={`flex items-center gap-1.5 h-10 px-2.5 sm:px-4 rounded-2xl font-bold text-xs sm:text-sm text-white transition-all duration-300 cursor-pointer ${
                 isMegaOpen ? 'scale-95' : 'hover:scale-[1.02] active:scale-95'
               }`}
@@ -671,7 +686,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
 
             {isMegaOpen && (
               <div className="absolute left-0 top-full pt-2 z-50 hidden lg:block">
-                <div className="w-[min(1100px,92vw)] bg-white/95 backdrop-blur-2xl rounded-3xl border border-white/80 shadow-[0_20px_50px_rgba(0,0,0,0.12)] p-0 max-h-[74vh] overflow-hidden flex">
+                <div key={megaKey} className="mega-panel-enter w-[min(1100px,92vw)] bg-white/95 backdrop-blur-2xl rounded-3xl border border-white/80 shadow-[0_20px_50px_rgba(0,0,0,0.12)] p-0 max-h-[74vh] overflow-hidden flex">
                   {renderMegaBody(false)}
                 </div>
               </div>
@@ -724,8 +739,11 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
 
       {/* Mobil to'liq ekran kategoriyalar modal — xuddi shu mega-menyu (lg dan pastda) */}
       {isMegaOpen && (
-        <div ref={megaMobileRef} className="lg:hidden fixed inset-0 z-50 bg-white flex flex-col">
-          <div className="flex items-center justify-between px-4 h-14 shrink-0 border-b border-gray-100">
+        <div ref={megaMobileRef} key={`mobile-${megaKey}`} className="lg:hidden fixed inset-0 z-50 bg-white flex flex-col apple-sheet">
+          <div className="pt-2">
+            <div className="apple-grabber" />
+          </div>
+          <div className="flex items-center justify-between px-4 h-12 shrink-0 border-b border-gray-100">
             <span className="flex items-center gap-2 font-extrabold text-sm text-[#172B4D]">
               <LayoutGrid className="w-4 h-4 th-accent-text" /> {subContext ? t('nav.allSubcategories') : activeCatalogId ? t('nav.allCategories') : t('nav.allCatalogs')}
             </span>

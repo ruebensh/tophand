@@ -95,7 +95,7 @@ export const CategoryGrid: React.FC<CategoryGridProps> = ({
 
       {/* Categories Grid (Optimized for Mobile Phone Screens) */}
       <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2">
-        {displayedCategories.map((cat) => {
+        {displayedCategories.map((cat, ci) => {
           const IconComponent = ICON_MAP[cat.icon] || MoreHorizontal;
           const isSelected = selectedCategoryId === cat.id;
 
@@ -103,11 +103,12 @@ export const CategoryGrid: React.FC<CategoryGridProps> = ({
             <button
               key={cat.id}
               onClick={() => onSelectCategory(isSelected ? undefined : cat.id)}
-              className={`flex flex-col items-center justify-center p-2.5 rounded-xl border text-center transition-all duration-150 cursor-pointer ${
+              className={`th-chip-in flex flex-col items-center justify-center p-2.5 rounded-xl border text-center transition-all duration-150 cursor-pointer ${
                 isSelected
                   ? 'bg-[#1673E6] text-white border-[#1673E6] shadow-sm ring-2 ring-blue-500/20'
                   : 'bg-white hover:bg-blue-50/50 text-[#172B4D] border-[#EBECF0] hover:border-blue-200'
               }`}
+              style={{ '--ci': `${ci * 35}ms` } as React.CSSProperties}
             >
               <div
                 className={`w-9 h-9 rounded-lg flex items-center justify-center mb-1.5 transition-colors ${

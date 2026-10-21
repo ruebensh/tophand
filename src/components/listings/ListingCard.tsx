@@ -46,6 +46,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
   const { value: title } = useTranslate(listing.title);
   const [isSaved, setIsSaved] = useState(listing.is_saved || false);
   const [isSaving, setIsSaving] = useState(false);
+  const [heartAnimating, setHeartAnimating] = useState(false);
   // Tashqi rasm (masalan Unsplash) yuklanmasa — chiroyli placeholder'ga qaytamiz.
   const [imgFailed, setImgFailed] = useState(false);
 
@@ -60,6 +61,9 @@ export const ListingCard: React.FC<ListingCardProps> = ({
     setIsSaving(true);
     const nextSavedState = !isSaved;
     setIsSaved(nextSavedState);
+    // Yurak urishi animatsiyasini ishga tushir
+    setHeartAnimating(true);
+    setTimeout(() => setHeartAnimating(false), 560);
 
     try {
       const res = await apiRequest<{ saved: boolean }>(`/api/listings/${listing.id}/save`, {
@@ -96,13 +100,15 @@ export const ListingCard: React.FC<ListingCardProps> = ({
               alt={title}
               loading="lazy"
               onError={() => setImgFailed(true)}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 absolute inset-0"
+            className="w-full h-full object-cover th-img-zoom group-hover:scale-105 transition-transform duration-300 absolute inset-0"
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-4xl absolute inset-0 bg-gradient-to-br from-blue-50 to-indigo-50">
               📋
             </div>
           )}
+          {/* Glass shine nur o'tishi */}
+          <div className="th-shine" />
           {/* Type badge */}
           <div className="absolute top-2 left-2 pointer-events-none">
             <ListingTypeBadge type={listing.type} size="sm" />
@@ -175,7 +181,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
               playsInline
               preload="metadata"
               onError={() => setImgFailed(true)}
-              className="absolute inset-0 w-full h-full object-cover"
+              className="absolute inset-0 w-full h-full object-cover th-img-zoom"
             />
           ) : (
             <img
@@ -183,7 +189,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
               alt={title}
               loading="lazy"
               onError={() => setImgFailed(true)}
-              className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              className="absolute inset-0 w-full h-full object-cover th-img-zoom group-hover:scale-105 transition-transform duration-300"
             />
           )
         ) : (
@@ -209,20 +215,29 @@ export const ListingCard: React.FC<ListingCardProps> = ({
           </div>
         )}
 
+        {/* Glass shine nur o'tishi */}
+        <div className="th-shine" />
+
         {/* Heart like button — top right, like Avito (mobil uchun katta tap) */}
         {!hideSave && (
         <button
           type="button"
           onClick={handleSave}
-          className={`absolute top-1.5 right-1.5 h-9 w-9 flex items-center justify-center rounded-full transition-all z-10 cursor-pointer active:scale-110 ${
+          className={`apple-tap absolute top-1.5 right-1.5 h-9 w-9 flex items-center justify-center rounded-full transition-all z-10 cursor-pointer ${
             isSaved
               ? 'bg-white text-rose-500 shadow-sm'
               : 'bg-white/80 text-gray-500 hover:bg-white hover:text-rose-500 shadow-sm'
           }`}
           aria-label={t('common.like')}
         >
+          {heartAnimating && (
+            <span
+              className="absolute inset-0 rounded-full border-2 border-rose-400 pointer-events-none"
+              style={{ animation: 'heart-burst 0.55s ease-out forwards' }}
+            />
+          )}
           <Heart
-            className={`w-[18px] h-[18px] transition-transform ${
+            className={`w-[18px] h-[18px] transition-transform ${heartAnimating ? 'th-heart-active' : ''} ${
               isSaved ? 'fill-rose-500 text-rose-500' : ''
             }`}
           />

@@ -315,7 +315,375 @@ html, body {
   }
 }
 
-/* Filtrlar bottom-sheet va backdrop animatsiyalari */
+/* ══════════════════════════════════════════════════════════════════════
+   TOPHAND MICRO-ANIMATSIYALAR KUTUBXONASI
+   Barcha interaktiv elementlar uchun jozibali, Apple-uslubidagi
+   micro-interaction va scroll-reveal animatsiyalari.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. SCROLL-REVEAL: Listinglar viewport'ga kirganida ── */
+/* IntersectionObserver .th-visible klassini qo'shadi */
+@keyframes reveal-up {
+  0%   { opacity: 0; transform: translateY(24px) scale(0.97); }
+  60%  { opacity: 1; transform: translateY(-3px) scale(1.005); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes reveal-left {
+  0%   { opacity: 0; transform: translateX(-20px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+@keyframes reveal-right {
+  0%   { opacity: 0; transform: translateX(20px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+.th-reveal {
+  opacity: 0;
+  transform: translateY(24px) scale(0.97);
+  transition: opacity 0.48s cubic-bezier(0.22, 1, 0.36, 1),
+              transform 0.48s cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: var(--rd, 0ms);
+  will-change: opacity, transform;
+}
+.th-reveal.th-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+.th-reveal-left {
+  opacity: 0;
+  transform: translateX(-20px);
+  transition: opacity 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+              transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: var(--rd, 0ms);
+}
+.th-reveal-left.th-visible { opacity: 1; transform: translateX(0); }
+
+/* ── 2. YURAKCHA (HEART) — bosilganda yurak urishi animatsiyasi ── */
+@keyframes heartbeat {
+  0%   { transform: scale(1); }
+  15%  { transform: scale(1.35); }
+  30%  { transform: scale(1.1); }
+  45%  { transform: scale(1.28); }
+  60%  { transform: scale(1.0); }
+  100% { transform: scale(1); }
+}
+@keyframes heart-burst {
+  0%   { transform: scale(0); opacity: 1; }
+  50%  { transform: scale(1.6); opacity: 0.6; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+.th-heart-active {
+  animation: heartbeat 0.55s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ── 3. KATEGORIYA GRID CHIPI — stagger pop-in ── */
+@keyframes chip-pop {
+  0%   { opacity: 0; transform: scale(0.82) translateY(6px); }
+  65%  { opacity: 1; transform: scale(1.05) translateY(-1px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+.th-chip-in {
+  animation: chip-pop 0.32s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+  animation-delay: var(--ci, 0ms);
+  will-change: transform, opacity;
+}
+
+/* ── 4. RAQAM SANASH / NARX POP — narx chiqqanda jozibali ── */
+@keyframes price-pop {
+  0%   { opacity: 0; transform: translateY(8px) scale(0.9); }
+  65%  { opacity: 1; transform: translateY(-2px) scale(1.04); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+.th-price-pop {
+  animation: price-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  will-change: transform, opacity;
+}
+
+/* ── 5. KARTA RASM — hover'da silliq zoom (150 → 300ms GPU) ── */
+.th-img-zoom {
+  transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+              filter 0.4s ease;
+  will-change: transform;
+  backface-visibility: hidden;
+}
+.group:hover .th-img-zoom,
+.th-img-zoom:hover {
+  transform: scale(1.07);
+  filter: brightness(1.04) saturate(1.08);
+}
+
+/* ── 6. FLOATING ACTION BUTTON — spiral chiqish ── */
+@keyframes fab-in {
+  0%   { opacity: 0; transform: rotate(-45deg) scale(0.6); }
+  70%  { opacity: 1; transform: rotate(5deg) scale(1.05); }
+  100% { opacity: 1; transform: rotate(0) scale(1); }
+}
+.th-fab-enter {
+  animation: fab-in 0.38s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  will-change: transform, opacity;
+}
+
+/* ── 7. SKELETON SHIMMER — yuklanayotganda yorqin to'lqin ── */
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+.th-skeleton {
+  background: linear-gradient(90deg,
+    #f0f4f8 25%,
+    #e2eaf3 50%,
+    #f0f4f8 75%
+  );
+  background-size: 800px 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+/* ── 8. BADGE / TAG — kirish uchun nozik bounce ── */
+@keyframes badge-in {
+  0%   { opacity: 0; transform: scale(0.7) rotate(-6deg); }
+  65%  { opacity: 1; transform: scale(1.08) rotate(1deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0); }
+}
+.th-badge-enter {
+  animation: badge-in 0.36s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation-delay: var(--bd, 0ms);
+}
+
+/* ── 9. TUGMA RIPPLE — bosilganda suvdek tarqalish ── */
+.th-ripple {
+  position: relative;
+  overflow: hidden;
+}
+.th-ripple::after {
+  content: '';
+  position: absolute;
+  inset: 50%;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.35);
+  transform: scale(0);
+  opacity: 0;
+  transition: none;
+}
+.th-ripple:active::after {
+  inset: -50%;
+  transform: scale(1);
+  opacity: 1;
+  transition: inset 0s, transform 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+              opacity 0.4s ease;
+}
+
+/* ── 10. GALEREYA SLAYD — rasm almashinuvi ── */
+@keyframes gallery-fade-in {
+  0%   { opacity: 0; transform: scale(1.04); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.th-gallery-img {
+  animation: gallery-fade-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: opacity, transform;
+}
+
+/* ── 11. FILTER CHIP STAGGER ── */
+@keyframes filter-chip-in {
+  0%   { opacity: 0; transform: translateX(-8px) scale(0.94); }
+  100% { opacity: 1; transform: translateX(0) scale(1); }
+}
+.th-filter-chip {
+  animation: filter-chip-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: var(--fi, 0ms);
+  will-change: opacity, transform;
+}
+
+/* ── 12. PROFIL AVATAR — zoom-rotate kirish ── */
+@keyframes avatar-in {
+  0%   { opacity: 0; transform: scale(0.75) rotate(-8deg); }
+  65%  { opacity: 1; transform: scale(1.05) rotate(2deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0); }
+}
+.th-avatar-enter {
+  animation: avatar-in 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* ── 13. TOAST / SNACKBAR — pastdan chiqib, avtomatik ketadi ── */
+@keyframes toast-in {
+  0%   { opacity: 0; transform: translateY(20px) scale(0.95); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes toast-out {
+  0%   { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(16px) scale(0.95); }
+}
+.th-toast-enter { animation: toast-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.th-toast-exit  { animation: toast-out 0.24s cubic-bezier(0.55, 0, 1, 0.45) both; }
+
+/* ── 14. NUMBER COUNTER ROLL — raqam aylanib kelishi ── */
+@keyframes count-up {
+  0%   { opacity: 0; transform: translateY(12px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.th-count-enter {
+  animation: count-up 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--cd, 0ms);
+}
+
+/* ── 15. LISTING DETAIL — kontentning bo'limlari stagger ── */
+@keyframes section-reveal {
+  0%   { opacity: 0; transform: translateY(16px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.th-section-in {
+  animation: section-reveal 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--si, 0ms);
+}
+
+/* Prefers-reduced-motion: barcha micro-animatsiyalarni o'chirish */
+@media (prefers-reduced-motion: reduce) {
+  .th-reveal, .th-reveal-left,
+  .th-chip-in, .th-price-pop,
+  .th-fab-enter, .th-badge-enter,
+  .th-gallery-img, .th-filter-chip,
+  .th-avatar-enter, .th-toast-enter, .th-toast-exit,
+  .th-count-enter, .th-section-in {
+    animation: none !important;
+    transition: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .th-heart-active { animation: none !important; }
+}
+
+/* ── Apple UI / UX Animatsiya Tizimi (iOS Human Interface Guidelines) ── */
+/* Sahifalar almashinuvi — silliq iOS spring push */
+@keyframes apple-page-in {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.992);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.apple-page-enter {
+  animation: apple-page-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: opacity, transform;
+}
+
+/* Markaziy modallar (Dialogs) — Apple Spring Pop */
+@keyframes apple-spring-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.92) translateY(14px);
+  }
+  65% {
+    opacity: 1;
+    transform: scale(1.015) translateY(-2px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+.apple-modal {
+  animation: apple-spring-in 0.36s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  will-change: transform, opacity;
+}
+
+/* Pastdan chiquvchi oyna (Bottom Sheet) — iOS Pull-up */
+@keyframes apple-sheet-in {
+  0% {
+    opacity: 0.85;
+    transform: translateY(100%);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.apple-sheet {
+  animation: apple-sheet-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  will-change: transform;
+}
+
+/* Apple Frosted Glass Backdrop Blur */
+@keyframes apple-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.apple-backdrop {
+  animation: apple-fade-in 0.22s ease-out forwards;
+  background: rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+}
+
+/* Apple Haptic Touch Feedback (Bosilganda nozik elastik qisqarish) */
+.apple-tap {
+  transition: transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.16s ease;
+  will-change: transform;
+}
+.apple-tap:active {
+  transform: scale(0.965);
+  opacity: 0.92;
+}
+
+/* iOS Sheet yuqorisidagi nozik ushlagich kapsula (drag grabber) */
+.apple-grabber {
+  width: 36px;
+  height: 5px;
+  border-radius: 9999px;
+  background: rgba(148, 163, 184, 0.65);
+  margin: 8px auto 4px auto;
+  pointer-events: none;
+}
+
+/* ── Mega-menyu: Catalog rail + Category stagger cascade animatsiyalari ── */
+/* Har bir element yuqoridan pastga tushib keladi — Apple-uslubidagi stagger */
+@keyframes mega-item-in {
+  0%   { opacity: 0; transform: translateY(-10px) scale(0.97); }
+  60%  { opacity: 1; transform: translateY(2px) scale(1.005); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+/* Subkategoriya chip — yanada nozikroq, kechiktirilgan kirish */
+@keyframes mega-sub-in {
+  0%   { opacity: 0; transform: translateX(-6px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+/* Mega-menyu paneli o'zi: yuqoridan siqilib keladi */
+@keyframes mega-panel-in {
+  0%   { opacity: 0; transform: translateY(-8px) scaleY(0.96); transform-origin: top center; }
+  65%  { opacity: 1; transform: translateY(2px) scaleY(1.005); transform-origin: top center; }
+  100% { opacity: 1; transform: translateY(0) scaleY(1); transform-origin: top center; }
+}
+.mega-panel-enter {
+  animation: mega-panel-in 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  will-change: transform, opacity;
+}
+/* Catalog rail: har bir element */
+.mega-cat-item {
+  animation: mega-item-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: var(--mi, 0ms);
+  will-change: opacity, transform;
+}
+/* Ota-kategoriya header */
+.mega-parent-item {
+  animation: mega-item-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: var(--mi, 0ms);
+  will-change: opacity, transform;
+}
+/* Subkategoriya satr */
+.mega-sub-item {
+  animation: mega-sub-in 0.26s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: var(--si, 0ms);
+  will-change: opacity, transform;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mega-panel-enter, .mega-cat-item, .mega-parent-item, .mega-sub-item {
+    animation: none !important;
+  }
+}
+
+/* Filtrlar bottom-sheet va backdrop animatsiyalari (legacy compatibility) */
 @keyframes th-sheet-up {
   from { transform: translateY(100%); }
   to   { transform: translateY(0); }
@@ -325,18 +693,19 @@ html, body {
   to   { opacity: 1; }
 }
 .th-sheet {
-  animation: th-sheet-up .28s cubic-bezier(.22,1,.36,1);
+  animation: apple-sheet-in .34s cubic-bezier(.22,1,.36,1);
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 .th-backdrop {
-  animation: th-fade-in .2s ease-out;
-  background: rgba(17, 24, 39, .45);
-  backdrop-filter: blur(1px);
+  animation: apple-fade-in .22s ease-out;
+  background: rgba(15, 23, 42, .42);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
 }
 
 /* Bosilganda nozik qisqarish (tap feedback) */
-.tap-scale { transition: transform .12s ease; }
-.tap-scale:active { transform: scale(.97); }
+.tap-scale { transition: transform .14s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.tap-scale:active { transform: scale(.965); }
 
 /* ── Katalog kartochkalari: kirish (stagger) va glass "shine" ── */
 @keyframes th-card-in {

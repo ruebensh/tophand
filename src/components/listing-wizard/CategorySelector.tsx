@@ -112,7 +112,7 @@ const CategorySelector: React.FC = () => {
 
   if (stage === 'catalog') {
     return (
-      <div className="space-y-6">
+      <div className="apple-page-enter space-y-6">
         <div className="text-center max-w-lg mx-auto">
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-bold mb-3 border border-blue-100">
             <Sparkles className="w-3.5 h-3.5" /> {t('create.brandBadge')}
@@ -121,12 +121,13 @@ const CategorySelector: React.FC = () => {
           <p className="text-xs sm:text-sm text-gray-500 mt-2">{t('create.step1Hint')}</p>
         </div>
         <div className="rounded-2xl border border-gray-100 bg-white divide-y divide-gray-100 overflow-hidden">
-          {catalogs.map((cat: Catalog) => (
+          {catalogs.map((cat: Catalog, ci: number) => (
             <button
               key={cat.id}
               type="button"
               onClick={() => ctl.chooseCatalog(cat)}
-              className="w-full flex items-center gap-3 px-3.5 py-2.5 text-left hover:bg-blue-50/60 active:bg-blue-50 transition-colors group cursor-pointer"
+              className="mega-cat-item apple-tap w-full flex items-center gap-3 px-3.5 py-2.5 text-left hover:bg-blue-50/60 active:bg-blue-50 transition-colors group cursor-pointer"
+              style={{ '--mi': `${ci * 25}ms` } as React.CSSProperties}
             >
               <CategoryChip name={cat.icon} tone={CAT_TONE[cat.id]} size="sm" />
               <span className="flex-1 min-w-0 font-bold text-[13px] text-gray-900 group-hover:text-blue-700 transition-colors leading-tight">{localized(cat)}</span>
@@ -140,21 +141,22 @@ const CategorySelector: React.FC = () => {
 
   if (stage === 'type') {
     return (
-      <div className="space-y-6">
+      <div className="apple-page-enter space-y-6">
         <BackBtn
           label={t('create.otherCatalog')}
           onClick={() => (needsTypeFirst ? setValue('catalogId', '') : setValue('categoryId', ''))}
         />
         <Header subtitle={t('create.typeTitle')} />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-          {catalogTypes.map((tp) => {
+          {catalogTypes.map((tp, ti) => {
             const meta = { emoji: TYPE_META[tp].emoji, label: t(`create.typeMeta.${tp}.label`), hint: t(`create.typeMeta.${tp}.hint`) };
             return (
               <button
                 key={tp}
                 type="button"
                 onClick={() => ctl.chooseType(tp)}
-                className="p-5 rounded-2xl border-2 border-gray-100 bg-white hover:border-blue-500 hover:shadow-lg transition-all text-left group flex items-start gap-4 cursor-pointer"
+                className="mega-parent-item apple-tap p-5 rounded-2xl border-2 border-gray-100 bg-white hover:border-blue-500 hover:shadow-lg transition-all text-left group flex items-start gap-4 cursor-pointer"
+                style={{ '--mi': `${ti * 30}ms` } as React.CSSProperties}
               >
                 <div className="text-2xl shrink-0">{meta.emoji}</div>
                 <div className="min-w-0">
@@ -171,7 +173,7 @@ const CategorySelector: React.FC = () => {
 
   if (stage === 'subcat') {
     return (
-      <div className="space-y-6">
+      <div className="apple-page-enter space-y-6">
         <BackBtn label={t('create.otherType')} onClick={() => ctl.selectCategory(selectedCategoryObj?.parent_id || '')} />
         <Header subtitle={t('create.categoryTitle')} />
         {AiBanner}
@@ -183,10 +185,16 @@ const CategorySelector: React.FC = () => {
             {selectedCategoryObj && <span className="text-[11px] font-semibold text-blue-600">{localized(selectedCategoryObj)}</span>}
           </div>
           <div className="flex flex-wrap gap-2">
-            {subcategoriesOfParent.map((sub) => {
+            {subcategoriesOfParent.map((sub, si) => {
               const on = categoryId === sub.id;
               return (
-                <button key={sub.id} type="button" onClick={() => ctl.selectCategory(sub.id)} className={chipCls(on)}>
+                <button
+                  key={sub.id}
+                  type="button"
+                  onClick={() => ctl.selectCategory(sub.id)}
+                  className={`th-chip-in apple-tap ${chipCls(on)}`}
+                  style={{ '--ci': `${si * 18}ms` } as React.CSSProperties}
+                >
                   {on && <Check className="w-3.5 h-3.5" />} <span>{localized(sub)}</span>
                 </button>
               );
@@ -199,7 +207,7 @@ const CategorySelector: React.FC = () => {
 
   if (stage === 'ready') {
     return (
-      <div className="space-y-6">
+      <div className="apple-page-enter space-y-6">
         <Header subtitle={t('create.categoryTitle')} />
         {AiBanner}
         <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-100 flex items-center gap-2.5 text-xs font-semibold text-emerald-800">
@@ -217,7 +225,7 @@ const CategorySelector: React.FC = () => {
 
   // stage === 'category'
   return (
-    <div className="space-y-6">
+    <div className="apple-page-enter space-y-6">
       <BackBtn
         label={needsTypeFirst ? t('create.otherType') : t('create.otherCatalog')}
         onClick={() => (needsTypeFirst ? setValue('type', '') : setValue('catalogId', ''))}
@@ -228,12 +236,13 @@ const CategorySelector: React.FC = () => {
         <div className="text-center text-xs text-gray-400 py-10">{t('create.categoriesLoading')}</div>
       ) : (
         <div className="rounded-2xl border border-gray-100 bg-white divide-y divide-gray-100 overflow-hidden">
-          {parentCategories.map((c) => (
+          {parentCategories.map((c, ci) => (
             <button
               key={c.id}
               type="button"
               onClick={() => ctl.selectCategory(c.id)}
-              className="w-full flex items-center gap-3 px-3.5 py-2.5 text-left hover:bg-blue-50/60 active:bg-blue-50 transition-colors group cursor-pointer"
+              className="mega-cat-item apple-tap w-full flex items-center gap-3 px-3.5 py-2.5 text-left hover:bg-blue-50/60 active:bg-blue-50 transition-colors group cursor-pointer"
+              style={{ '--mi': `${ci * 22}ms` } as React.CSSProperties}
             >
               <CategoryChip name={c.icon} tone={CAT_TONE[selectedCatalog!.id]} size="sm" />
               <span className="flex-1 min-w-0 font-bold text-[13px] text-gray-900 group-hover:text-blue-700 transition-colors leading-tight">{localized(c)}</span>

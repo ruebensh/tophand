@@ -79,6 +79,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
 
   // Follow / Save state
   const [isSaved, setIsSaved] = useState(false);
+  const [heartAnimating, setHeartAnimating] = useState(false);
   const [isFollowed, setIsFollowed] = useState(false);
   const [isFollowLoading, setIsFollowLoading] = useState(false);
   const [isRenewing, setIsRenewing] = useState(false);
@@ -228,6 +229,8 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
     }
     const next = !isSaved;
     setIsSaved(next);
+    setHeartAnimating(true);
+    setTimeout(() => setHeartAnimating(false), 560);
     try {
       const res = await apiRequest<{ saved: boolean }>(`/api/listings/${listingId}/save`, {
         method: 'POST',
@@ -584,7 +587,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
         <div className="space-y-4">
 
           {/* 1. Image Gallery */}
-          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-xs">
+          <div className="th-section-in bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-xs" style={{ '--si': '0ms' } as React.CSSProperties}>
             {images.length > 0 ? (
               <div>
                 <div
@@ -613,9 +616,10 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                     />
                   ) : (
                     <img
+                      key={selectedImageIdx}
                       src={currentMedia}
                       alt={title}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover th-gallery-img"
                     />
                   )}
                   {/* Mobil: oldingi keyingi strelkalar */}
@@ -644,7 +648,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                     </>
                   )}
                   {/* Type badge overlay */}
-                  <div className="absolute top-3 left-3">
+                  <div className="absolute top-3 left-3 th-badge-enter">
                     <ListingTypeBadge type={listing.type} size="md" />
                   </div>
                   {/* Image counter */}
@@ -691,7 +695,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
           </div>
 
           {/* 2. Title & Price */}
-          <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-xs">
+          <div className="th-section-in bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-xs" style={{ '--si': '60ms' } as React.CSSProperties}>
             <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
               {isCompleted ? (
                 <div className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700">
@@ -699,17 +703,19 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                   <span className="text-2xl sm:text-3xl font-extrabold leading-none">{t('listing.completed')}</span>
                 </div>
               ) : (
-                <PriceDisplay
-                  priceType={listing.price_type}
-                  priceMin={listing.price_min}
-                  priceMax={listing.price_max}
-                  currency={listing.currency}
-                  salaryType={listing.salary_type}
-                  salaryMin={listing.salary_min}
-                  salaryMax={listing.salary_max}
-                  isJob={isJob}
-                  className="text-2xl sm:text-3xl text-[#172B4D] font-extrabold"
-                />
+                <div className="th-price-pop">
+                  <PriceDisplay
+                    priceType={listing.price_type}
+                    priceMin={listing.price_min}
+                    priceMax={listing.price_max}
+                    currency={listing.currency}
+                    salaryType={listing.salary_type}
+                    salaryMin={listing.salary_min}
+                    salaryMax={listing.salary_max}
+                    isJob={isJob}
+                    className="text-2xl sm:text-3xl text-[#172B4D] font-extrabold"
+                  />
+                </div>
               )}
 
               {/* Action icons */}
@@ -717,19 +723,29 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                 <button
                   type="button"
                   onClick={handleSaveToggle}
-                  className={`p-2.5 rounded-full border-2 transition-all ${
+                  className={`apple-tap relative p-2.5 rounded-full border-2 transition-all cursor-pointer ${
                     isSaved
                       ? 'bg-rose-50 text-rose-600 border-rose-300'
                       : 'border-gray-200 text-gray-500 hover:border-rose-300 hover:text-rose-500'
                   }`}
                   title={isSaved ? t('detail.liked') : t('detail.likedShort')}
                 >
-                  <Heart className={`w-4 h-4 ${isSaved ? 'fill-rose-500' : ''}`} />
+                  {heartAnimating && (
+                    <span
+                      className="absolute inset-0 rounded-full border-2 border-rose-400 pointer-events-none"
+                      style={{ animation: 'heart-burst 0.55s ease-out forwards' }}
+                    />
+                  )}
+                  <Heart
+                    className={`w-4 h-4 transition-transform ${heartAnimating ? 'th-heart-active' : ''} ${
+                      isSaved ? 'fill-rose-500 text-rose-500' : ''
+                    }`}
+                  />
                 </button>
                 <button
                   type="button"
                   onClick={handleShare}
-                  className="p-2.5 rounded-full border-2 border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700 transition-all"
+                  className="apple-tap p-2.5 rounded-full border-2 border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700 transition-all cursor-pointer"
                   title={shareCopied ? t('detail.linkCopied') : t('detail.share')}
                 >
                   {shareCopied ? <CheckCheck className="w-4 h-4 text-green-600" /> : <Share2 className="w-4 h-4" />}
@@ -737,7 +753,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsReportModalOpen(true)}
-                  className="p-2.5 rounded-full border-2 border-gray-200 text-gray-400 hover:border-amber-300 hover:text-amber-600 transition-all"
+                  className="apple-tap p-2.5 rounded-full border-2 border-gray-200 text-gray-400 hover:border-amber-300 hover:text-amber-600 transition-all cursor-pointer"
                   title={t('detail.report')}
                 >
                   <AlertTriangle className="w-4 h-4" />
@@ -766,7 +782,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
 
           {/* 2b. Tavsif (Описание) — Avito style */}
           {listing.description && (
-            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-xs">
+            <div className="th-section-in bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-xs" style={{ '--si': '120ms' } as React.CSSProperties}>
               <h2 className="font-bold text-sm text-gray-900 mb-2">{t('detail.description')}</h2>
               <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap break-words">
                 {description}
@@ -776,13 +792,13 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
 
           {/* 3. Tafsilotlar (Подробности) — Avito style (yakunlangan e'londa ko'rsatilmaydi) */}
           {!isCompleted && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-xs overflow-hidden">
+          <div className="th-section-in bg-white rounded-2xl border border-gray-100 shadow-xs overflow-hidden" style={{ '--si': '180ms' } as React.CSSProperties}>
             <div className="px-4 sm:px-5 py-3.5 border-b border-gray-100 bg-gray-50/60">
               <h2 className="font-bold text-sm text-gray-900">{t('detail.details')}</h2>
             </div>
             <div className="divide-y divide-gray-50">
               {details.map((d, i) => (
-                <div key={i} className="flex items-center justify-between px-4 sm:px-5 py-3 text-xs">
+                <div key={i} className="th-section-in flex items-center justify-between px-4 sm:px-5 py-3 text-xs" style={{ '--si': `${220 + i * 30}ms` } as React.CSSProperties}>
                   <div className="flex items-center gap-2.5 text-gray-500 min-w-0">
                     {d.icon}
                     <span className="truncate">{d.label}</span>
@@ -975,7 +991,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                     setIsChatOpen(true);
                   }
                 }}
-                className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 group"
+                className="apple-tap w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 group cursor-pointer"
               >
                 <MessageSquare className="w-4 h-4 group-hover:scale-110 transition-transform" />
                 <span>{t('detail.chatBtn')}</span>
@@ -987,7 +1003,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                   href={`https://t.me/${listing.owner_username}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full py-2.5 rounded-xl bg-[#2AABEE]/10 hover:bg-[#2AABEE]/20 text-[#2AABEE] font-bold text-xs border border-[#2AABEE]/30 transition-colors flex items-center justify-center gap-2"
+                  className="apple-tap w-full py-2.5 rounded-xl bg-[#2AABEE]/10 hover:bg-[#2AABEE]/20 text-[#2AABEE] font-bold text-xs border border-[#2AABEE]/30 transition-colors flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <Send className="w-4 h-4 -rotate-45" />
                   <span>{t('detail.telegram', { username: listing.owner_username })}</span>
@@ -997,7 +1013,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
               {/* 3. Phone */}
               <button
                 onClick={handleRevealPhone}
-                className="w-full py-2.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-colors flex items-center justify-center gap-2"
+                className="apple-tap w-full py-2.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
               >
                 <Phone className="w-4 h-4 text-blue-600" />
                 <span>{revealedPhone ? revealedPhone : t('detail.showPhone')}</span>
@@ -1150,6 +1166,14 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
       {/* Mobil: alohida docked amallar paneli olib tashlandi — like/ulashish
           sarlavha ostidagi ichki amallarda, bog'lanish (chat/telegram/telefon)
           esa "Aloqaga chiqish" kartasida allaqachon mavjud. */}
+
+      {/* Havola nusxalandi (Floating Toast) */}
+      {shareCopied && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 bg-[#172B4D]/95 text-white px-5 py-2.5 rounded-full shadow-2xl backdrop-blur-md flex items-center gap-2 text-xs font-semibold th-toast-enter border border-white/20 pointer-events-none">
+          <CheckCheck className="w-4 h-4 text-emerald-400" />
+          <span>{t('detail.linkCopied')}</span>
+        </div>
+      )}
 
       {/* Modals */}
       <CallModal

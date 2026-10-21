@@ -455,11 +455,10 @@ export const NearbyMapModal: React.FC<NearbyMapModalProps> = ({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[200] flex items-stretch md:items-center justify-center p-0 md:p-4"
-      style={{ background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(5px)' }}
+      className="fixed inset-0 z-[200] flex items-stretch md:items-center justify-center p-0 md:p-4 apple-backdrop"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-white w-full md:max-w-5xl shadow-2xl flex flex-col overflow-hidden h-full md:rounded-2xl md:h-[92vh] md:max-h-[860px]">
+      <div className="bg-white w-full md:max-w-5xl shadow-[0_24px_70px_rgba(0,0,0,0.3)] flex flex-col overflow-hidden h-full md:rounded-[32px] md:h-[92vh] md:max-h-[860px] border border-white/60 apple-sheet md:apple-modal">
         {/* Header (faqat desktop) */}
         <div className="hidden md:flex items-center justify-between px-6 py-3.5 border-b border-gray-100 bg-white">
           <div className="flex items-center gap-3">

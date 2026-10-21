@@ -33,18 +33,19 @@ function ChipRow({
       ref={ref}
       className="no-scrollbar flex gap-1.5 overflow-x-auto scroll-smooth pb-1"
     >
-      {items.map((it) => {
+      {items.map((it, idx) => {
         const isActive = active === it.value;
         return (
           <button
             key={it.value}
             type="button"
             onClick={() => onToggle(it.value)}
-            className={`shrink-0 whitespace-nowrap rounded-lg border px-3 py-1.5 text-xs font-medium transition-all cursor-pointer ${
+            className={`apple-tap th-chip-in shrink-0 whitespace-nowrap rounded-lg border px-3 py-1.5 text-xs font-medium transition-all cursor-pointer ${
               isActive
                 ? 'bg-[#1673E6] text-white border-[#1673E6] shadow-2xs'
                 : 'bg-white text-[#172B4D] border-[#EBECF0] hover:border-[#1673E6] hover:text-[#1673E6]'
             }`}
+            style={{ '--ci': `${idx * 24}ms` } as React.CSSProperties}
           >
             {it.value}
             <span className={`ml-1.5 tabular-nums ${isActive ? 'text-white/70' : 'text-[#5E6C84]'}`}>

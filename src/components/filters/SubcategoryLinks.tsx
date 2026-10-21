@@ -35,16 +35,17 @@ export function SubcategoryLinks({
         >
           {localized(parent)} ({t('common.all')})
         </button>
-        {subs.map((sub) => {
+        {subs.map((sub, si) => {
           const active = activeId === sub.id;
           return (
             <button
               key={sub.id}
               type="button"
               onClick={() => onSelect(sub.id)}
-              className={`self-start text-left text-[13px] leading-snug transition-colors cursor-pointer ${
+              className={`mega-sub-item self-start text-left text-[13px] leading-snug transition-colors cursor-pointer ${
                 active ? 'text-[#1673E6] font-semibold' : 'text-[#5E6C84] hover:text-[#1673E6]'
               }`}
+              style={{ '--si': `${si * 18}ms` } as React.CSSProperties}
             >
               {localized(sub)}
             </button>

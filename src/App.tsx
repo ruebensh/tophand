@@ -313,7 +313,9 @@ const AppContent: React.FC = () => {
             </div>
           }
         >
-          {renderRoute()}
+          <div key={currentRoute.split('?')[0]} className="apple-page-enter flex-1 flex flex-col w-full">
+            {renderRoute()}
+          </div>
         </Suspense>
       </main>
 

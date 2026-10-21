@@ -33,6 +33,26 @@ import { INLINE_AD_EVERY } from '../components/ads/adConfig.ts';
 import { useI18n } from '../i18n/IntlContext.tsx';
 import { applyPageSeo, restoreDefaultSeo } from '../lib/seo.ts';
 
+/* Scroll-reveal: viewport'ga kirgan .th-reveal elementlarga .th-visible qo'shadi */
+function useScrollReveal(dep?: unknown) {
+  useEffect(() => {
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) {
+            e.target.classList.add('th-visible');
+            io.unobserve(e.target);
+          }
+        });
+      },
+      { threshold: 0.08, rootMargin: '0px 0px -40px 0px' }
+    );
+    document.querySelectorAll('.th-reveal, .th-reveal-left').forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dep]);
+}
+
 interface HomePageProps {
   initialType?: ListingType;
   onNavigate: (route: string) => void;
@@ -202,6 +222,9 @@ export const HomePage: React.FC<HomePageProps> = ({
   // Fon yangilash (filtr o'zgarganda) — eski ro'yxat ko'rinib turadi, faqat ingichka progress chizig'i
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const hasLoadedOnce = useRef<boolean>(false);
+
+  // Scroll-reveal: har safar listings o'zgarganda (load/loadMore) qayta ishga tushadi
+  useScrollReveal(listings);
 
   const getInitialCatalogId = () => {
     if (initialParams.catalog) return initialParams.catalog;
@@ -880,11 +903,16 @@ export const HomePage: React.FC<HomePageProps> = ({
             <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-4">
               {listings.map((listing, idx) => (
                 <React.Fragment key={listing.id}>
-                  <ListingCard
-                    listing={listing}
-                    variant="grid"
-                    onClick={() => onOpenListing(listing.id)}
-                  />
+                  <div
+                    className="th-reveal"
+                    style={{ '--rd': `${Math.min(idx % 10, 9) * 45}ms` } as React.CSSProperties}
+                  >
+                    <ListingCard
+                      listing={listing}
+                      variant="grid"
+                      onClick={() => onOpenListing(listing.id)}
+                    />
+                  </div>
                   {(idx + 1) % inlineEvery === 0 && (
                     <AdSlot
                       placement="inline"
@@ -900,7 +928,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                 <button
                   onClick={handleLoadMore}
                   disabled={isLoadingMore}
-                  className="bg-transparent border border-[#EBECF0] hover:border-[#1673E6] hover:bg-blue-50/20 px-8 py-3 rounded-xl text-[#1673E6] font-bold text-xs sm:text-sm transition-colors cursor-pointer flex items-center gap-2"
+                  className="th-fab-enter bg-transparent border border-[#EBECF0] hover:border-[#1673E6] hover:bg-blue-50/20 px-8 py-3 rounded-xl text-[#1673E6] font-bold text-xs sm:text-sm transition-colors cursor-pointer flex items-center gap-2"
                 >
                   <span>{isLoadingMore ? t('home.loading') : t('home.loadMore')}</span>
                   <ChevronDown className="w-4 h-4" />
@@ -946,7 +974,7 @@ export const HomePage: React.FC<HomePageProps> = ({
       {/* Backdrop (mobil sheet orqasida) */}
       {isMobileFiltersOpen && (
         <div
-          className="lg:hidden th-backdrop fixed inset-0 z-40"
+          className="lg:hidden apple-backdrop fixed inset-0 z-40"
           onClick={() => setIsMobileFiltersOpen(false)}
           aria-hidden
         />
@@ -956,7 +984,7 @@ export const HomePage: React.FC<HomePageProps> = ({
       <aside
         className={`${
           isMobileFiltersOpen
-            ? 'block fixed left-2 right-2 top-[15%] bottom-[calc(var(--mobile-nav-h)+8px+env(safe-area-inset-bottom))] z-50 overflow-y-auto bg-white rounded-3xl th-sheet shadow-2xl ring-1 ring-black/5'
+            ? 'block fixed left-0 right-0 bottom-0 top-[12%] z-50 overflow-y-auto bg-white rounded-t-[32px] apple-sheet shadow-[0_24px_70px_rgba(0,0,0,0.25)] border border-white/60'
             : 'hidden'
         } lg:block lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:overflow-y-auto lg:rounded-none border-r border-[#EBECF0] px-5 pt-0 pb-24 lg:pl-8 lg:pr-6 lg:pb-6 bg-white lg:bg-[#F9FAFB] shrink-0`}
       >
@@ -1370,12 +1398,12 @@ export const HomePage: React.FC<HomePageProps> = ({
         <AdSlot placement="sidebar" variant="box" className="mt-5 hidden lg:block" />
 
         {/* Mobil sheet: pastdagi qotib turuvcha “qo'llash” paneli */}
-        <div className="lg:hidden sticky bottom-0 z-10 -mx-5 mt-4 px-5 pt-3 pb-[calc(12px+env(safe-area-inset-bottom))] bg-white border-t border-[#EBECF0] flex items-center gap-2">
+        <div className="lg:hidden sticky bottom-0 z-10 -mx-5 mt-4 px-5 pt-3 pb-[calc(12px+env(safe-area-inset-bottom))] bg-white/95 backdrop-blur-md border-t border-[#EBECF0] flex items-center gap-2">
           {activeFiltersCount > 0 && (
             <button
               type="button"
               onClick={handleResetFilters}
-              className="shrink-0 px-4 py-3 rounded-xl border border-[#EBECF0] text-[#5E6C84] font-semibold text-sm active:bg-gray-50"
+              className="shrink-0 px-4 py-3 rounded-2xl border border-[#EBECF0] text-[#5E6C84] font-semibold text-sm apple-tap active:bg-gray-50 cursor-pointer"
             >
               {t('common.clear')}
             </button>
@@ -1383,7 +1411,7 @@ export const HomePage: React.FC<HomePageProps> = ({
           <button
             type="button"
             onClick={() => setIsMobileFiltersOpen(false)}
-            className="flex-1 py-3 rounded-xl bg-[#1673E6] text-white font-bold text-sm active:scale-[.99] shadow-sm"
+            className="flex-1 py-3 rounded-2xl bg-[#1673E6] text-white font-bold text-sm apple-tap shadow-xs cursor-pointer"
           >
             {t('home.viewCountListings', { n: totalCount.toLocaleString(intlLocale) })}
           </button>
