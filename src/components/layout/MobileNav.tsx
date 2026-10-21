@@ -50,7 +50,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentRoute, onNavigate }
 
   const activeIndex = items.findIndex((i) => i.match);
 
-  // Yo'nalish va suvdek oqib o'tish (liquid flow) reaksiyasi
+  // Suvdek oqib o'tish (liquid water flow) holatlari
   useEffect(() => {
     if (prevIndexRef.current >= 0 && activeIndex >= 0 && prevIndexRef.current !== activeIndex) {
       const dir = activeIndex > prevIndexRef.current ? 'right' : 'left';
@@ -61,12 +61,12 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentRoute, onNavigate }
       const flowTimer = setTimeout(() => {
         setIsFlowing(false);
         setIsSettling(true);
-      }, 420);
+      }, 400);
 
       const settleTimer = setTimeout(() => {
         setIsSettling(false);
         setFlowDirection(null);
-      }, 750);
+      }, 720);
 
       return () => {
         clearTimeout(flowTimer);
@@ -78,7 +78,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentRoute, onNavigate }
     }
   }, [activeIndex]);
 
-  // Faol tabletka koordinatalari (markaz bo'yicha)
+  // Faol tabletka koordinatalari
   useEffect(() => {
     const compute = () => {
       if (!navRef.current) return;
@@ -93,7 +93,6 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentRoute, onNavigate }
       const navRect = navRef.current.getBoundingClientRect();
       const btnRect = btn.getBoundingClientRect();
 
-      // Tabletka kengligi tugma kengligiga mos
       const targetWidth = Math.min(Math.max(btnRect.width - 6, 54), 66);
       setBubbleWidth(targetWidth);
       setBubbleLeft(btnRect.left - navRect.left + btnRect.width / 2);
@@ -110,24 +109,29 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentRoute, onNavigate }
   return (
     <>
       <style>{`
-        /* ── Rasmdagi professional Dark Glass + Aqua Liquid Pillow dizayni ── */
+        /* ── Rasmdagi Haqiqiy Kristall Shaffof Shisha (Pure Liquid Glassmorphism) ── */
 
-        /* Asosiy suzuvchi bar: qorong'i, yarim shaffof akril shisha */
+        /* Asosiy suzuvchi kapsula: qora EMAS! Toza, tiniq muzlagan shisha (iOS Glass) */
         .mnav-bar {
           position: relative;
           height: 64px;
-          background: linear-gradient(135deg, rgba(15, 23, 42, 0.78) 0%, rgba(2, 6, 23, 0.86) 100%);
-          backdrop-filter: blur(20px) saturate(180%);
-          -webkit-backdrop-filter: blur(20px) saturate(180%);
-          border: 1px solid rgba(255, 255, 255, 0.12);
+          background: linear-gradient(
+            135deg,
+            rgba(255, 255, 255, 0.42) 0%,
+            rgba(240, 246, 255, 0.24) 50%,
+            rgba(225, 238, 255, 0.32) 100%
+          );
+          backdrop-filter: blur(10px) saturate(160%);
+          -webkit-backdrop-filter: blur(10px) saturate(160%);
+          border: 1.5px solid rgba(255, 255, 255, 0.75);
           border-radius: 34px;
           display: flex;
           align-items: stretch;
           box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.18),
-            inset 0 -1px 0 rgba(0, 0, 0, 0.4),
-            0 18px 42px -10px rgba(0, 0, 0, 0.5),
-            0 6px 16px rgba(0, 0, 0, 0.3);
+            inset 0 2px 2px 0 rgba(255, 255, 255, 0.95),
+            inset 0 -1.5px 2px rgba(14, 165, 233, 0.12),
+            0 14px 38px -8px rgba(14, 165, 233, 0.24),
+            0 4px 16px rgba(15, 23, 42, 0.08);
           transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
           overflow: visible;
         }
@@ -136,15 +140,26 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentRoute, onNavigate }
           transform: scale(0.985);
         }
 
-        /* Yuqori nozik nur chizig'i */
+        /* Yuqori qirradagi specular nur chizig'i */
         .mnav-bar::before {
           content: '';
           position: absolute;
-          left: 12px;
-          right: 12px;
+          left: 14px;
+          right: 14px;
           top: 0;
           height: 1px;
-          background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+          background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.95), transparent);
+          pointer-events: none;
+          z-index: 1;
+        }
+
+        /* Shisha yuzasidagi glossy parlak nuri */
+        .mnav-bar::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: 34px;
+          background: linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0) 50%);
           pointer-events: none;
           z-index: 1;
         }
@@ -155,10 +170,10 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentRoute, onNavigate }
           inset: 0;
           pointer-events: none;
           z-index: 9;
-          filter: url(#mnav-water-goo) drop-shadow(0 10px 24px rgba(14, 165, 233, 0.55));
+          filter: url(#mnav-water-goo) drop-shadow(0 10px 24px rgba(14, 165, 233, 0.5));
         }
 
-        /* Suyuqlik tomchilari — Aqua gradientli massa */
+        /* Suyuqlik tomchilari — Rasm 2 dagi firuza/ko'k suv massasi */
         .mnav-water-blob {
           position: absolute;
           top: 8px;
@@ -168,26 +183,26 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentRoute, onNavigate }
           will-change: left, transform, width;
         }
 
-        /* 1. Markaziy cho'ziluvchi massa */
+        /* 1. Markaziy cho'ziluvchi suv massasi */
         .mnav-blob-center {
-          transition: left 420ms cubic-bezier(0.25, 1, 0.35, 1),
-                      transform 350ms cubic-bezier(0.2, 1, 0.3, 1),
+          transition: left 400ms cubic-bezier(0.25, 1, 0.35, 1),
+                      transform 340ms cubic-bezier(0.2, 1, 0.3, 1),
                       width 300ms ease;
         }
         .mnav-blob-center.flowing-right {
-          transform: scaleX(1.35) scaleY(0.78) skewX(8deg);
+          transform: scaleX(1.36) scaleY(0.78) skewX(8deg);
         }
         .mnav-blob-center.flowing-left {
-          transform: scaleX(1.35) scaleY(0.78) skewX(-8deg);
+          transform: scaleX(1.36) scaleY(0.78) skewX(-8deg);
         }
 
-        /* 2. Oldinda intiluvchi tez tomchi (Lead blob) */
+        /* 2. Oldinda otiluvchi tez tomchi (Lead blob) */
         .mnav-blob-lead {
           width: 36px;
           height: 36px;
           top: 14px;
           border-radius: 50%;
-          transition: left 360ms cubic-bezier(0.2, 1.25, 0.4, 1);
+          transition: left 340ms cubic-bezier(0.2, 1.25, 0.4, 1);
         }
 
         /* 3. Orqada cho'zilib uziluvchi tomchi (Trail blob) */
@@ -196,7 +211,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentRoute, onNavigate }
           height: 28px;
           top: 18px;
           border-radius: 50%;
-          transition: left 580ms cubic-bezier(0.35, 1, 0.25, 1);
+          transition: left 560ms cubic-bezier(0.35, 1, 0.25, 1);
         }
 
         /* 4. Sochilib chiquvchi mayda suv zarrasi (Splash droplet) */
@@ -208,7 +223,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentRoute, onNavigate }
           border-radius: 50%;
           background: #38bdf8;
           opacity: 0;
-          transition: left 480ms cubic-bezier(0.4, 1, 0.3, 1), opacity 250ms ease;
+          transition: left 460ms cubic-bezier(0.4, 1, 0.3, 1), opacity 240ms ease;
         }
         .mnav-splash-drop.active {
           opacity: 0.9;
@@ -221,18 +236,24 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentRoute, onNavigate }
           top: 8px;
           height: 48px;
           border-radius: 24px;
-          background: linear-gradient(145deg, rgba(56, 189, 248, 0.88) 0%, rgba(14, 165, 233, 0.82) 48%, rgba(2, 132, 199, 0.88) 100%);
-          border: 1.5px solid rgba(255, 255, 255, 0.75);
-          /* Rasmdagi 3D orqa qavat (dual-layer depth ring) */
+          background: linear-gradient(
+            145deg,
+            rgba(56, 189, 248, 0.92) 0%,
+            rgba(14, 165, 233, 0.86) 48%,
+            rgba(2, 132, 199, 0.92) 100%
+          );
+          border: 1.5px solid rgba(255, 255, 255, 0.85);
+          /* Rasmdagi ko'k shisha linza bo'rtig'i va 3D halqasi */
           box-shadow:
-            0 4px 0 0 rgba(2, 132, 199, 0.45),
+            0 0 0 2px rgba(56, 189, 248, 0.5),
+            0 4px 0 0 rgba(2, 132, 199, 0.4),
             0 12px 28px -2px rgba(14, 165, 233, 0.6),
-            inset 0 2px 4px rgba(255, 255, 255, 0.85),
-            inset 0 -2px 4px rgba(0, 0, 0, 0.25);
+            inset 0 2.5px 5px rgba(255, 255, 255, 0.95),
+            inset 0 -2px 4px rgba(0, 0, 0, 0.2);
           display: flex;
           align-items: center;
           justify-content: center;
-          transition: left 420ms cubic-bezier(0.25, 1, 0.35, 1),
+          transition: left 400ms cubic-bezier(0.25, 1, 0.35, 1),
                       width 300ms ease,
                       transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
           z-index: 12;
@@ -246,19 +267,19 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentRoute, onNavigate }
           position: absolute;
           inset: 0;
           border-radius: 24px;
-          background: radial-gradient(ellipse at 35% 25%, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0) 60%);
+          background: radial-gradient(ellipse at 35% 25%, rgba(255, 255, 255, 0.8) 0%, rgba(255, 255, 255, 0) 60%);
           pointer-events: none;
         }
 
         /* Oqayotgan paytda cho'zilish */
         .mnav-aqua-pillow.flowing-right {
-          transform: scaleX(1.28) scaleY(0.82) skewX(6deg);
+          transform: scaleX(1.3) scaleY(0.82) skewX(6deg);
         }
         .mnav-aqua-pillow.flowing-left {
-          transform: scaleX(1.28) scaleY(0.82) skewX(-6deg);
+          transform: scaleX(1.3) scaleY(0.82) skewX(-6deg);
         }
 
-        /* Manzilga yetganda suv chayqalishi / to'lqinlanishi (ripple impact) */
+        /* Manzilga yetganda suv to'lqinlanishi (ripple impact) */
         @keyframes water-settle {
           0% {
             transform: scale(1.18, 0.84);
@@ -280,8 +301,8 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentRoute, onNavigate }
         /* Suv halqasi (caustic water ripple) */
         @keyframes water-ripple {
           0% {
-            opacity: 0.8;
-            transform: scale(0.8);
+            opacity: 0.85;
+            transform: scale(0.85);
           }
           100% {
             opacity: 0;
@@ -292,7 +313,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentRoute, onNavigate }
           position: absolute;
           inset: -4px;
           border-radius: 28px;
-          border: 2px solid rgba(56, 189, 248, 0.65);
+          border: 2px solid rgba(56, 189, 248, 0.7);
           opacity: 0;
           pointer-events: none;
         }
@@ -304,7 +325,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentRoute, onNavigate }
           color: #ffffff;
           stroke-width: 2.4px;
           position: relative;
-          filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+          filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25));
         }
 
         /* Nav tugmalari */
@@ -326,8 +347,9 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentRoute, onNavigate }
         .mnav-btn-icon {
           width: 22px;
           height: 22px;
-          color: rgba(255, 255, 255, 0.65);
+          color: #334155;
           transition: opacity 180ms, color 180ms, transform 180ms;
+          filter: drop-shadow(0 1px 1px rgba(255, 255, 255, 0.8));
         }
 
         /* Faol bo'lganda orqa fondagi ikona yashirinadi — ustidagi shisha pillow ko'rsatadi */
@@ -338,11 +360,12 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentRoute, onNavigate }
 
         .mnav-btn-label {
           font-size: 9px;
-          font-weight: 600;
+          font-weight: 700;
           letter-spacing: 0.01em;
-          color: rgba(255, 255, 255, 0.55);
+          color: #475569;
           transition: opacity 180ms, color 180ms;
           white-space: nowrap;
+          text-shadow: 0 1px 1px rgba(255, 255, 255, 0.8);
         }
 
         .mnav-btn-label.active {
@@ -357,8 +380,8 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentRoute, onNavigate }
           height: 8px;
           background: #ef4444;
           border-radius: 50%;
-          border: 1.5px solid #0f172a;
-          box-shadow: 0 0 8px rgba(239, 68, 68, 0.8);
+          border: 1.5px solid #ffffff;
+          box-shadow: 0 0 6px rgba(239, 68, 68, 0.7);
         }
 
         @media (prefers-reduced-motion: reduce) {
