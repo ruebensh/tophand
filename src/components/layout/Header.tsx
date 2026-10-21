@@ -86,6 +86,17 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
   const [expandedParents, setExpandedParents] = useState<Set<string>>(new Set());
   // Wallet is only shown once monetization switches to PAID (hidden during the FREE_TEST / bepul davr).
   const [walletVisible, setWalletVisible] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrolled = window.scrollY > 15;
+      setIsScrolled((prev) => (prev !== scrolled ? scrolled : prev));
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // Joriy katalog konteksti (URL ?catalog=) — bo'lsa, mega-menyu shu katalogga
   // qaytariladi va tugma "Barcha kategoriyalar" bo'lib o'zgaradi.
@@ -623,37 +634,56 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
       </header>
 
       {/* ── Toolbar: qidiruv + kataloglar/xarita — sticky; header tepaga ketgach,
-          uning o'rnini bosib tepada qoladi. Desktop'da MobileNav uslubidagi pill-bar. ── */}
-      <div className="sticky top-0 z-40 bg-white">
-        <div className="max-w-[1440px] w-full mx-auto px-3 sm:px-8 py-2 sm:py-3">
-          <div className="flex w-full items-center gap-2 rounded-[26px] border border-[#1673E6]/15 bg-white/90 px-2.5 py-2.5 shadow-[0_10px_30px_-6px_rgba(22,115,230,0.18),0_3px_10px_rgba(0,0,0,0.05)] backdrop-blur-xl">
-          {/* Barcha kataloglar — mega tugma (desktop dropdown / mobil full-screen) */}
+          uning o'rnini bosib tepada qoladi. MobileNav bilan uyg'unlashgan Liquid Glassmorphism. ── */}
+      <div className={`sticky top-0 z-40 transition-all duration-300 ${isScrolled ? 'bg-white/60 backdrop-blur-md shadow-xs' : 'bg-transparent'}`}>
+        <div className={`max-w-[1440px] w-full mx-auto px-3 sm:px-8 transition-all duration-300 ${isScrolled ? 'py-1 sm:py-2' : 'py-2 sm:py-3'}`}>
+          <div
+            className={`flex w-full items-center gap-1.5 sm:gap-2 rounded-[28px] border transition-all duration-300 ${
+              isScrolled
+                ? 'border-white/80 bg-gradient-to-r from-white/85 via-white/70 to-white/80 backdrop-blur-xl shadow-[0_12px_36px_-8px_rgba(22,115,230,0.18),0_4px_16px_rgba(0,0,0,0.06)] py-1.5 px-2 sm:px-3'
+                : 'border-white/75 bg-gradient-to-r from-white/75 via-white/55 to-white/65 backdrop-blur-lg shadow-[0_8px_26px_-6px_rgba(22,115,230,0.12),0_2px_10px_rgba(0,0,0,0.04)] py-2 sm:py-2.5 px-2.5 sm:px-4'
+            }`}
+            style={{
+              boxShadow: isScrolled
+                ? 'inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.95), inset 0 -1px 2px rgba(22, 115, 230, 0.1), 0 12px 34px -8px rgba(22, 115, 230, 0.18)'
+                : 'inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.9), inset 0 -1px 1px rgba(22, 115, 230, 0.08), 0 8px 24px -6px rgba(22, 115, 230, 0.12)',
+            }}
+          >
+          {/* Barcha kataloglar — 3D TopHand Glass tugma */}
           <div className="relative shrink-0" ref={megaRef}>
             <button
               type="button"
               onClick={() => setIsMegaOpen((v) => !v)}
-              className={`flex items-center gap-1.5 h-10 px-2.5 sm:px-4 rounded-xl font-semibold text-sm transition-colors cursor-pointer th-accent-bg text-white ${isMegaOpen ? 'opacity-90' : ''}`}
+              className={`flex items-center gap-1.5 h-10 px-2.5 sm:px-4 rounded-2xl font-bold text-xs sm:text-sm text-white transition-all duration-300 cursor-pointer ${
+                isMegaOpen ? 'scale-95' : 'hover:scale-[1.02] active:scale-95'
+              }`}
+              style={{
+                background: 'linear-gradient(145deg, #1E82EE 0%, #1673E6 48%, #125FD0 100%)',
+                border: '1.5px solid rgba(255, 255, 255, 0.85)',
+                boxShadow:
+                  '0 0 0 1.5px rgba(22, 115, 230, 0.45), 0 4px 12px rgba(22, 115, 230, 0.4), inset 0 2px 3px rgba(255, 255, 255, 0.9), inset 0 -2px 3px rgba(0, 0, 0, 0.2)',
+              }}
             >
-              <LayoutGrid className="w-5 h-5 sm:w-4 sm:h-4 shrink-0" />
+              <LayoutGrid className="w-5 h-5 sm:w-4 sm:h-4 shrink-0 drop-shadow-xs" />
               <span className="hidden sm:inline">{subContext ? t('nav.subcategories') : activeCatalogId ? t('nav.categories') : t('nav.catalogs')}</span>
               <ChevronDown className={`hidden sm:block w-3.5 h-3.5 transition-transform ${isMegaOpen ? 'rotate-180' : ''}`} />
             </button>
 
             {isMegaOpen && (
               <div className="absolute left-0 top-full pt-2 z-50 hidden lg:block">
-                <div className="w-[min(1100px,92vw)] bg-white rounded-2xl border border-gray-100 shadow-2xl p-0 max-h-[74vh] overflow-hidden flex">
+                <div className="w-[min(1100px,92vw)] bg-white/95 backdrop-blur-2xl rounded-3xl border border-white/80 shadow-[0_20px_50px_rgba(0,0,0,0.12)] p-0 max-h-[74vh] overflow-hidden flex">
                   {renderMegaBody(false)}
                 </div>
               </div>
             )}
           </div>
 
-          {/* Qidiruv */}
+          {/* Qidiruv — Kristall Shisha Input */}
           <form
             onSubmit={handleSearchSubmit}
-            className="flex items-center flex-1 min-w-0 h-10 bg-[#F2F3F5] hover:bg-[#EDEFF2] focus-within:bg-white border border-transparent focus-within:border-[#1673E6] focus-within:ring-2 focus-within:ring-blue-100 rounded-full px-3.5 transition-all"
+            className="flex items-center flex-1 min-w-0 h-10 bg-white/60 hover:bg-white/80 focus-within:bg-white border border-white/80 focus-within:border-[#1673E6] focus-within:ring-2 focus-within:ring-blue-100 rounded-full px-3.5 transition-all shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]"
           >
-            <button type="submit" className="shrink-0 text-[#5E6C84]" aria-label={t('nav.search')}>
+            <button type="submit" className="shrink-0 text-[#1673E6]" aria-label={t('nav.search')}>
               <Search className="w-5 h-5 sm:w-4 sm:h-4" />
             </button>
             <input
@@ -663,30 +693,29 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
               onChange={(e) => {
                 const v = e.target.value;
                 setSearchQuery(v);
-                // Real-time: sahifani qayta mount qilmasdan HomePage'ga uzatamiz.
                 window.dispatchEvent(new CustomEvent('tophand:search', { detail: v }));
               }}
               placeholder={t('nav.searchPlaceholder')}
-              className="w-full bg-transparent text-[15px] sm:text-sm text-[#172B4D] placeholder-[#5E6C84] focus:outline-hidden mx-2 min-w-0"
+              className="w-full bg-transparent text-[15px] sm:text-sm font-medium text-[#0f172a] placeholder-[#64748b] focus:outline-hidden mx-2 min-w-0"
             />
             {searchQuery && (
-              <button type="button" onClick={() => { setSearchQuery(''); window.dispatchEvent(new CustomEvent('tophand:search', { detail: '' })); }} aria-label={t('nav.clear')} className="shrink-0 text-[#5E6C84] p-1">
+              <button type="button" onClick={() => { setSearchQuery(''); window.dispatchEvent(new CustomEvent('tophand:search', { detail: '' })); }} aria-label={t('nav.clear')} className="shrink-0 text-[#64748b] hover:text-[#0f172a] p-1">
                 <X className="w-4 h-4" />
               </button>
             )}
           </form>
 
-          {/* Til almashtgich — 4 variant (uz / uz-kirill / ru / en) */}
+          {/* Til almashtgich */}
           <LocaleSwitcher />
 
-          {/* Xarita tugmasi — qidiruvdan keyin (3-o'rin) */}
+          {/* Xarita tugmasi — Shisha Kapsula */}
           <button
             type="button"
             onClick={() => setIsMapOpen(true)}
-            className="flex items-center gap-1.5 h-10 w-10 sm:w-auto sm:px-3 justify-center shrink-0 rounded-xl text-sm font-semibold text-[#172B4D] hover:bg-gray-50 border border-[#EBECF0] transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 h-10 w-10 sm:w-auto sm:px-3 justify-center shrink-0 rounded-2xl text-xs sm:text-sm font-bold text-[#0f172a] bg-white/70 hover:bg-white/95 border border-white/80 hover:border-[#1673E6]/60 shadow-2xs transition-all cursor-pointer active:scale-95"
             title={t('nav.mapAllListings')}
           >
-            <MapIcon className="w-5 h-5 sm:w-4 sm:h-4 th-accent-text shrink-0" />
+            <MapIcon className="w-5 h-5 sm:w-4 sm:h-4 text-[#1673E6] shrink-0" />
             <span className="hidden sm:inline">{t('nav.map')}</span>
           </button>
           </div>

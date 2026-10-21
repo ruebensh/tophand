@@ -170,16 +170,16 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentRoute, onNavigate }
           inset: 0;
           pointer-events: none;
           z-index: 9;
-          filter: url(#mnav-water-goo) drop-shadow(0 10px 24px rgba(14, 165, 233, 0.5));
+          filter: url(#mnav-water-goo) drop-shadow(0 10px 24px rgba(22, 115, 230, 0.48));
         }
 
-        /* Suyuqlik tomchilari — Rasm 2 dagi firuza/ko'k suv massasi */
+        /* Suyuqlik tomchilari — TopHand brend ko'k massasi */
         .mnav-water-blob {
           position: absolute;
           top: 8px;
           height: 48px;
           border-radius: 24px;
-          background: linear-gradient(145deg, #38bdf8 0%, #0ea5e9 45%, #0284c7 100%);
+          background: linear-gradient(145deg, #1E82EE 0%, #1673E6 50%, #125FD0 100%);
           will-change: left, transform, width;
         }
 
@@ -221,7 +221,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentRoute, onNavigate }
           width: 14px;
           height: 14px;
           border-radius: 50%;
-          background: #38bdf8;
+          background: #1673E6;
           opacity: 0;
           transition: left 460ms cubic-bezier(0.4, 1, 0.3, 1), opacity 240ms ease;
         }
@@ -230,7 +230,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentRoute, onNavigate }
           transform: scale(0.9);
         }
 
-        /* ── RASMDAGI 3D SHISHA TABLETKA (Aqua Glass Pillow - Aniq qatlam) ── */
+        /* ── RASMDAGI 3D SHISHA TABLETKA (TopHand Brand Glass Pillow) ── */
         .mnav-aqua-pillow {
           position: absolute;
           top: 8px;
@@ -238,18 +238,18 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentRoute, onNavigate }
           border-radius: 24px;
           background: linear-gradient(
             145deg,
-            rgba(56, 189, 248, 0.92) 0%,
-            rgba(14, 165, 233, 0.86) 48%,
-            rgba(2, 132, 199, 0.92) 100%
+            #1E82EE 0%,
+            #1673E6 50%,
+            #125FD0 100%
           );
-          border: 1.5px solid rgba(255, 255, 255, 0.85);
-          /* Rasmdagi ko'k shisha linza bo'rtig'i va 3D halqasi */
+          border: 1px solid rgba(255, 255, 255, 0.4);
+          /* Nozik 3D jilo va ko'k aura — oq pardasiz, tiniq va to'yingan */
           box-shadow:
-            0 0 0 2px rgba(56, 189, 248, 0.5),
-            0 4px 0 0 rgba(2, 132, 199, 0.4),
-            0 12px 28px -2px rgba(14, 165, 233, 0.6),
-            inset 0 2.5px 5px rgba(255, 255, 255, 0.95),
-            inset 0 -2px 4px rgba(0, 0, 0, 0.2);
+            0 0 0 2px rgba(22, 115, 230, 0.3),
+            0 4px 0 0 rgba(17, 79, 174, 0.35),
+            0 10px 24px -2px rgba(22, 115, 230, 0.5),
+            inset 0 1px 1px rgba(255, 255, 255, 0.35),
+            inset 0 -2px 3px rgba(0, 0, 0, 0.2);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -259,16 +259,6 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentRoute, onNavigate }
           z-index: 12;
           pointer-events: none;
           will-change: left, transform;
-        }
-
-        /* Tabletka ustidagi shisha linza nuri (specular highlight) */
-        .mnav-aqua-pillow::before {
-          content: '';
-          position: absolute;
-          inset: 0;
-          border-radius: 24px;
-          background: radial-gradient(ellipse at 35% 25%, rgba(255, 255, 255, 0.8) 0%, rgba(255, 255, 255, 0) 60%);
-          pointer-events: none;
         }
 
         /* Oqayotgan paytda cho'zilish */
@@ -313,7 +303,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentRoute, onNavigate }
           position: absolute;
           inset: -4px;
           border-radius: 28px;
-          border: 2px solid rgba(56, 189, 248, 0.7);
+          border: 2px solid rgba(22, 115, 230, 0.65);
           opacity: 0;
           pointer-events: none;
         }
