@@ -120,7 +120,8 @@ export const OrganizationEditModal: React.FC<OrganizationEditModalProps> = ({
 
     setIsSubmitting(true);
     try {
-      await apiRequest(`/api/admin/organizations/${org.id}`, { method: 'DELETE' });
+      // Xavfli amal: organizatsiya o'chirish — parol qayta-tasdiqi (step-up) shart.
+      await apiRequest(`/api/admin/organizations/${org.id}`, { method: 'DELETE', requiresStepUp: true });
       onSaved();
       onClose();
     } catch (err: any) {

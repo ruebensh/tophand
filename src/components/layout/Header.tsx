@@ -14,7 +14,7 @@ import {
   Map as MapIcon,
   X,
 } from 'lucide-react';
-import { formatDateAgo } from '../../lib/utils.ts';
+import { formatDateAgo, ADMIN_PANEL_PATH } from '../../lib/utils.ts';
 import { getPublicMonetization, getCatalogs, getCategoryTree } from '../../lib/api.ts';
 import type { Catalog, Category, Notification } from '../../types/index.ts';
 import { TopHandLogo } from '../common/TopHandLogo.tsx';
@@ -69,12 +69,12 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
 
   // "Topbar" (katalog + qidiruv + xarita paneli) ba'zi sahifalarda kerak emas:
   // - /create, /chat, /profile — barcha o'lchamlarda (mobil + desktop) yashiriladi;
-  // - admin panellar (/admin, /moderator, /lead) — faqat desktop'da (lg+) yashiriladi.
+  // - admin panellar (yashirin /th-adm-…, /moderator, /lead) — faqat desktop'da (lg+) yashiriladi.
   const toolbarPath = currentRoute.split('?')[0];
   const hideToolbarEverywhere =
     toolbarPath.startsWith('/create') || toolbarPath.startsWith('/chat') || toolbarPath.startsWith('/profile');
   const hideToolbarDesktop =
-    toolbarPath === '/admin' || toolbarPath === '/moderator' || toolbarPath === '/lead';
+    toolbarPath === ADMIN_PANEL_PATH || toolbarPath === '/moderator' || toolbarPath === '/lead';
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
@@ -619,7 +619,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
                           </button>
                         )}
                         {(user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') && (
-                          <button onClick={() => { setIsUserMenuOpen(false); onNavigate('/admin'); }} className="w-full px-3.5 py-2 text-xs text-left font-semibold text-blue-800 hover:bg-blue-100/50">
+                          <button onClick={() => { setIsUserMenuOpen(false); onNavigate(ADMIN_PANEL_PATH); }} className="w-full px-3.5 py-2 text-xs text-left font-semibold text-blue-800 hover:bg-blue-100/50">
                             {t('nav.adminPanel')}
                           </button>
                         )}

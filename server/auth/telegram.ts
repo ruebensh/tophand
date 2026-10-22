@@ -78,6 +78,9 @@ export function verifyTelegramAuth(data: Record<string, any>): boolean {
 }
 
 export function generateToken(user: { id: string; telegram_id?: string | null; role: string }): string {
+  // SECURITY: privileged (admin) sessiyalar qisqa umrli ko'radi — token o'g'irlansa,
+  // hujum oynasi 30 kun emas, 3 kun bilan cheklanadi.
+  const privileged = user.role === 'ADMIN' || user.role === 'SUPER_ADMIN';
   return jwt.sign(
     {
       id: user.id,
@@ -85,8 +88,42 @@ export function generateToken(user: { id: string; telegram_id?: string | null; r
       role: user.role,
     },
     JWT_SECRET,
-    { expiresIn: '30d' }
+    { expiresIn: privileged ? '3d' : '30d' }
   );
+}
+
+/**
+ * Step-up token: xavfli admin amallar (rol almashtirish, ob'ekt o'chirish) oldidan
+ * parolni QAYTA tekshirib olinadigan 10 daqiqalik qisqa muddatli token. Asosiy
+ * sessiyadan alohida — o'g'irlangan 30 kunlik token bilan bu amallar bajaryolmaydi.
+ */
+export function generateStepUpToken(user: { id: string; role: string }): string {
+  return jwt.sign(
+    { id: user.id, role: user.role, purpose: 'stepup' },
+    JWT_SECRET,
+    { expiresIn: '10m' }
+  );
+}
+
+/**
+ * requireAuth UNDAN KEYIN ishlatiladi: xavfli yo'llarda so'rovda yashirin
+ * `x-stepup` tokenini talab qiladi (maxsus purpose'li, shu foydalanuvchiga tegishli).
+ */
+export function requireStepUp(req: AuthRequest, res: Response, next: NextFunction) {
+  const header = req.headers['x-stepup'];
+  const token = typeof header === 'string' ? header : '';
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as any;
+    if (decoded?.purpose === 'stepup' && decoded.id === req.user?.id) {
+      return next();
+    }
+  } catch {
+    /* pastga tushadi — 401 */
+  }
+  return res.status(401).json({
+    error: 'Bu xavfli amal uchun parolni qayta tasdiqlash talab qilinadi',
+    stepup_required: true,
+  });
 }
 
 export async function authenticateToken(token: string): Promise<AuthUser | null> {

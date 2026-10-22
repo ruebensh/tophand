@@ -7,7 +7,7 @@ import multer from 'multer';
 import sharp from 'sharp';
 import fs from 'fs';
 import path from 'path';
-import { requireAuth, requireMinLevel, AuthRequest } from '../auth/telegram.ts';
+import { requireAuth, requireMinLevel, requireStepUp, AuthRequest } from '../auth/telegram.ts';
 import {
   getAdminOverview,
   adminPermanentBan,
@@ -144,7 +144,8 @@ router.post('/users/:id/unban', async (req: AuthRequest, res) => {
 });
 
 // Set user role (Add/remove moderator)
-router.post('/users/:id/role', async (req: AuthRequest, res) => {
+// XAVFLI amal: rol almashtirish — parol qayta-tasdiqini (step-up) talab qiladi.
+router.post('/users/:id/role', requireStepUp, async (req: AuthRequest, res) => {
   try {
     const { role } = req.body;
     // Admin/SUPER_ADMIN: moderator jamoasi + BOSH MODERATOR (LEAD_MOD) tayinlash.
@@ -1045,7 +1046,7 @@ router.put('/organizations/:id', async (req: AuthRequest, res) => {
 });
 
 // Organizations: Delete organization
-router.delete('/organizations/:id', async (req: AuthRequest, res) => {
+router.delete('/organizations/:id', requireStepUp, async (req: AuthRequest, res) => {
   try {
     const orgId = req.params.id;
     const prevOrg = await queryOne<any>('SELECT logo_url FROM organizations WHERE id = ?', [orgId]);
@@ -1060,7 +1061,7 @@ router.delete('/organizations/:id', async (req: AuthRequest, res) => {
 });
 
 // Categories: Delete category
-router.delete('/categories/:id', async (req: AuthRequest, res) => {
+router.delete('/categories/:id', requireStepUp, async (req: AuthRequest, res) => {
   try {
     const catId = req.params.id;
     await runQuery('DELETE FROM categories WHERE id = ?', [catId]);
@@ -1072,7 +1073,7 @@ router.delete('/categories/:id', async (req: AuthRequest, res) => {
 });
 
 // Listings: Admin direct permanent deletion
-router.delete('/listings/:id', async (req: AuthRequest, res) => {
+router.delete('/listings/:id', requireStepUp, async (req: AuthRequest, res) => {
   try {
     const listingId = req.params.id;
     const listing = await queryOne<any>('SELECT * FROM listings WHERE id = ?', [listingId]);

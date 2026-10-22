@@ -74,7 +74,7 @@ async function main() {
   const { app } = await import('../server.ts');
   const { initDatabase } = await import('../server/db/init.ts');
   const { pool, runQuery, queryOne } = await import('../server/db/database.ts');
-  const { generateToken } = await import('../server/auth/telegram.ts');
+  const { generateToken, generateStepUpToken } = await import('../server/auth/telegram.ts');
   const { signVerificationPhotoUrl } = await import('../server/lib/signedUrl.ts');
   const { processMediaCleanup } = await import('../server/services/mediaCleanupService.ts');
   const { enqueueDeletion } = await import('../server/services/mediaDeletionQueue.ts');
@@ -431,8 +431,15 @@ async function main() {
       assert(badAdmin.status === 400, 'lead: cannot assign ADMIN (400)');
 
       // ADMIN selects the chief moderator (LEAD_MOD).
-      const chief = await req(`/api/admin/users/${mod.id}/role`, authJson({ role: 'LEAD_MOD' }, adminToken));
-      assert(chief.status === 200, 'admin: assign LEAD_MOD (chief) → 200');
+      // Step-up talab qilinadi: parol qayta-tasdiq tokenisiz → 401, token bilan → 200.
+      const noStepUp = await req(`/api/admin/users/${mod.id}/role`, authJson({ role: 'LEAD_MOD' }, adminToken));
+      assert(noStepUp.status === 401, 'admin: assign role WITHOUT step-up → 401 (stepup_required)');
+      const stepupTok = generateStepUpToken({ id: admin.id, role: 'ADMIN' });
+      const chief = await req(`/api/admin/users/${mod.id}/role`, {
+        ...authJson({ role: 'LEAD_MOD' }, adminToken),
+        headers: { ...(authJson({ role: 'LEAD_MOD' }, adminToken).headers as Record<string, string>), 'x-stepup': stepupTok },
+      });
+      assert(chief.status === 200, 'admin: assign LEAD_MOD with step-up → 200');
       const chiefRole = await queryOne<any>('SELECT role FROM users WHERE id = ?', [mod.id]);
       assert(chiefRole?.role === 'LEAD_MOD', 'admin: chief moderator persisted as LEAD_MOD');
 

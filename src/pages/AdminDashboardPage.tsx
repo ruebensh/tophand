@@ -248,6 +248,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       await apiRequest(`/api/admin/users/${userId}/role`, {
         method: 'POST',
         body: JSON.stringify({ role: newRole }),
+        // Xavfli amal: parol qayta-tasdiqini (step-up modal) talab qiladi.
+        requiresStepUp: true,
       });
       alert(t('admin.roleUpdated'));
       fetchUsers();
@@ -265,6 +267,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       await apiRequest(`/api/admin/users/${userId}/role`, {
         method: 'POST',
         body: JSON.stringify({ role: newRole }),
+        // Xavfli amal (LEAD_MOD tayinlash): parol qayta-tasdiqi shart.
+        requiresStepUp: true,
       });
       alert(t('admin.roleUpdated'));
       fetchUsers();
@@ -291,7 +295,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   const handleDeleteOrg = async (orgId: string, orgName: string) => {
     if (!confirm(t('admin.orgDeleteConfirm', { name: orgName }))) return;
     try {
-      await apiRequest(`/api/admin/organizations/${orgId}`, { method: 'DELETE' });
+      await apiRequest(`/api/admin/organizations/${orgId}`, { method: 'DELETE', requiresStepUp: true });
       alert(t('admin.orgDeleted'));
       fetchOrgs();
     } catch (err: any) {
@@ -303,7 +307,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     const label = isSub ? t('admin.delLabelSub') : t('admin.delLabelParent');
     if (!confirm(t('admin.catDeleteConfirm', { name: catName, label }))) return;
     try {
-      await apiRequest(`/api/admin/categories/${catId}`, { method: 'DELETE' });
+      await apiRequest(`/api/admin/categories/${catId}`, { method: 'DELETE', requiresStepUp: true });
       fetchCategories();
     } catch (err: any) {
       alert(err.message || t('admin.deleteErrFull'));

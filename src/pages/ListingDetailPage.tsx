@@ -355,7 +355,8 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
     if (!window.confirm(t('detail.adminDeleteConfirm'))) return;
     setIsAdminDeleting(true);
     try {
-      await apiRequest(`/api/admin/listings/${listingId}`, { method: 'DELETE' });
+      // Xavfli amal: admin e'lon o'chirishi — parol qayta-tasdiqi (step-up) shart.
+      await apiRequest(`/api/admin/listings/${listingId}`, { method: 'DELETE', requiresStepUp: true });
       onBack();
     } finally {
       setIsAdminDeleting(false);

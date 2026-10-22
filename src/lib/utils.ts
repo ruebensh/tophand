@@ -11,6 +11,14 @@ export function isOfficialAccount(entity?: { role?: string | null; owner_role?: 
 }
 
 /**
+ * Admin panel manzili — kodga o'xshash YASHIRIN yo'l (security-by-obscurity):
+ * /admin kabi o'ngdal topiladigan nom bot-skaner/hujumchilarga tushib qolardi.
+ * Yo'lni o'zgartirish kerak bo'lsa — FAQAT shu konstanta (App.tsx va Header.tsx
+ * shundan oladi). Haqiqiy himoya baribir role-check + API auth'da.
+ */
+export const ADMIN_PANEL_PATH = '/th-adm-7f3k9q';
+
+/**
  * TopHand staff (moderation team). Rendered with a distinct indigo-violet shield
  * badge so moderators stand apart from ordinary verified users, but below the
  * royal-gold official/admin seal.

@@ -6,7 +6,9 @@ import 'dotenv/config';
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import { initDatabase } from './server/db/init.ts';
+import { queryOne } from './server/db/database.ts';
 import { startExpirationCron } from './server/services/expirationService.ts';
 import { startMediaCleanupCron } from './server/services/mediaCleanupService.ts';
 import { getSeoMeta, injectSeo } from './server/services/seoService.ts';
@@ -71,12 +73,19 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // ── Production hardening: security headers + in-memory rate limiting ──
 // Baseline headers are always set; HSTS + a Content-Security-Policy are only
 // applied in production (M-13) so local Vite dev (HMR / inline scripts) keeps
-// working. The CSP is deliberately permissive on image/script/style origins
-// because the app loads Google Identity Services, Google Fonts, arbitrary https
-// listing/cover images and R2 media; a stricter nonce/hash CSP is a follow-up.
+// working. The CSP is deliberately permissive on image/style origins because
+// the app loads Google Fonts, arbitrary https listing/cover images and R2
+// media. script-src endi QAT'OV: 'unsafe-inline' olib tashlandi, uni o'rniga
+// har so'rovga noyob nonce (bizning inline skriptlar) + 'unsafe-hashes' bilan
+// hisoblangan hash (index.html'dagi bitta onload atributi) ishlatiladi.
+const CSP_NONCE_PLACEHOLDER = '__CSP_NONCE__';
+// index.html:22 — <link ... onload="this.media='all'"> inline event handler.
+// CSP Level 3: inline atributlar faqat 'unsafe-hashes' + atribut qiymatining
+// (aynan, bo'sh joylar saqlangan holda) sha256 hash'i bilan ruxsat etiladi.
+const CSP_ONLOAD_HASH = "'sha256-MhtPZXr7+LpJUY5qtMutB+qWfQtMaPccfe7QXtCcEYc='";
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' https://accounts.google.com https://apis.google.com 'unsafe-inline'",
+  `script-src 'self' 'nonce-${CSP_NONCE_PLACEHOLDER}' 'unsafe-hashes' ${CSP_ONLOAD_HASH} https://accounts.google.com https://apis.google.com`,
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' data: https://fonts.gstatic.com",
   "img-src 'self' data: blob: https:",
@@ -106,7 +115,10 @@ app.use((_req, res, next) => {
   if (IS_PROD_SERVER) {
     // 2 years + include subdomains + preload. Only meaningful over HTTPS.
     res.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
-    res.setHeader('Content-Security-Policy', CSP);
+    // Har so'rovga yangi nonce — o'g'irlangan/teskari injektlangan HTML bir
+    // sahifada ishlamaydi; nonce SPA fallback'da (res.locals.cspNonce) ishlatiladi.
+    res.locals.cspNonce = crypto.randomBytes(16).toString('base64');
+    res.setHeader('Content-Security-Policy', CSP.replace(CSP_NONCE_PLACEHOLDER, res.locals.cspNonce));
   }
   next();
 });
@@ -243,6 +255,11 @@ app.use(seoRoutes);
 app.use('/api/auth/register/send-code', codeLimiter);
 app.use('/api/auth/forgot-password', codeLimiter);
 app.use('/api/auth/email/send-code', ...emailCodeLimiters);
+// Step-up — parol tekshiruvchi endpoint: brute-force'dan himoya uchun eng qat'ov
+// limiter (15 daqiqada 8 urinish). authLimiter (100) bu yo'ldan O'TMAYDI —
+// mount tartibi: aniq yo'l avval, so'ng umumiy '/api/auth'.
+const stepUpLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 8, scope: '/api/auth/stepup', message: "Tasdiqlash urinishlari chegarasi oshdi. 15 daqiqadan so'ng qayta urinib ko'ring." });
+app.use('/api/auth/stepup', stepUpLimiter);
 app.use('/api/auth', authLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/verification-photo', verifyMediaRoutes);
@@ -272,10 +289,25 @@ app.use('/api/monetization', contentLimiter, monetizationRoutes);
 app.use('/api/ads', mutateGuard, adsRoutes);
 app.use('/api/translate', translateLimiter, translateRoutes);
 
-// Health check endpoint
-app.get('/api/health', (_req, res) => {
+// Health check endpoint — tashqi pinger har ~10 daqiqada shu yerga keladi.
+// Ichida yengil `SELECT 1` bor: shunda Neon ham bo'shab qolib SUSPEND bo'lmaydi
+// (aks holda web instance uyg'oq bo'lsa ham, birinchi haqiqiy so'rov DB
+// "uygonishini" kutib qolardi). DB vaqtincha chalg'ib ketsa ham health 200
+// qaytaradi (status ok, db: 'error') — pinger maqsadi bu, monitor emas.
+app.get('/api/health', async (_req, res) => {
   res.setHeader('Cache-Control', 'no-store');
-  res.json({ status: 'ok', time: new Date().toISOString(), boot: BOOT_ID });
+  let dbOk = false;
+  try {
+    // 5s deadline — Neon uyqudan turolmasa darhol javob beramiz
+    await Promise.race([
+      queryOne<{ ok: number }>('SELECT 1 AS ok'),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('db-timeout')), 5000)),
+    ]);
+    dbOk = true;
+  } catch {
+    dbOk = false;
+  }
+  res.json({ status: 'ok', time: new Date().toISOString(), boot: BOOT_ID, db: dbOk ? 'ok' : 'error' });
 });
 
 // Centralized API error handler
@@ -371,9 +403,12 @@ async function startServer() {
             /* static defaults remain */
           }
           if (googleClientId) {
+            // NONCE: CSP script-src 'unsafe-inline' yo'q — bu inline skript
+            // header'dagi so'rovga xos nonce bilan ruxsat olishi shart.
+            const nonceAttr = res.locals.cspNonce ? ` nonce="${res.locals.cspNonce}"` : '';
             html = html.replace(
               '</head>',
-              `<script>window.__GOOGLE_CLIENT_ID__ = ${JSON.stringify(googleClientId)};</script></head>`
+              `<script${nonceAttr}>window.__GOOGLE_CLIENT_ID__ = ${JSON.stringify(googleClientId)};</script></head>`
             );
           }
           res.setHeader('Content-Type', 'text/html; charset=utf-8');

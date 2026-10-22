@@ -12,6 +12,60 @@ export function removeStoredToken() {
   localStorage.removeItem(TOKEN_KEY);
 }
 
+// ─── Step-up auth (xavfli admin amallari uchun parol qayta-tasdiqi) ───
+// Server x-stepup header'ida 10 daqiqalik maxsus purpose'li token kutadi.
+// Token MEMORY'da saqlanadi (localStorage'da EMAS — o'g'irlanish oynasini
+// pasaytirish uchun) va muddatidan oldin e'lon qilinadi (9 daqiqa).
+let stepUpToken: string | null = null;
+let stepUpExpiresAt = 0;
+
+// StepUpPromptModal registratsiya qiladigan handler: parol modali o'zi /api/auth/stepup
+// ga urilib, TASDIQLANGAN tokenni qaytaradi (parol selfda aylanmaydi — har
+// so'rov = bitta limiter hisobi). Yagona ko'prik; modal mount bo'lmasa null.
+let promptTokenHandler: (() => Promise<string | null>) | null = null;
+
+export function registerStepUpPrompt(handler: (() => Promise<string | null>) | null) {
+  promptTokenHandler = handler;
+}
+
+export function clearStepUpToken() {
+  stepUpToken = null;
+  stepUpExpiresAt = 0;
+}
+
+// Parolni tekshirib 10 daqiqalik step-up token qaytaradi. Modal (token so'raydi)
+// va ensureStepUpToken (kesh bo'sh bo'lsa) shu funksiyani ishlatadi.
+export async function fetchStepUpToken(password: string): Promise<string> {
+  const res = await fetch('/api/auth/stepup', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${getStoredToken() || ''}`,
+    },
+    body: JSON.stringify({ password }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.token) {
+    throw new Error(data.error || 'Tasdiqlash amalga oshmadi');
+  }
+  return data.token as string;
+}
+
+// Kerakli bo'lsa parol modalini ochadi va 10 daqiqalik step-up token qaytaradi.
+export async function ensureStepUpToken(): Promise<string> {
+  if (stepUpToken && Date.now() < stepUpExpiresAt) return stepUpToken;
+  if (!promptTokenHandler) {
+    throw new Error('Tasdiqlash modalini ochib bo\'lmadi — sahifani yangilang');
+  }
+  // Modal tokenni o'zi keltiradi (parol tekshiruvi modallar ichida bir marta).
+  const token = await promptTokenHandler();
+  if (!token) throw new Error('Tasdiqlash bekor qilindi');
+  stepUpToken = token;
+  // 10m o'rniga 9 daqiqa — server tomonida muddati o'tib ketmasligi uchun zaxira.
+  stepUpExpiresAt = Date.now() + 9 * 60 * 1000;
+  return stepUpToken;
+}
+
 // Admin statistika: LOGOUT hodisasini best-effort xabar qiladi (user_events).
 // sendBeacon header yubora olmasligi uchun fetch keepalive ishlatiladi —
 // brauzer yopilganda ham so'rov ketib qolish ehtimoli yuqori.
@@ -31,9 +85,9 @@ export function reportLogout(): void {
 
 export async function apiRequest<T = any>(
   endpoint: string,
-  options: RequestInit & { timeoutMs?: number } = {}
+  options: RequestInit & { timeoutMs?: number; requiresStepUp?: boolean } = {}
 ): Promise<T> {
-  const { timeoutMs, ...init } = options;
+  const { timeoutMs, requiresStepUp, ...init } = options;
   const token = getStoredToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -50,6 +104,11 @@ export async function apiRequest<T = any>(
 
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  // Xavfli amal (rol almashtirish, o'chirish) — parol qayta-tasdiq tokeni.
+  if (requiresStepUp) {
+    headers['x-stepup'] = await ensureStepUpToken();
   }
 
   // Abort client-side so a stalled server never leaves the UI hanging forever.
@@ -76,6 +135,11 @@ export async function apiRequest<T = any>(
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
+    // Server step-up tokeni rad etdi (muddati o'tgan/purpose noto'g'ri) —
+    // keshni tozalaymiz; keyingi urinish yangi parol so'raydi.
+    if (response.status === 401 && (data as any)?.stepup_required) {
+      clearStepUpToken();
+    }
     throw new Error(data.error || `So‘rov bajarilmadi: status ${response.status}`);
   }
 

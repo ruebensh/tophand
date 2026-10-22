@@ -2,7 +2,7 @@ import { serverError } from '../lib/error.ts';
 import { Router } from 'express';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
-import { generateToken, requireAuth, verifyTelegramAuth, AuthRequest } from '../auth/telegram.ts';
+import { generateToken, generateStepUpToken, requireAuth, verifyTelegramAuth, AuthRequest } from '../auth/telegram.ts';
 import { queryOne, runQuery, queryAll, runTransaction } from '../db/database.ts';
 import { sendVerificationCodeEmail } from '../services/emailService.ts';
 import { reqLang, type MsgLocale } from '../i18n/messages.ts';
@@ -344,6 +344,39 @@ async function loginHandler(req: any, res: any) {
 
 router.post('/login', loginHandler);
 router.post('/admin-login', loginHandler);
+
+// ─── Step-up auth: xavfli admin amallar oldidan parolni qayta tekshirish ───
+// Natija — 10 daqiqalik maxsus purpose'li token (`x-stepup` header bilan qaytariladi).
+// .env admin'ning DB qatorida password_hash BO'LMASLIGI mumkin (parol faqat env
+// hash'da) — shuning uchun manba avval ADMIN_EMAIL/ADMIN_PASSWORD_HASH, so'ng DB.
+router.post('/stepup', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { password } = req.body || {};
+    if (!password || typeof password !== 'string') {
+      return res.status(400).json({ error: 'Parol kiritilishi shart' });
+    }
+    const user = await queryOne<any>('SELECT * FROM users WHERE id = ?', [req.user!.id]);
+    if (!user) return res.status(401).json({ error: 'Hisob topilmadi' });
+
+    const adminEmail = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
+    const adminHash = process.env.ADMIN_PASSWORD_HASH || '';
+    let ok = false;
+    if (adminEmail && adminHash && (user.email || '').trim().toLowerCase() === adminEmail) {
+      ok = await bcrypt.compare(password, adminHash);
+    } else if (user.password_hash) {
+      ok = await bcrypt.compare(password, user.password_hash);
+    } else {
+      // Parolsiz (Google/Telegram-only) hisob — step-up imkonsiz.
+      return res.status(400).json({ error: 'Bu hisobda parol sozlanmagan — tasdiqlab bo\'lmaydi' });
+    }
+    if (!ok) {
+      return res.status(401).json({ error: 'Parol noto\'g\'ri' });
+    }
+    res.json({ token: generateStepUpToken({ id: user.id, role: user.role }) });
+  } catch (err: any) {
+    serverError(res, err, 'Tasdiqlashda xatolik yuz berdi');
+  }
+});
 
 // ─── Logout: faqat statistika uchun LOGOUT hodisasini yozadi ─────────────
 // JWT be-state bo'lgani uchun "chiqirish" mexanik ta'siri yo'q; endpoint

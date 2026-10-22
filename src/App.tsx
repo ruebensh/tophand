@@ -6,6 +6,8 @@ import { LogoProvider } from './context/LogoContext.tsx';
 import { AdsProvider } from './context/AdsContext.tsx';
 import { GeoProvider } from './context/GeoContext.tsx';
 import { Header } from './components/layout/Header.tsx';
+import { ADMIN_PANEL_PATH } from './lib/utils.ts';
+import { StepUpPromptModal } from './components/admin/StepUpPromptModal.tsx';
 import { MobileNav } from './components/layout/MobileNav.tsx';
 import { Footer } from './components/layout/Footer.tsx';
 
@@ -239,8 +241,8 @@ const AppContent: React.FC = () => {
       );
     }
 
-    // 9. Admin Dashboard: /admin
-    if (currentRoute === '/admin') {
+    // 9. Admin Dashboard: /th-adm-7f3k9q (yashirin kodsimon yo'l — ADMIN_PANEL_PATH)
+    if (currentRoute === ADMIN_PANEL_PATH) {
       if (!user || (user.role !== 'ADMIN' && user.role !== 'SUPER_ADMIN')) {
         return (
           <div className="max-w-md mx-auto py-16 text-center">
@@ -257,7 +259,13 @@ const AppContent: React.FC = () => {
           </div>
         );
       }
-      return <AdminDashboardPage onNavigate={navigate} />;
+      return (
+        <>
+          <AdminDashboardPage onNavigate={navigate} />
+          {/* Xavfli amallar (rol/o'chirish) uchun parol qayta-tasdiq modali */}
+          <StepUpPromptModal />
+        </>
+      );
     }
 
     // 9b. Chief Moderator Dashboard: /lead (bosh moderator uchun alohida panel)

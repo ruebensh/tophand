@@ -57,7 +57,10 @@ router.get('/robots.txt', (req, res) => {
       'User-agent: *',
       'Allow: /',
       'Disallow: /api/',
-      'Disallow: /admin',
+      // Admin panel yo'li ENDI robots'da yozilmaydi — u kodsimon YASHIRIN manzil
+      // (/th-adm-...), robots esa ochiq fayl: yozib qo'ysak yo'lni botlarga
+      // sovg'a qilgan bo'lamiz. Hech qayerda link qilinmagani uchun crawler
+      // topa olmaydi ham.
       'Disallow: /moderator',
       'Disallow: /chat',
       'Disallow: /saved',

@@ -138,7 +138,8 @@ export const CategoryEditModal: React.FC<CategoryEditModalProps> = ({
 
     setIsSubmitting(true);
     try {
-      await apiRequest(`/api/admin/categories/${category.id}`, { method: 'DELETE' });
+      // Xavfli amal: kategoriya o'chirish — parol qayta-tasdiqi (step-up) shart.
+      await apiRequest(`/api/admin/categories/${category.id}`, { method: 'DELETE', requiresStepUp: true });
       onSaved();
       onClose();
     } catch (err: any) {
