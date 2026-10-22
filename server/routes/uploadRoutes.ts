@@ -50,7 +50,11 @@ router.post('/', requireAuth, upload.single('image'), async (req, res) => {
     if (isVerificationFolder(folder)) {
       return res.status(400).json({ error: 'Tasdiq rasmi uchun /api/users/me/verification/upload ishlatiladi' });
     }
-    const result = await processAndStoreImage(req.file.buffer, folder);
+    const result = await processAndStoreImage(req.file.buffer, folder, {
+      // OPT: e'lon rasmlari uchun qo'shimcha 640px miniatura (`<id>-t640.webp`)
+      // yasaymiz — ListingCard lar shuni yuklaydi (dekod xotirasi ~4x yengil).
+      thumbnail: folder.trim().toLowerCase().replace(/\/+$/, '') === 'listings',
+    });
     // Report #7: manifest the upload so an orphan (never saved) is auto-reclaimed.
     await recordUpload({ key: result.key, url: result.url, storage: result.storage });
 

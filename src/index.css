@@ -723,7 +723,10 @@ html, body {
   animation: th-card-in .5s cubic-bezier(.22,1,.36,1) backwards;
   animation-delay: var(--d, 0ms);
 }
-/* glass yuzasidan o'tib ketadigan nur (shine) — hover'da silliq siljiydi */
+/* glass yuzasidan o'tib ketadigan nur (shine) — hover'da silliq siljiydi.
+   OPT: doimiy `will-change` olib tashlandi — u har bir shine elementini
+   abadiy GPU qatlamiga ko'tarib, uzun ro'yxatlarda xotira va jank keltirib
+   chiqar edi. Faqat hover paytida (pointer-fine) vaqtinchalik ko'tariladi. */
 .th-shine {
   position: absolute;
   inset: 0;
@@ -732,9 +735,11 @@ html, body {
   background: linear-gradient(115deg, transparent 32%, rgba(255,255,255,.6) 48%, transparent 64%);
   transform: translateX(-130%);
   transition: transform .9s cubic-bezier(.22,1,.36,1);
-  will-change: transform;
 }
 .group:hover .th-shine { transform: translateX(130%); }
+@media (hover:hover) and (pointer:fine) {
+  .group:hover .th-shine { will-change: transform; }
+}
 @media (prefers-reduced-motion: reduce) {
   .th-card-in { animation: none; }
   .th-shine { transition: none; }

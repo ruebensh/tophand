@@ -136,6 +136,17 @@ export function getContactTimeLabel(time: ContactTime, customText?: string): str
   return s === `contactTime.${time}` ? tf('contactTime.ANY_TIME_SHORT') : s;
 }
 
+/**
+ * OPT: kartochkalar uchun yengil miniatura URL'i. Server e'lon rasmlarini
+ * saqlaganida `<id>.webp` bilan birga `<id>-t640.webp` (640px, q70) ham
+ * yaratadi — dekod xotirasi ~4 barobar yengil, scroll janki kamayadi.
+ * Miniatura mavjud bo'lmasa (eski e'lonlar) onError fallback asl rasmga qaytadi.
+ */
+export function thumbOf(url?: string | null): string {
+  const u = String(url || '');
+  return /\.webp$/i.test(u) && !/-t640\.webp$/i.test(u) ? u.replace(/\.webp$/i, '-t640.webp') : u;
+}
+
 export function formatDateAgo(dateStr: string): string {
   const date = new Date(dateStr);
   const now = new Date();

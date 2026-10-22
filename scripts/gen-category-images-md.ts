@@ -37,7 +37,7 @@ lines.push('## Konvensiya');
 lines.push('- Yo\'l: `public/categories/<catalogId>/<categoryId>.png`');
 lines.push('- Format: **PNG, shaffof fon (alpha)** yoki toq-oq fon; ~120×120px yetarli.');
 lines.push('- Rasm bo\'lmasa sayt avtomatik lucide **ikonkaga** qaytadi (fallback) — sahifa buzilmaydi.');
-lines.push('- Bosh sahivadagi 13 katalog kartalari uchun alohida: `public/catalogs/<catalogId>.png` (mavjud).');
+lines.push('- Bosh sahivadagi 13 katalog kartalari uchun alohida: `public/catalogs/<catalogId>.webp` (mavjud; yangi PNG qo\'shilsa, minify skripti webp egizagini ham yasaydi).');
 lines.push('');
 lines.push('## Kataloglar bo\'yicha xulosa');
 lines.push('');

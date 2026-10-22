@@ -38,8 +38,8 @@ const CAT_TONE: Record<string, string> = {
   hobby: 'lime', animals: 'emerald', business: 'sky', business360: 'fuchsia', handmade: 'red',
 };
 
-// Mega-menyu katalog relsidagi ikonka — iloji bo'lsa /catalogs/<id>.png rasmi
-// (bosh sahifa katalog kartochkalari bilan bir xil), aks holda CategoryChip.
+// Mega-menyu katalog relsidagi ikonka — iloji bo'lsa /catalogs/<id>.webp rasmi
+// (yengil WebP nusxa; bo'lmasa CategoryChip), home sahifa kartalari bilan bir xil.
 const CatalogRailIcon: React.FC<{ catalogId: string; icon: string; tone: string; mobile?: boolean }> = ({
   catalogId,
   icon,
@@ -50,7 +50,7 @@ const CatalogRailIcon: React.FC<{ catalogId: string; icon: string; tone: string;
   if (!failed) {
     return (
       <img
-        src={`/catalogs/${catalogId}.png`}
+        src={`/catalogs/${catalogId}.webp`}
         alt=""
         loading="lazy"
         decoding="async"
@@ -66,6 +66,15 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
   const { user, logout, openLoginModal } = useAuth();
   const { notifications, unreadCount, markAllAsRead, markAsRead, refreshNotifications } = useNotifications();
   const { t, localized } = useI18n();
+
+  // "Topbar" (katalog + qidiruv + xarita paneli) ba'zi sahifalarda kerak emas:
+  // - /create, /chat, /profile — barcha o'lchamlarda (mobil + desktop) yashiriladi;
+  // - admin panellar (/admin, /moderator, /lead) — faqat desktop'da (lg+) yashiriladi.
+  const toolbarPath = currentRoute.split('?')[0];
+  const hideToolbarEverywhere =
+    toolbarPath.startsWith('/create') || toolbarPath.startsWith('/chat') || toolbarPath.startsWith('/profile');
+  const hideToolbarDesktop =
+    toolbarPath === '/admin' || toolbarPath === '/moderator' || toolbarPath === '/lead';
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
@@ -638,7 +647,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
 
       {/* ── Toolbar: qidiruv + kataloglar/xarita — sticky; header tepaga ketgach,
           uning o'rnini bosib tepada qoladi. MobileNav bilan uyg'unlashgan Liquid Glassmorphism. ── */}
-      <div className={`sticky top-0 z-40 transition-all duration-300 ${isScrolled ? 'bg-white/60 backdrop-blur-md shadow-xs' : 'bg-transparent'}`}>
+      <div className={`sticky top-0 z-40 transition-all duration-300 ${hideToolbarEverywhere ? 'hidden' : hideToolbarDesktop ? 'lg:hidden' : ''} ${isScrolled ? 'bg-white/60 backdrop-blur-md shadow-xs' : 'bg-transparent'}`}>
         <div className={`max-w-[1440px] w-full mx-auto px-3 sm:px-8 transition-all duration-300 ${isScrolled ? 'py-1 sm:py-2' : 'py-2 sm:py-3'}`}>
           <div
             className={`flex w-full items-center gap-1.5 sm:gap-2 rounded-[28px] border transition-all duration-300 ${

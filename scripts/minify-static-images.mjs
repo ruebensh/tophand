@@ -32,14 +32,22 @@ for (const f of fs.readdirSync(heroesDir).filter((n) => n.toLowerCase().endsWith
   }));
 }
 
-// 2) Katalog tile PNG'lari (kichik ko'rinadi — 360px yetarli)
+// 2) Katalog tile PNG'lari (kichik ko'rinadi — 360px yetarli).
+//    Har bir PNG minify qilingach, yoniga <id>.webp egizagi ham yoziladi —
+//    kod (HomePage CatalogTile, Header CatalogRailIcon) aynan WebP nusxani oladi.
 const catsDir = path.join(root, 'public/catalogs');
 for (const f of fs.readdirSync(catsDir).filter((n) => n.endsWith('.png'))) {
-  jobs.push(minify(path.join(catsDir, f), {
-    kind: 'png',
-    enc: { palette: true, quality: 80, effort: 8 },
-    resize: { width: 360, height: 360, fit: 'inside', withoutEnlargement: true },
-  }));
+  const file = path.join(catsDir, f);
+  jobs.push((async () => {
+    await minify(file, {
+      kind: 'png',
+      enc: { palette: true, quality: 80, effort: 8 },
+      resize: { width: 360, height: 360, fit: 'inside', withoutEnlargement: true },
+    });
+    const twin = file.replace(/\.png$/, '.webp');
+    await sharp(file).webp({ quality: 80, effort: 6 }).toFile(twin + '.tmp');
+    fs.renameSync(twin + '.tmp', twin);
+  })());
 }
 
 // 3) Favicon va logo PNG'lari

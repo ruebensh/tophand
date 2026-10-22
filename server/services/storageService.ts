@@ -233,6 +233,22 @@ export interface UploadResult {
   height?: number;
   mimetype: string;
   storage: 'r2' | 'local';
+  thumbUrl?: string;
+  thumbKey?: string;
+}
+
+// OPT: kartochkalar uchun yengil miniatura (640px WebP q70) — asl 1280px rasmni
+// dekod qilish uzun ro'yxatlarda xotira bosimi va scroll jank keltirardi.
+// Nomlanish shartnoma: `<id>.webp` → `<id>-t640.webp` (frontend `thumbOf()` ham
+// shu qoidani qo'llaydi). Miniatura media_uploads manifestiga YOZILMAYDI — u
+// asl fayl bilan birga yashaydi va birga o'chiriladi.
+const THUMB_MAX_PX = 640;
+const THUMB_QUALITY = 70;
+
+/** `.webp` ref'idan miniatura ref'ini yasaydi; mos kelmasa bo'sh satr. */
+export function thumbKeyOf(ref: string | null | undefined): string {
+  const k = String(ref || '');
+  return /\.webp$/i.test(k) && !/-t640\.webp$/i.test(k) ? k.replace(/\.webp$/i, '-t640.webp') : '';
 }
 
 /**
@@ -241,9 +257,9 @@ export interface UploadResult {
 export async function processAndStoreImage(
   inputBuffer: Buffer,
   folder: string = 'photos',
-  options: { maxWidth?: number; maxHeight?: number; quality?: number } = {}
+  options: { maxWidth?: number; maxHeight?: number; quality?: number; thumbnail?: boolean } = {}
 ): Promise<UploadResult> {
-  const { maxWidth = 1280, maxHeight = 1280, quality = 82 } = options;
+  const { maxWidth = 1280, maxHeight = 1280, quality = 82, thumbnail = false } = options;
   folder = sanitizeFolder(folder, 'photos');
   // P2-3: verify the REAL raster signature before touching the decoder. Client
   // MIME is untrusted; this also rejects SVG/SVGZ/HTML/text masquerading as an
@@ -253,10 +269,10 @@ export async function processAndStoreImage(
   // 1. Optimize image using Sharp: convert to WebP, resize if large, keep aspect
   //    ratio. The whole decode (metadata + re-encode) runs inside a bounded
   //    concurrency slot and a wall-clock deadline (P2-2).
-  const processedBuffer = await withImageSlot(async () => {
+  const { processedBuffer, thumbBuffer } = await withImageSlot(async () => {
     const metadata = await sharp(inputBuffer, SHARP_INPUT_OPTS).rotate().metadata();
     assertSafeDimensions(metadata);
-    return sharp(inputBuffer, SHARP_INPUT_OPTS)
+    const main = await sharp(inputBuffer, SHARP_INPUT_OPTS)
       .rotate()
       .resize({
         width: maxWidth,
@@ -266,12 +282,24 @@ export async function processAndStoreImage(
       })
       .webp({ quality, effort: 4 })
       .toBuffer();
+    // Miniaturani ASL fayldan yasaymiz (allaqachon rotate+resizeirilgan, arzon
+    // decode) — xom buferga ikkinchi marta qimmat narx to'lanmaydi.
+    let thumb: Buffer | null = null;
+    if (thumbnail) {
+      thumb = await sharp(main)
+        .resize({ width: THUMB_MAX_PX, height: THUMB_MAX_PX, fit: 'inside', withoutEnlargement: true })
+        .webp({ quality: THUMB_QUALITY, effort: 4 })
+        .toBuffer();
+    }
+    return { processedBuffer: main, thumbBuffer: thumb };
   }, { ms: DECODE_TIMEOUT_MS, label: 'Rasm ishlov' });
 
   const processedMeta = await sharp(processedBuffer).metadata();
   const uniqueId = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
   const filename = `${uniqueId}.webp`;
   const storageKey = `${folder}/${filename}`;
+  const thumbFilename = thumbBuffer ? `${uniqueId}-t640.webp` : '';
+  const thumbStorageKey = thumbFilename ? `${folder}/${thumbFilename}` : '';
 
   // 2. Upload to Cloudflare R2 if configured
   if (r2Client) {
@@ -284,6 +312,17 @@ export async function processAndStoreImage(
         CacheControl: 'public, max-age=31536000, immutable',
       })
     );
+    if (thumbBuffer && thumbStorageKey) {
+      await r2Client.send(
+        new PutObjectCommand({
+          Bucket: BUCKET_NAME,
+          Key: thumbStorageKey,
+          Body: thumbBuffer,
+          ContentType: 'image/webp',
+          CacheControl: 'public, max-age=31536000, immutable',
+        })
+      );
+    }
 
     const publicUrl = process.env.R2_PUBLIC_URL
       ? `${process.env.R2_PUBLIC_URL.replace(/\/$/, '')}/${storageKey}`
@@ -297,6 +336,14 @@ export async function processAndStoreImage(
       height: processedMeta.height,
       mimetype: 'image/webp',
       storage: 'r2',
+      ...(thumbStorageKey
+        ? {
+            thumbKey: thumbStorageKey,
+            thumbUrl: process.env.R2_PUBLIC_URL
+              ? `${process.env.R2_PUBLIC_URL.replace(/\/$/, '')}/${thumbStorageKey}`
+              : `/api/storage/${thumbStorageKey}`,
+          }
+        : {}),
     };
   }
 
@@ -308,6 +355,9 @@ export async function processAndStoreImage(
 
   const localFilePath = path.join(targetDir, filename);
   await fs.promises.writeFile(localFilePath, processedBuffer);
+  if (thumbBuffer && thumbFilename) {
+    await fs.promises.writeFile(path.join(targetDir, thumbFilename), thumbBuffer);
+  }
 
   return {
     url: `/uploads/${folder}/${filename}`,
@@ -317,6 +367,7 @@ export async function processAndStoreImage(
     height: processedMeta.height,
     mimetype: 'image/webp',
     storage: 'local',
+    ...(thumbFilename ? { thumbKey: thumbStorageKey, thumbUrl: `/uploads/${folder}/${thumbFilename}` } : {}),
   };
 }
 
@@ -721,6 +772,11 @@ export async function attemptDeleteStoredMedia(
       const withSep = UPLOAD_DIR.endsWith(path.sep) ? UPLOAD_DIR : UPLOAD_DIR + path.sep;
       if (abs !== UPLOAD_DIR && !abs.startsWith(withSep)) return { ok: false, skipped: true }; // containment
       await fs.promises.rm(abs, { force: true });
+      // OPT: miniaturani asl fayl bilan BIRGA o'chiramiz (best-effort).
+      const thumbKey = thumbKeyOf(target.key);
+      if (thumbKey) {
+        try { await fs.promises.rm(path.resolve(UPLOAD_DIR, thumbKey), { force: true }); } catch { /* kichik tafsilot */ }
+      }
       return { ok: true, skipped: false };
     }
 
@@ -746,6 +802,16 @@ export async function attemptDeleteStoredMedia(
     const bucket = BUCKET_NAME;
     if (!bucket) return { ok: false, skipped: true };
     await r2Client.send(new DeleteObjectCommand({ Bucket: bucket, Key: target.key }));
+    // OPT: miniatura — asl obyektning sho'li; uni ham birga o'chiramiz
+    // (best-effort: yo'q bo'lsa yoki xato bo'lsa asl o'chirish hisobiga emas).
+    const thumbKey = thumbKeyOf(target.key);
+    if (thumbKey) {
+      try {
+        await r2Client.send(new DeleteObjectCommand({ Bucket: bucket, Key: thumbKey }));
+      } catch {
+        /* miniatura yo'q — muammo emas */
+      }
+    }
     return { ok: true, skipped: false };
   } catch (err: any) {
     const message = err?.message || String(err);

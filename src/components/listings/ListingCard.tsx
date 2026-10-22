@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Listing } from '../../types/index.ts';
 import { ListingTypeBadge } from './ListingTypeBadge.tsx';
 import { PriceDisplay } from './PriceDisplay.tsx';
-import { formatDateAgo } from '../../lib/utils.ts';
+import { formatDateAgo, thumbOf } from '../../lib/utils.ts';
 import {
   MapPin,
   Heart,
@@ -49,6 +49,8 @@ export const ListingCard: React.FC<ListingCardProps> = ({
   const [heartAnimating, setHeartAnimating] = useState(false);
   // Tashqi rasm (masalan Unsplash) yuklanmasa — chiroyli placeholder'ga qaytamiz.
   const [imgFailed, setImgFailed] = useState(false);
+  // OPT: miniatura (640px) topilmisa — asl rasmga qaytamiz (eski e'lonlar).
+  const [thumbBroken, setThumbBroken] = useState(false);
 
   const handleSave = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -80,6 +82,12 @@ export const ListingCard: React.FC<ListingCardProps> = ({
   };
 
   const coverImage = listing.images && listing.images.length > 0 ? listing.images[0] : null;
+  // Kartochka uchun yengil miniatura manbai (thumbBroken bo'lsa — asl rasm).
+  const coverSrc: string = coverImage ? (thumbBroken ? coverImage : thumbOf(coverImage)) : '';
+  const handleCoverError = () => {
+    if (coverSrc && coverSrc !== coverImage) setThumbBroken(true);
+    else setImgFailed(true);
+  };
   const isJob = listing.type === 'JOB_OPENING' || listing.type === 'JOB_SEEKER';
   const isPromoted = Boolean(listing.is_promoted) ||
     (Boolean(listing.promoted_until) && new Date(listing.promoted_until as string).getTime() > Date.now());
@@ -96,10 +104,10 @@ export const ListingCard: React.FC<ListingCardProps> = ({
         <div className="relative w-40 sm:w-48 shrink-0 bg-gray-100 overflow-hidden">
           {coverImage && !imgFailed ? (
             <img
-              src={coverImage}
+              src={coverSrc}
               alt={title}
               loading="lazy"
-              onError={() => setImgFailed(true)}
+              onError={handleCoverError}
             className="w-full h-full object-cover th-img-zoom group-hover:scale-105 transition-transform duration-300 absolute inset-0"
             />
           ) : (
@@ -107,8 +115,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
               📋
             </div>
           )}
-          {/* Glass shine nur o'tishi */}
-          <div className="th-shine" />
+          {/* Shine olib tashlandi — scrollda og'irlik qilardi (user: e'lonlarda kerak emas) */}
           {/* Type badge */}
           <div className="absolute top-2 left-2 pointer-events-none">
             <ListingTypeBadge type={listing.type} size="sm" />
@@ -185,10 +192,10 @@ export const ListingCard: React.FC<ListingCardProps> = ({
             />
           ) : (
             <img
-              src={coverImage}
+              src={coverSrc}
               alt={title}
               loading="lazy"
-              onError={() => setImgFailed(true)}
+              onError={handleCoverError}
               className="absolute inset-0 w-full h-full object-cover th-img-zoom group-hover:scale-105 transition-transform duration-300"
             />
           )
@@ -215,8 +222,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
           </div>
         )}
 
-        {/* Glass shine nur o'tishi */}
-        <div className="th-shine" />
+        {/* Shine olib tashlandi — har bir kartada doimiy qatlam/animatsiya og'ir edi */}
 
         {/* Heart like button — top right, like Avito (mobil uchun katta tap) */}
         {!hideSave && (

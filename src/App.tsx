@@ -63,16 +63,18 @@ const AppContent: React.FC = () => {
       else if (e.deltaMode === 2) dy *= window.innerHeight; // sahifa → piksel
       if (dy === 0) return;
       // Kursor ostida kerakli yo'nalishda aylanadigan ichki ajbor bormi?
+      // OPT: getComputedStyle scroll'dagi eng qimmat chaqiriq — uni faqat
+      // haqiqatan ortiqcha kontenti bo'lgan tugunlar uchun qilymiz (aks holda
+      // har wheel-evt'da butun zanjir bo'ylab style hisoblani jank keltirardi).
       let node = e.target as HTMLElement | null;
       while (node && node !== document.body) {
-        const oy = getComputedStyle(node).overflowY;
-        const canY =
-          (oy === 'auto' || oy === 'scroll' || oy === 'overlay') &&
-          node.scrollHeight > node.clientHeight + 1;
-        if (canY) {
-          const atTop = node.scrollTop <= 0;
-          const atBottom = node.scrollTop + node.clientHeight >= node.scrollHeight - 1;
-          if ((dy < 0 && !atTop) || (dy > 0 && !atBottom)) return; // ichki oladi
+        if (node.scrollHeight > node.clientHeight + 1) {
+          const oy = getComputedStyle(node).overflowY;
+          if (oy === 'auto' || oy === 'scroll' || oy === 'overlay') {
+            const atTop = node.scrollTop <= 0;
+            const atBottom = node.scrollTop + node.clientHeight >= node.scrollHeight - 1;
+            if ((dy < 0 && !atTop) || (dy > 0 && !atBottom)) return; // ichki oladi
+          }
         }
         node = node.parentElement;
       }

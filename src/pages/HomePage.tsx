@@ -61,7 +61,9 @@ interface HomePageProps {
 
 // Bosh sahifa / katalog-landing kartochkasi — Avito uslubida: nomi tepada-chapda,
 // rasm (PNG) o'ng pastda. PNG bo'lmasa ikonka (CategoryChip) ko'rsatiladi.
-// Bosh sahifada: imgSrc=/catalogs/<id>.png. Katalog landingda: /categories/<catalogId>/<id>.png.
+// Bosh sahifada: imgSrc=/catalogs/<id>.webp (PNG'ning yengil WebP nusxasi, ~60%
+// kichik; yo'q bo'lsa onError CategoryChip'ga qaytadi). Katalog landingda:
+// /categories/<catalogId>/<id>.png.
 interface TileProps {
   label: string;
   icon: string;
@@ -82,7 +84,7 @@ const CatalogTile: React.FC<TileProps> = ({ label, icon, imgSrc, tone, index, co
       type="button"
       onClick={onOpen}
       style={{ '--d': `${index * 60}ms` } as React.CSSProperties}
-      className="group th-card-in th-gpu th-isolate relative flex h-[92px] w-full flex-col items-center justify-center gap-1 overflow-hidden rounded-2xl border border-white/70 bg-gradient-to-br from-white/60 to-white/25 p-2 shadow-[0_8px_24px_rgba(23,43,77,0.10)] ring-1 ring-black/5 backdrop-blur-md transition-[transform,box-shadow] duration-300 hover:-translate-y-1 hover:from-white/75 hover:to-white/45 hover:shadow-[0_18px_44px_rgba(23,43,77,0.20)] cursor-pointer sm:h-[108px] sm:flex-row sm:items-stretch sm:justify-start sm:gap-0 sm:p-0 sm:pl-4 sm:pr-0 sm:pt-3.5"
+      className="group th-card-in th-gpu th-isolate relative flex h-[92px] w-full flex-col items-center justify-center gap-1 overflow-hidden rounded-2xl border border-white/70 bg-gradient-to-br from-white/60 to-white/25 p-2 shadow-[0_8px_24px_rgba(23,43,77,0.10)] ring-1 ring-black/5 transition-[transform,box-shadow] duration-300 hover:-translate-y-1 hover:from-white/75 hover:to-white/45 hover:shadow-[0_18px_44px_rgba(23,43,77,0.20)] cursor-pointer sm:h-[108px] sm:flex-row sm:items-stretch sm:justify-start sm:gap-0 sm:p-0 sm:pl-4 sm:pr-0 sm:pt-3.5"
     >
       <span className="th-shine" aria-hidden />
       <span className="z-10 order-2 w-full text-center text-[10px] font-bold leading-tight text-[#172B4D] line-clamp-2 transition-transform duration-300 group-hover:-translate-y-0.5 sm:order-1 sm:w-auto sm:max-w-[58%] sm:self-start sm:text-left sm:text-[13px]">
@@ -99,6 +101,7 @@ const CatalogTile: React.FC<TileProps> = ({ label, icon, imgSrc, tone, index, co
             src={src}
             alt={label}
             loading="lazy"
+            decoding="async"
             onError={() => setImgFailed(true)}
             className="h-full w-full object-contain mix-blend-multiply transition-transform duration-300 group-hover:scale-110 sm:object-right"
           />
@@ -1398,7 +1401,9 @@ export const HomePage: React.FC<HomePageProps> = ({
         <AdSlot placement="sidebar" variant="box" className="mt-5 hidden lg:block" />
 
         {/* Mobil sheet: pastdagi qotib turuvcha “qo'llash” paneli */}
-        <div className="lg:hidden sticky bottom-0 z-10 -mx-5 mt-4 px-5 pt-3 pb-[calc(12px+env(safe-area-inset-bottom))] bg-white/95 backdrop-blur-md border-t border-[#EBECF0] flex items-center gap-2">
+        {/* OPT: backdrop-blur o'rniga tekis oq — yopishqoq (sticky) bar'da blur
+            har scroll-kadrda qayta bo'yalib jank keltirardi. */}
+        <div className="lg:hidden sticky bottom-0 z-10 -mx-5 mt-4 px-5 pt-3 pb-[calc(12px+env(safe-area-inset-bottom))] bg-white border-t border-[#EBECF0] flex items-center gap-2">
           {activeFiltersCount > 0 && (
             <button
               type="button"
@@ -1596,7 +1601,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                     <CatalogTile
                       label={localized(cat)}
                       icon={cat.icon}
-                      imgSrc={`/catalogs/${cat.id}.png`}
+                      imgSrc={`/catalogs/${cat.id}.webp`}
                       tone={CAT_TONE[cat.id]}
                       index={i}
                       onOpen={() => openCatalog(cat.id)}
