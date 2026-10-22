@@ -2,7 +2,7 @@ import { initDatabase } from '../server/db/init.ts';
 import { queryOne, queryAll, runQuery } from '../server/db/database.ts';
 import { searchListings, createListing, renewListing } from '../server/services/listingService.ts';
 import { getOrCreateConversation, sendMessage, getConversationMessages, toggleBlockUser } from '../server/services/chatService.ts';
-import { createReport, takeModeratorAction, adminPermanentBan, adminUnban, adminVerifyOrganization } from '../server/services/moderationService.ts';
+import { createReport, takeModeratorAction, adminPermanentBan, adminUnban } from '../server/services/moderationService.ts';
 import { processListingExpirations } from '../server/services/expirationService.ts';
 import { generateToken, authenticateToken, verifyTelegramAuth } from '../server/auth/telegram.ts';
 
@@ -114,11 +114,7 @@ async function runTests() {
     const hiddenListing = await queryOne<any>('SELECT status FROM listings WHERE id = ?', [newListing.id]);
     assert(hiddenListing?.status === 'HIDDEN', 'Moderator successfully hid reported listing');
 
-    // 10. Admin Ban & Organization Verification Test
-    await adminVerifyOrganization(adminUser.id, 'org_bunyodkor', true);
-    const verifiedOrg = await queryOne<any>('SELECT verification_status FROM organizations WHERE id = ?', ['org_bunyodkor']);
-    assert(verifiedOrg?.verification_status === 'VERIFIED', 'Admin verified organization status');
-
+    // 10. Admin Permanent Ban Test
     await adminPermanentBan(adminUser.id, 'usr_requester', 'Test sababli ban');
     const bannedUser = await queryOne<any>('SELECT is_banned, ban_type FROM users WHERE id = ?', ['usr_requester']);
     assert(bannedUser?.is_banned === 1 && bannedUser?.ban_type === 'PERMANENT', 'Admin permanently banned user');

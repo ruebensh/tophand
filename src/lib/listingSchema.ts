@@ -43,7 +43,6 @@ export function makeListingSchema(ctx: ListingSchemaCtx) {
     longitude: z.number().optional(),
     contactTime: z.string(),
     contactCustomText: z.string(),
-    organizationId: z.string(),
     images: z.array(z.string()),
     videos: z.array(z.string()),
   });

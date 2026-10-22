@@ -9,7 +9,7 @@
 import React, { useEffect } from 'react';
 import { Controller, useFormContext } from 'react-hook-form';
 import {
-  Sparkles, Wand2, TriangleAlert, Check, Building2, SlidersHorizontal, ShieldCheck, Tag,
+  Sparkles, Wand2, TriangleAlert, Check, SlidersHorizontal, ShieldCheck, Tag,
 } from 'lucide-react';
 import type { CategoryAttribute, WorkFormat } from '../../types/index.ts';
 import type { WizardFormValues } from '../../types/wizard.ts';
@@ -133,13 +133,10 @@ const AttrField: React.FC<{ attr: CategoryAttribute }> = ({ attr }) => {
 
 const StepAttributes: React.FC = () => {
   const ctl = useWizardController();
-  const { t, attrSchema, userOrgs, isJobs, isServices, showEmployment } = ctl;
+  const { t, attrSchema, isJobs, isServices, showEmployment } = ctl;
   const { control, register, watch } = useFormContext<WizardFormValues>();
 
-  const type_ = watch('type');
   const skills = watch('skills') || [];
-
-  const orgVisible = userOrgs.length > 0 && (type_ === 'JOB_OPENING' || type_ === 'SERVICE_OFFER' || type_ === 'SELL');
 
   return (
     <div className="space-y-6">
@@ -147,21 +144,6 @@ const StepAttributes: React.FC = () => {
         <h2 className="text-lg font-black text-gray-900">{t('wizard.step.attributes')}</h2>
         <p className="text-xs text-gray-500 mt-1">{t('wizard.attributesHint')}</p>
       </div>
-
-      {/* ORGANIZATION */}
-      {orgVisible && (
-        <div>
-          <label className="block text-xs font-semibold text-gray-700 mb-1.5 flex items-center gap-1.5">
-            <Building2 className="w-3.5 h-3.5 text-gray-500" /> {t('create.orgLabel')}
-          </label>
-          <select {...register('organizationId')} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:ring-2 focus:ring-blue-500">
-            <option value="">{t('create.orgSelf', { name: ctl.userName || '' })}</option>
-            {userOrgs.map((org) => (
-              <option key={org.id} value={org.id}>{t('create.orgPrefix', { name: org.name })}</option>
-            ))}
-          </select>
-        </div>
-      )}
 
       {/* DYNAMIC ATTRIBUTES */}
       {attrSchema.length > 0 && (

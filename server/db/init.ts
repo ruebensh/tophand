@@ -201,45 +201,14 @@ export async function initDatabase() {
   await pool.query('ALTER TABLE media_deletions ADD COLUMN IF NOT EXISTS dead_lettered_at TIMESTAMPTZ');
   await pool.query('CREATE INDEX IF NOT EXISTS idx_media_deletions_due ON media_deletions(next_attempt_at) WHERE dead_lettered_at IS NULL');
 
-  // 5. organizations
-  await createTableIfNotExists(`
-    CREATE TABLE IF NOT EXISTS organizations (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      logo_url TEXT,
-      description TEXT,
-      phone TEXT,
-      website TEXT,
-      region_id TEXT REFERENCES regions(id),
-      district_id TEXT REFERENCES districts(id),
-      address TEXT,
-      owner_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      verification_status TEXT DEFAULT 'UNVERIFIED' CHECK(verification_status IN ('UNVERIFIED','VERIFIED')),
-      verified_at TIMESTAMPTZ,
-      verified_by TEXT REFERENCES users(id),
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
-
-  // 6. organization_members
-  await createTableIfNotExists(`
-    CREATE TABLE IF NOT EXISTS organization_members (
-      id TEXT PRIMARY KEY,
-      organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      role TEXT DEFAULT 'MEMBER' CHECK(role IN ('OWNER','ADMIN','MEMBER')),
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      UNIQUE(organization_id, user_id)
-    )
-  `);
+  // 5-6. organizations / organization_members — tizim olib tashlandi.
+  // Eski jadvallar prod'da mavjud qoladi (DROP qilinmaydi), yangi install'da yaratilmaydi.
 
   // 7. listings
   await createTableIfNotExists(`
     CREATE TABLE IF NOT EXISTS listings (
       id TEXT PRIMARY KEY,
       owner_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      organization_id TEXT REFERENCES organizations(id) ON DELETE SET NULL,
       type TEXT NOT NULL CHECK(type IN ('SERVICE_OFFER','SERVICE_REQUEST','JOB_OPENING','JOB_SEEKER')),
       title TEXT NOT NULL,
       description TEXT NOT NULL,
@@ -310,7 +279,6 @@ export async function initDatabase() {
       listing_id TEXT NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
       initiator_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       recipient_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      organization_id TEXT REFERENCES organizations(id) ON DELETE SET NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )

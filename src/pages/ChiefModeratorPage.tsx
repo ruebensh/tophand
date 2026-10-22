@@ -6,7 +6,6 @@ import {
   ArrowLeft,
   BarChart3,
   Users as UsersIcon,
-  Building2,
   RefreshCw,
   Search,
   CheckCircle2,
@@ -23,13 +22,6 @@ interface LeadUser {
   ban_type?: string | null;
   region_name?: string | null;
   listings_count?: number;
-}
-
-interface LeadOrg {
-  id: string;
-  name: string;
-  verification_status: string;
-  owner_name?: string;
 }
 
 interface PersonalStats {
@@ -59,11 +51,11 @@ interface TeamRow {
 // Bosh moderator (LEAD_MOD) uchun alohida panel. Admin panelidagi taqiqlangan
 // bo'limlar (platforma, kategoriyalar, filtrlar, monetizatsiya, reklamalar,
 // audit, Excel) BU YERDA YO'Q. Faqat: skoplangan statistika, foydalanuvchilar
-// (ban/moderator tayinlash) va tashkilotlar tasdigi. Kundalik moderatsiya
+// (ban/moderator tayinlash). Kundalik moderatsiya
 // navbati `/moderator` panelida (LEAD_MOD MODERATOR darajasidan yuqori).
 export const ChiefModeratorPage: React.FC<{ onNavigate: (route: string) => void }> = ({ onNavigate }) => {
   const { t } = useI18n();
-  const [tab, setTab] = useState<'stats' | 'users' | 'organizations'>('stats');
+  const [tab, setTab] = useState<'stats' | 'users'>('stats');
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6">
@@ -98,7 +90,6 @@ export const ChiefModeratorPage: React.FC<{ onNavigate: (route: string) => void 
         {[
           { id: 'stats', label: t('admin.leadTabStats'), icon: BarChart3 },
           { id: 'users', label: t('admin.leadTabUsers'), icon: UsersIcon },
-          { id: 'organizations', label: t('admin.leadTabOrgs'), icon: Building2 },
         ].map((tb) => {
           const Icon = tb.icon;
           const active = tab === tb.id;
@@ -119,7 +110,6 @@ export const ChiefModeratorPage: React.FC<{ onNavigate: (route: string) => void 
 
       {tab === 'stats' && <StatsSection />}
       {tab === 'users' && <UsersSection />}
-      {tab === 'organizations' && <OrganizationsSection />}
     </div>
   );
 };
@@ -361,81 +351,6 @@ const UsersSection: React.FC = () => {
             </tbody>
           </table>
         </div>
-      </div>
-    </div>
-  );
-};
-
-// ─── Tashkilotlar tasdigi ─────────────────────────────────────────────────
-const OrganizationsSection: React.FC = () => {
-  const { t } = useI18n();
-  const [rows, setRows] = useState<LeadOrg[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      setRows(await apiRequest<LeadOrg[]>('/api/lead/organizations'));
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  const toggleVerify = async (o: LeadOrg) => {
-    const nextVerify = o.verification_status !== 'VERIFIED';
-    try {
-      await apiRequest(`/api/lead/organizations/${o.id}/verify`, { method: 'POST', body: JSON.stringify({ verify: nextVerify }) });
-      load();
-    } catch (err: any) {
-      alert(err.message || t('common.error'));
-    }
-  };
-
-  return (
-    <div className="bg-white rounded-3xl border border-gray-100 shadow-xs overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs text-gray-700">
-          <thead className="bg-gray-50 border-b border-gray-100 text-[11px] font-bold text-gray-500 uppercase">
-            <tr>
-              <th className="p-3">{t('admin.thOrg') || t('admin.leadTabOrgs')}</th>
-              <th className="p-3">{t('admin.thOwner')}</th>
-              <th className="p-3">{t('admin.thStatus')}</th>
-              <th className="p-3 text-right">{t('admin.thActions')}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {rows.length === 0 && (
-              <tr><td colSpan={4} className="p-8 text-center text-gray-400">{loading ? '…' : t('admin.leadNoData')}</td></tr>
-            )}
-            {rows.map((o) => {
-              const verified = o.verification_status === 'VERIFIED';
-              return (
-                <tr key={o.id} className="hover:bg-gray-50/60">
-                  <td className="p-3 font-bold text-gray-900">{o.name}</td>
-                  <td className="p-3 text-gray-500">{o.owner_name || '—'}</td>
-                  <td className="p-3">
-                    {verified ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold"><CheckCircle2 className="w-3 h-3" />{t('admin.badgeVerified')}</span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600 text-[10px] font-bold"><XCircle className="w-3 h-3" />{o.verification_status}</span>
-                    )}
-                  </td>
-                  <td className="p-3 text-right">
-                    <button onClick={() => toggleVerify(o)} className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer ${verified ? 'border border-gray-200 text-gray-700 hover:bg-gray-100' : 'bg-emerald-600 hover:bg-emerald-700 text-white'}`}>
-                      {verified ? t('admin.orgUnverified') : t('admin.orgVerified')}
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
       </div>
     </div>
   );

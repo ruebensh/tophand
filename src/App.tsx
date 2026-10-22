@@ -24,7 +24,6 @@ const ProfilePage = lazy(() => import('./pages/ProfilePage.tsx').then((m) => ({ 
 const ChatPage = lazy(() => import('./pages/ChatPage.tsx').then((m) => ({ default: m.ChatPage })));
 const SavedListingsPage = lazy(() => import('./pages/SavedListingsPage.tsx').then((m) => ({ default: m.SavedListingsPage })));
 const WalletPage = lazy(() => import('./pages/WalletPage.tsx').then((m) => ({ default: m.WalletPage })));
-const OrganizationPage = lazy(() => import('./pages/OrganizationPage.tsx').then((m) => ({ default: m.OrganizationPage })));
 const ModeratorDashboardPage = lazy(() => import('./pages/ModeratorDashboardPage.tsx').then((m) => ({ default: m.ModeratorDashboardPage })));
 const AdminDashboardPage = lazy(() => import('./pages/AdminDashboardPage.tsx').then((m) => ({ default: m.AdminDashboardPage })));
 const ChiefModeratorPage = lazy(() => import('./pages/ChiefModeratorPage.tsx').then((m) => ({ default: m.ChiefModeratorPage })));
@@ -179,17 +178,7 @@ const AppContent: React.FC = () => {
       return <WalletPage onNavigate={navigate} />;
     }
 
-    // 6. Organization Detail: /org/:id
-    if (currentRoute.startsWith('/org/')) {
-      const orgId = currentRoute.replace('/org/', '');
-      return (
-        <OrganizationPage
-          orgId={orgId}
-          onNavigate={navigate}
-          onOpenListing={(id) => navigate(`/listing/${id}`)}
-        />
-      );
-    }
+    // 6. Organization Detail: olib tashlandi (tizim buzilgan)
 
     // 7. Create Organization: removed (Faza 11 — user-facing org creation dropped)
 

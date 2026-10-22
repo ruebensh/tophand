@@ -443,29 +443,6 @@ async function main() {
       const chiefRole = await queryOne<any>('SELECT role FROM users WHERE id = ?', [mod.id]);
       assert(chiefRole?.role === 'LEAD_MOD', 'admin: chief moderator persisted as LEAD_MOD');
 
-      // ── Report #9: qat'iy verify boolean (Boolean('false') tuzog'i) ──
-      {
-        const orgId = `org_integ_${RUN_ID}`;
-        await runQuery(
-          `INSERT INTO organizations (id, name, owner_user_id, verification_status, created_at, updated_at)
-           VALUES (?, ?, ?, 'VERIFIED', NOW(), NOW())`,
-          [orgId, `Integ Org ${RUN_ID}`, admin.id]
-        );
-        // `verify:'false'` (satr) VERIFIED'ni OCHIRISHI kerak — Boolean('false')===true
-        // bo'lgani uchun avval u tasdiqlab qo'yardi.
-        const vFalse = await req(`/api/lead/organizations/${orgId}/verify`, authJson({ verify: 'false' }, leadToken));
-        const afterFalse = await queryOne<any>('SELECT verification_status FROM organizations WHERE id = ?', [orgId]);
-        assert(vFalse.status === 200 && afterFalse?.verification_status === 'UNVERIFIED', 'org verify: string "false" → UNVERIFIED (strict boolean, report #9)');
-        // aniq true → VERIFIED.
-        await req(`/api/lead/organizations/${orgId}/verify`, authJson({ verify: true }, leadToken));
-        const afterTrue = await queryOne<any>('SELECT verification_status FROM organizations WHERE id = ?', [orgId]);
-        assert(afterTrue?.verification_status === 'VERIFIED', 'org verify: boolean true → VERIFIED');
-        // noma'lum qiymat → 400 (rad).
-        const vBad = await req(`/api/lead/organizations/${orgId}/verify`, authJson({ verify: 'maybe' }, leadToken));
-        assert(vBad.status === 400, 'org verify: invalid boolean → 400 (report #9)');
-        try { await runQuery('DELETE FROM organizations WHERE id = ?', [orgId]); } catch {}
-      }
-
       // ── Report #3: markaziy referatsiya guardi ──
       {
         const { isMediaStillReferenced, deleteStoredMediaIfUnreferenced } = await import('../server/services/mediaCleanupService.ts');
@@ -655,6 +632,24 @@ async function main() {
         );
         assert(!!loRow, 'activity: logout user_eventsga LOGOUT yozdi');
 
+        // Sessiya trafigi: POST /api/auth/visit → VISIT, /api/auth/leave → EXIT.
+        const noVisit = await req('/api/auth/visit', { method: 'POST' });
+        assert(noVisit.status === 401, 'activity: /visit tokensiz → 401');
+        const vis = await req('/api/auth/visit', { method: 'POST', headers: hdrA(aliceToken) });
+        assert(vis.status === 200, 'activity: POST /api/auth/visit → 200');
+        const visRow = await queryOne<any>(
+          "SELECT * FROM user_events WHERE user_id = ? AND event_type = 'VISIT' ORDER BY created_at DESC LIMIT 1",
+          [alice.id]
+        );
+        assert(!!visRow, 'activity: /visit user_eventsga VISIT yozdi');
+        const lea = await req('/api/auth/leave', { method: 'POST', headers: hdrA(aliceToken) });
+        assert(lea.status === 200, 'activity: POST /api/auth/leave → 200');
+        const leaRow = await queryOne<any>(
+          "SELECT * FROM user_events WHERE user_id = ? AND event_type = 'EXIT' ORDER BY created_at DESC LIMIT 1",
+          [alice.id]
+        );
+        assert(!!leaRow, 'activity: /leave user_eventsga EXIT yozdi');
+
         // CHECK cheklovi: noma'lum event_type rad etilishi kerak.
         let chkRejected = false;
         try {
@@ -668,10 +663,10 @@ async function main() {
         // /api/admin/visits — admin-only + 0-to'ldirilgan kunlik seriya.
         const forbidden = await req('/api/admin/visits?days=14', { headers: hdrA(userToken) });
         assert(forbidden.status === 403, 'activity: GET /api/admin/visits USER uchun yopiq (403)');
-        // Bob uchun navbatda 2 ta LOGIN qo'shamiz (bugun, UTC bo'yicha).
+        // Bob uchun navbatda 2 ta VISIT qo'shamiz (bugun, UTC bo'yicha).
         for (let i = 0; i < 2; i++) {
           await runQuery(
-            "INSERT INTO user_events (id, user_id, event_type, auth_method, created_at) VALUES (?, ?, 'LOGIN', 'PASSWORD', NOW())",
+            "INSERT INTO user_events (id, user_id, event_type, auth_method, created_at) VALUES (?, ?, 'VISIT', 'PASSWORD', NOW())",
             [`uev_integ_${RUN_ID}_${i}`, bob.id]
           );
         }
@@ -681,9 +676,9 @@ async function main() {
         assert(vsJson.days === 14 && Array.isArray(vsJson.series) && vsJson.series.length === 14, 'activity: visits series 14 kun (0-to\'ldirish)');
         const utcToday = new Date().toISOString().slice(0, 10);
         const todayRow = (vsJson.series || []).find((r: any) => r.date === utcToday);
-        assert(!!todayRow && Number(todayRow.logins) >= 2, 'activity: bugungi LOGINlar soniyada ko\'rindi (bob x2)');
-        const aliceRowIn14 = (vsJson.series || []).reduce((s: number, r: any) => s + Number(r.logouts), 0);
-        assert(aliceRowIn14 >= 1, 'activity: LOGOUT hisobi series\'ga tushdi');
+        assert(!!todayRow && Number(todayRow.logins) >= 2, 'activity: bugungi VISITlar soniyada ko\'rindi (bob x2)');
+        const exitSum = (vsJson.series || []).reduce((s: number, r: any) => s + Number(r.logouts), 0);
+        assert(exitSum >= 1, 'activity: EXIT hisobi series\'ga tushdi');
 
         // Oylik /visits?months=12 — generate_series(interval) SQL runtime'da ishlashi, 12 oy.
         const vm = await req('/api/admin/visits?months=12', { headers: hdrA(adminToken) });
@@ -691,7 +686,7 @@ async function main() {
         assert(vm.status === 200 && vmJson.months === 12 && Array.isArray(vmJson.series) && vmJson.series.length === 12, 'activity: visits?months=12 → 12 oylik seriya');
         const utcMonth = new Date().toISOString().slice(0, 7);
         const monthRow = (vmJson.series || []).find((r: any) => r.month === utcMonth);
-        assert(!!monthRow && Number(monthRow.logins) >= 2, 'activity: joriy oy LOGINlari oylik seriyada ko\'rindi');
+        assert(!!monthRow && Number(monthRow.logins) >= 2, 'activity: joriy oy VISITlari oylik seriyada ko\'rindi');
 
         // GSC: konfiguratsiyasiz → NOT_CONFIGURED (test env'da GSC_* bo'shatildi).
         await runQuery("DELETE FROM system_settings WHERE key IN ('gsc_client_email','gsc_private_key','gsc_site_url')").catch(() => {});

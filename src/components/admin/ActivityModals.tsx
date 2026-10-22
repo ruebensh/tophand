@@ -23,25 +23,29 @@ const C = {
 };
 
 interface VisitsSeriesRow {
-  month: string; // YYYY-MM
+  month?: string; // YYYY-MM (oylik)
+  date?: string;  // YYYY-MM-DD (kunlik)
   unique_visitors: string | number;
   logins: string | number;
   logouts: string | number;
 }
 interface VisitsData {
-  months: number;
+  months?: number;
+  days?: number;
   series: VisitsSeriesRow[];
   totals: { logins: number; logouts: number; unique_visitors: number };
 }
 
 interface GscMonthRow {
-  month: string; // YYYY-MM
+  month?: string; // YYYY-MM (oylik)
+  date?: string;  // YYYY-MM-DD (kunlik)
   impressions: number;
   clicks: number;
 }
 interface GscData {
   status: 'OK' | 'NOT_CONFIGURED' | 'ERROR';
-  months: GscMonthRow[];
+  months?: GscMonthRow[];
+  days?: GscMonthRow[];
   top_queries: { query: string; impressions: number; clicks: number }[];
   totals: { impressions: number; clicks: number };
   fetched_at: string | null;
@@ -98,6 +102,52 @@ function useMonthFormatter() {
   };
 }
 
+// "YYYY-MM-DD" -> kun + qisqa oy (masalan "23 okt").
+function useDayFormatter() {
+  const { intlLocale } = useI18n();
+  return (date: string) => {
+    try {
+      return new Intl.DateTimeFormat(intlLocale || 'uz', { day: '2-digit', month: 'short' }).format(
+        new Date(date + 'T00:00:00')
+      );
+    } catch {
+      return date;
+    }
+  };
+}
+
+// Kunlik / Oylik almashinuvi (ikki tugmali segmentlangan boshqaruv).
+function ViewToggle({
+  mode,
+  onChange,
+  dailyLabel,
+  monthlyLabel,
+}: {
+  mode: 'daily' | 'monthly';
+  onChange: (m: 'daily' | 'monthly') => void;
+  dailyLabel: string;
+  monthlyLabel: string;
+}) {
+  const base =
+    'px-3 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer';
+  return (
+    <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-gray-100">
+      <button
+        onClick={() => onChange('daily')}
+        className={`${base} ${mode === 'daily' ? 'bg-white text-gray-900 shadow-2xs' : 'text-gray-500 hover:text-gray-700'}`}
+      >
+        {dailyLabel}
+      </button>
+      <button
+        onClick={() => onChange('monthly')}
+        className={`${base} ${mode === 'monthly' ? 'bg-white text-gray-900 shadow-2xs' : 'text-gray-500 hover:text-gray-700'}`}
+      >
+        {monthlyLabel}
+      </button>
+    </div>
+  );
+}
+
 function Legend({ items }: { items: { color: string; label: string }[] }) {
   return (
     <span className="flex items-center gap-3 text-[10px] font-semibold text-gray-500">
@@ -111,10 +161,14 @@ function Legend({ items }: { items: { color: string; label: string }[] }) {
   );
 }
 
-// ─── 1. Saytga kirganlar modali (oylik) ────────────────────────────────────
+// ─── 1. Saytga kirganlar modali (kunlik / oylik almashinuv) ───────────────
+const DAYS = 30;
+
 export const VisitsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
   const { t } = useI18n();
   const fmtMonth = useMonthFormatter();
+  const fmtDay = useDayFormatter();
+  const [mode, setMode] = useState<'daily' | 'monthly'>('daily');
   const [data, setData] = useState<VisitsData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -124,16 +178,20 @@ export const VisitsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = (
     setLoading(true);
     setError(null);
     setData(null);
-    apiRequest<VisitsData>(`/api/admin/visits?months=${MONTHS}`)
+    const url = mode === 'monthly' ? `/api/admin/visits?months=${MONTHS}` : `/api/admin/visits?days=${DAYS}`;
+    apiRequest<VisitsData>(url)
       .then((d) => setData(d))
       .catch((e: any) => setError(e?.message || t('common.error')))
       .finally(() => setLoading(false));
-  }, [isOpen]);
+  }, [isOpen, mode]);
 
   if (!isOpen) return null;
 
-  const labels = (data?.series || []).map((r) => fmtMonth(r.month));
-  const hasData = (data?.series || []).some((r) => Number(r.logins) > 0 || Number(r.logouts) > 0);
+  const rows = data?.series || [];
+  const labelOf = (r: VisitsSeriesRow) => (mode === 'monthly' ? fmtMonth(r.month || '') : fmtDay(r.date || ''));
+  const keyOf = (r: VisitsSeriesRow, i: number) => (mode === 'monthly' ? r.month : r.date) || String(i);
+  const labels = rows.map(labelOf);
+  const hasData = rows.some((r) => Number(r.logins) > 0 || Number(r.logouts) > 0);
 
   return createPortal(
     <div className={overlayCls} onClick={onClose}>
@@ -145,9 +203,14 @@ export const VisitsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = (
           onClose={onClose}
         />
 
-        {/* Sarlavcha + barcha seriyalar legendasi (bir vaqtda) */}
+        {/* Sarlavcha + rejim almashinuvi + seriyalar legendasi (bir vaqtda) */}
         <div className="px-5 pt-4 flex items-center justify-between gap-2 flex-wrap">
-          <span className="text-[11px] font-bold text-gray-500 uppercase">{t('admin.last12Months')}</span>
+          <ViewToggle
+            mode={mode}
+            onChange={setMode}
+            dailyLabel={t('admin.dailyView')}
+            monthlyLabel={t('admin.monthlyView')}
+          />
           <Legend
             items={[
               { color: C.logins, label: t('admin.logins') },
@@ -158,11 +221,14 @@ export const VisitsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = (
         </div>
 
         <div className="p-5 overflow-y-auto">
+          <p className="text-[11px] font-bold text-gray-500 uppercase mb-3">
+            {mode === 'monthly' ? t('admin.last12Months') : t('admin.last30Days')}
+          </p>
           {error && <p className="text-xs text-red-600 mb-3">{error}</p>}
           {loading && !data && <div className="h-48 rounded-2xl bg-gray-50 animate-pulse" />}
           {data && (
             <>
-              {/* Jami kartalar (12 oy yig'indisi) */}
+              {/* Jami kartalar (tanlangan davr yig'indisi) */}
               <div className="grid grid-cols-3 gap-3 mb-5">
                 <div className="p-3 rounded-2xl bg-blue-50 border border-blue-100 text-center">
                   <p className="text-xl font-black text-blue-900">{data.totals.logins.toLocaleString()}</p>
@@ -188,28 +254,28 @@ export const VisitsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = (
                       labels={labels}
                       height={240}
                       series={[
-                        { name: t('admin.logins'), color: C.logins, values: data.series.map((r) => Number(r.logins)) },
-                        { name: t('admin.logouts'), color: C.logouts, values: data.series.map((r) => Number(r.logouts)) },
-                        { name: t('admin.uniqueVisitors'), color: C.unique, values: data.series.map((r) => Number(r.unique_visitors)) },
+                        { name: t('admin.logins'), color: C.logins, values: rows.map((r) => Number(r.logins)) },
+                        { name: t('admin.logouts'), color: C.logouts, values: rows.map((r) => Number(r.logouts)) },
+                        { name: t('admin.uniqueVisitors'), color: C.unique, values: rows.map((r) => Number(r.unique_visitors)) },
                       ]}
                     />
                   </div>
 
-                  {/* Aniq sonlar jadvali (oyma-oy) */}
+                  {/* Aniq sonlar jadvali (kunma-kun yoki oyma-oy) */}
                   <div className="rounded-2xl border border-gray-100 overflow-hidden">
                     <table className="w-full text-xs">
                       <thead>
                         <tr className="bg-gray-50 text-left text-[10px] uppercase font-bold text-gray-500">
-                          <th className="px-3 py-2">{t('admin.monthCol')}</th>
+                          <th className="px-3 py-2">{mode === 'monthly' ? t('admin.monthCol') : t('admin.dayCol')}</th>
                           <th className="px-3 py-2 text-right">{t('admin.logins')}</th>
                           <th className="px-3 py-2 text-right">{t('admin.logouts')}</th>
                           <th className="px-3 py-2 text-right">{t('admin.uniqueVisitors')}</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {data.series.map((r) => (
-                          <tr key={r.month} className="border-t border-gray-50 hover:bg-gray-50/50">
-                            <td className="px-3 py-1.5 font-semibold text-gray-800">{fmtMonth(r.month)}</td>
+                        {rows.map((r, i) => (
+                          <tr key={keyOf(r, i)} className="border-t border-gray-50 hover:bg-gray-50/50">
+                            <td className="px-3 py-1.5 font-semibold text-gray-800">{labelOf(r)}</td>
                             <td className="px-3 py-1.5 text-right font-mono text-blue-700">{Number(r.logins).toLocaleString()}</td>
                             <td className="px-3 py-1.5 text-right font-mono text-rose-600">{Number(r.logouts).toLocaleString()}</td>
                             <td className="px-3 py-1.5 text-right font-mono text-amber-600">{Number(r.unique_visitors).toLocaleString()}</td>
@@ -229,10 +295,12 @@ export const VisitsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = (
   );
 };
 
-// ─── 2. Brauzer qidiruvlari (GSC) modali (oylik) ──────────────────────────
+// ─── 2. Brauzer qidiruvlari (GSC) modali (kunlik / oylik almashinuv) ──────
 export const BrowserStatsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
   const { t, intlLocale } = useI18n();
   const fmtMonth = useMonthFormatter();
+  const fmtDay = useDayFormatter();
+  const [mode, setMode] = useState<'daily' | 'monthly'>('monthly');
   const [data, setData] = useState<GscData | null>(null);
   const [loading, setLoading] = useState(false);
   // Konfiguratsiya formasi (NOT_CONFIGURED holatida ko'rsatiladi)
@@ -242,7 +310,8 @@ export const BrowserStatsModal: React.FC<{ isOpen: boolean; onClose: () => void 
 
   const fetchData = () => {
     setLoading(true);
-    apiRequest<GscData>(`/api/admin/gsc-analytics?months=${MONTHS}`)
+    const url = mode === 'monthly' ? `/api/admin/gsc-analytics?months=${MONTHS}` : `/api/admin/gsc-analytics?days=${DAYS}`;
+    apiRequest<GscData>(url)
       .then((d) => setData(d))
       .catch(() => setData(null))
       .finally(() => setLoading(false));
@@ -250,7 +319,8 @@ export const BrowserStatsModal: React.FC<{ isOpen: boolean; onClose: () => void 
 
   useEffect(() => {
     if (isOpen) fetchData();
-  }, [isOpen]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, mode]);
 
   if (!isOpen) return null;
 
@@ -269,7 +339,8 @@ export const BrowserStatsModal: React.FC<{ isOpen: boolean; onClose: () => void 
     }
   };
 
-  const labels = (data?.months || []).map((r) => fmtMonth(r.month));
+  const rows = mode === 'monthly' ? data?.months || [] : data?.days || [];
+  const labels = rows.map((r) => (mode === 'monthly' ? fmtMonth(r.month || '') : fmtDay(r.date || '')));
 
   return createPortal(
     <div className={overlayCls} onClick={onClose}>
@@ -366,34 +437,48 @@ export const BrowserStatsModal: React.FC<{ isOpen: boolean; onClose: () => void 
                 </button>
               </div>
 
-              <p className="text-[11px] font-bold text-gray-500 uppercase">{t('admin.last12Months')}</p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] font-bold text-gray-500 uppercase">
+                  {mode === 'monthly' ? t('admin.last12Months') : t('admin.last30Days')}
+                </p>
+                <ViewToggle
+                  mode={mode}
+                  onChange={setMode}
+                  dailyLabel={t('admin.dailyView')}
+                  monthlyLabel={t('admin.monthlyView')}
+                />
+              </div>
 
-              {data.months.length === 0 ? (
+              {rows.length === 0 ? (
                 <p className="text-xs text-gray-400 italic text-center py-8">{t('admin.noDataYet')}</p>
               ) : (
                 <>
                   {/* Impressions chiziqli grafigi (aniq sonlar bilan) */}
                   <div>
-                    <h4 className="text-xs font-bold text-gray-700 mb-2">{t('admin.impressionsByMonth')}</h4>
+                    <h4 className="text-xs font-bold text-gray-700 mb-2">
+                      {mode === 'monthly' ? t('admin.impressionsByMonth') : t('admin.impressionsByDay')}
+                    </h4>
                     <div className="rounded-2xl border border-gray-100 p-3">
                       <LineChart
                         labels={labels}
                         height={200}
                         showValues
-                        series={[{ name: t('admin.impressions'), color: C.impressions, values: data.months.map((r) => r.impressions) }]}
+                        series={[{ name: t('admin.impressions'), color: C.impressions, values: rows.map((r) => r.impressions) }]}
                       />
                     </div>
                   </div>
 
                   {/* Clicks chiziqli grafigi (aniq sonlar bilan) */}
                   <div>
-                    <h4 className="text-xs font-bold text-gray-700 mb-2">{t('admin.clicksByMonth')}</h4>
+                    <h4 className="text-xs font-bold text-gray-700 mb-2">
+                      {mode === 'monthly' ? t('admin.clicksByMonth') : t('admin.clicksByDay')}
+                    </h4>
                     <div className="rounded-2xl border border-gray-100 p-3">
                       <LineChart
                         labels={labels}
                         height={200}
                         showValues
-                        series={[{ name: t('admin.browserClicks'), color: C.clicks, values: data.months.map((r) => r.clicks) }]}
+                        series={[{ name: t('admin.browserClicks'), color: C.clicks, values: rows.map((r) => r.clicks) }]}
                       />
                     </div>
                   </div>

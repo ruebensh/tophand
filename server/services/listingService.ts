@@ -103,9 +103,6 @@ export async function searchListings(filter: ListingFilter) {
       u.bio as owner_bio,
       u.verification_status as owner_verification_status,
       u.role as owner_role,
-      o.name as organization_name,
-      o.logo_url as organization_logo_url,
-      o.verification_status as organization_verification_status,
       c.name_uz as category_name,
       c.icon as category_icon,
       r.name_uz as region_name,
@@ -114,7 +111,6 @@ export async function searchListings(filter: ListingFilter) {
       d.longitude
     FROM listings l
     JOIN users u ON l.owner_user_id = u.id
-    LEFT JOIN organizations o ON l.organization_id = o.id
     JOIN categories c ON l.category_id = c.id
     JOIN regions r ON l.region_id = r.id
     JOIN districts d ON l.district_id = d.id
@@ -358,11 +354,7 @@ export async function searchListings(filter: ListingFilter) {
     const isCompleteUser = Boolean(
       item.owner_photo_url && item.owner_bio && item.owner_bio.trim().length >= 15
     );
-    const isCompleteOrg = Boolean(
-      item.organization_id &&
-        item.organization_logo_url &&
-        item.organization_verification_status === 'VERIFIED'
-    );
+    const isCompleteOrg = false; // organizations tizimi olib tashlandi
     const isComplete = isCompleteUser || isCompleteOrg;
     if (isComplete) {
       score += 1_000_000;
@@ -470,9 +462,9 @@ export async function searchListings(filter: ListingFilter) {
     const deferred: typeof filteredScored = [];
 
     for (const item of filteredScored) {
-      const ownerKey = item.organization_id || item.owner_user_id;
+      const ownerKey = item.owner_user_id;
       const lastItem = diversified[diversified.length - 1];
-      const lastOwnerKey = lastItem ? lastItem.organization_id || lastItem.owner_user_id : null;
+      const lastOwnerKey = lastItem ? lastItem.owner_user_id : null;
 
       if (lastOwnerKey === ownerKey) {
         deferred.push(item);
@@ -480,7 +472,7 @@ export async function searchListings(filter: ListingFilter) {
         diversified.push(item);
         if (deferred.length > 0) {
           const nextDeferredIdx = deferred.findIndex(
-            (d) => (d.organization_id || d.owner_user_id) !== ownerKey
+            (d) => d.owner_user_id !== ownerKey
           );
           if (nextDeferredIdx >= 0) {
             const [popped] = deferred.splice(nextDeferredIdx, 1);
@@ -541,13 +533,6 @@ export async function getListingById(id: string, current_user_id?: string) {
       u.verification_status as owner_verification_status,
       u.role as owner_role,
       u.created_at as owner_registered_at,
-      o.name as organization_name,
-      o.logo_url as organization_logo_url,
-      o.description as organization_description,
-      o.phone as organization_phone,
-      o.website as organization_website,
-      o.address as organization_address,
-      o.verification_status as organization_verification_status,
       c.name_uz as category_name,
       c.icon as category_icon,
       r.name_uz as region_name,
@@ -556,7 +541,6 @@ export async function getListingById(id: string, current_user_id?: string) {
       d.longitude
     FROM listings l
     JOIN users u ON l.owner_user_id = u.id
-    LEFT JOIN organizations o ON l.organization_id = o.id
     JOIN categories c ON l.category_id = c.id
     JOIN regions r ON l.region_id = r.id
     JOIN districts d ON l.district_id = d.id
@@ -615,10 +599,9 @@ export async function getListingById(id: string, current_user_id?: string) {
     listing.owner_photo_url && listing.owner_bio && listing.owner_bio.trim().length >= 15
   );
 
-  // Rasmiy tasdiq nishoni — faqat pasport/ID (yoki tashkilot) VERIFIED bo'lsa
+  // Rasmiy tasdiq nishoni — faqat pasport/ID VERIFIED bo'lsa
   listing.is_verified = Boolean(
-    listing.owner_verification_status === 'VERIFIED' ||
-      (listing.organization_id && listing.organization_verification_status === 'VERIFIED')
+    listing.owner_verification_status === 'VERIFIED'
   );
 
   // Employer rating & review count from actual submitted reviews
@@ -768,15 +751,14 @@ export async function createListing(userId: string, data: any, opts: { draft?: b
   try {
   await runQuery(
     `INSERT INTO listings (
-      id, owner_user_id, organization_id, catalog_id, type, title, description, category_id,
+      id, owner_user_id, catalog_id, type, title, description, category_id,
       region_id, district_id, latitude, longitude, price_type, price_min, price_max,
       currency, salary_type, salary_min, salary_max, work_format, experience_level,
       skills, contact_time, contact_custom_text, attributes, status, created_at, updated_at, expires_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?)`,
     [
       id,
       userId,
-      data.organization_id || null,
       catalogId,
       data.type,
       data.title.trim(),

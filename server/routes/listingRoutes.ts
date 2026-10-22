@@ -212,7 +212,6 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
       skills,
       contact_time,
       contact_custom_text,
-      organization_id,
       attributes,
       images,
       videos,
@@ -254,17 +253,6 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Viloyat va tuman kiritilishi shart' });
     }
 
-    // If posting as an organization, check membership
-    if (organization_id) {
-      const membership = await queryOne(
-        'SELECT id FROM organization_members WHERE organization_id = ? AND user_id = ?',
-        [organization_id, req.user!.id]
-      );
-      if (!membership) {
-        return res.status(403).json({ error: 'Siz ushbu tashkilot nomidan e’lon berish huquqiga ega emassiz' });
-      }
-    }
-
     // Bot-himoya: faqat joylashda (DRAFT emas). TURNSTILE_SECRET_KEY o'rnatilgan
     // bo'lsa token talab qilinadi; o'rnatilmagan bo'lsa tekshiruv o'tkazib yuboriladi.
     if (publish) {
@@ -295,7 +283,6 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
       skills,
       contact_time,
       contact_custom_text,
-      organization_id,
       attributes: attributes && typeof attributes === 'object' ? attributes : {},
       images: Array.isArray(images) ? images : [],
       videos: Array.isArray(videos) ? videos : [],

@@ -1,6 +1,10 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User } from '../types/index.ts';
-import { apiRequest, getStoredToken, setStoredToken, removeStoredToken, reportLogout } from '../lib/api.ts';
+import { apiRequest, getStoredToken, setStoredToken, removeStoredToken, reportVisit, reportExit, reportLogout } from '../lib/api.ts';
+
+// Sessiya trafigi guard kaliti (sessionStorage): har bir brauzer-tab sessiyasi
+// uchun bitta VISIT sanaladi (reload'da takrorlanmaydi).
+const VISIT_GUARD_KEY = 'th_visit_reported';
 
 interface ProfileCompleteData {
   first_name?: string;
@@ -87,13 +91,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     refreshUser();
   }, []);
 
-  // Admin statistika: brauzer yopilganda/tab reload bo'lganda LOGOUT xabar
-  // qilinadi (best-effort; fetch keepalive). Faqat token bor bolganda yuboriladi.
+  // Admin statistika (sessiya trafigi): token bilan birinchi mountda bitta VISIT,
+  // sahifa yopilganda (pagehide) bitta EXIT yuboriladi. pagehide'da guard tozalanadi,
+  // shunda reload bo'lsa yangi sessiya sifatida yana VISIT sanaladi (kirish≈chiqish).
   useEffect(() => {
     if (!token) return;
-    const onUnload = () => reportLogout();
-    window.addEventListener('pagehide', onUnload);
-    return () => window.removeEventListener('pagehide', onUnload);
+    try {
+      if (sessionStorage.getItem(VISIT_GUARD_KEY) !== '1') {
+        sessionStorage.setItem(VISIT_GUARD_KEY, '1');
+        reportVisit();
+      }
+    } catch {
+      // sessionStorage mavjud bo'lmasa — guardsiz yuboriladi
+      reportVisit();
+    }
+    const onLeave = () => {
+      try { sessionStorage.removeItem(VISIT_GUARD_KEY); } catch { /* ignore */ }
+      reportExit();
+    };
+    window.addEventListener('pagehide', onLeave);
+    return () => window.removeEventListener('pagehide', onLeave);
   }, [token]);
 
   // isNewAccount → hard gate (cannot skip). Existing account → soft (can skip).
@@ -266,6 +283,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = () => {
     // Statistika: token o'chirilgunga qadar LOGOUT hodisasini xabar qilamiz.
     reportLogout();
+    // Sessiya guardini tozalash — keyingi kirish yangi VISIT sifatida sanaladi.
+    try { sessionStorage.removeItem(VISIT_GUARD_KEY); } catch { /* ignore */ }
     removeStoredToken();
     setToken(null);
     setUser(null);

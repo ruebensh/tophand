@@ -10,7 +10,6 @@ import type {
   Category,
   Region,
   District,
-  Organization,
   CategoryAttribute,
   ListingType,
 } from '../../types/index.ts';
@@ -31,7 +30,6 @@ export interface WizardController {
   categories: Category[];
   regions: Region[];
   districts: District[];
-  userOrgs: Organization[];
   attrSchema: CategoryAttribute[];
   monetization: PublicMonetization | null;
   // ── Derived ──

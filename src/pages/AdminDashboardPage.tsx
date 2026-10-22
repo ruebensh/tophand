@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { apiRequest, getCatalogs } from '../lib/api.ts';
 import {
   Users,
-  Building2,
   Layers,
   FileText,
   BarChart3,
@@ -44,7 +43,6 @@ import { ModeratorTeam } from '../components/admin/ModeratorTeam.tsx';
 import { StaffMessaging } from '../components/admin/StaffMessaging.tsx';
 import { UserPassportModal } from '../components/admin/UserPassportModal.tsx';
 import { CategoryEditModal } from '../components/admin/CategoryEditModal.tsx';
-import { OrganizationEditModal } from '../components/admin/OrganizationEditModal.tsx';
 import { FiltersAdminSection } from '../components/admin/FiltersAdminSection.tsx';
 import { AdsManagerSection } from '../components/admin/AdsManagerSection.tsx';
 import { VisitsModal, BrowserStatsModal } from '../components/admin/ActivityModals.tsx';
@@ -66,7 +64,7 @@ interface AdminDashboardPageProps {
 export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNavigate }) => {
   const { t } = useI18n();
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'platform' | 'theme' | 'users' | 'organizations' | 'categories' | 'filters' | 'monetization' | 'ads' | 'data' | 'team' | 'messaging' | 'audit'
+    'overview' | 'platform' | 'theme' | 'users' | 'categories' | 'filters' | 'monetization' | 'ads' | 'data' | 'team' | 'messaging' | 'audit'
   >('overview');
 
   // Stats
@@ -90,12 +88,6 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   // User Passport Modal
   const [passportModalUser, setPassportModalUser] = useState<any>(null);
   const [isPassportModalOpen, setIsPassportModalOpen] = useState(false);
-
-  // Orgs tab & modal
-  const [orgsList, setOrgsList] = useState<any[]>([]);
-  const [isOrgsLoading, setIsOrgsLoading] = useState(false);
-  const [selectedOrg, setSelectedOrg] = useState<any>(null);
-  const [isOrgModalOpen, setIsOrgModalOpen] = useState(false);
 
   // Categories tab & modal
   const [categoriesList, setCategoriesList] = useState<any[]>([]);
@@ -124,7 +116,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       const [overviewData, analyticsData, visitsData] = await Promise.all([
         apiRequest('/api/admin/overview'),
         apiRequest('/api/admin/analytics').catch(() => null),
-        apiRequest('/api/admin/visits?days=14').catch(() => null),
+        apiRequest('/api/admin/visits?days=30').catch(() => null),
       ]);
       setOverview(overviewData);
       if (analyticsData) setAnalytics(analyticsData);
@@ -152,18 +144,6 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       console.error('Error fetching users:', err);
     } finally {
       setIsUsersLoading(false);
-    }
-  };
-
-  const fetchOrgs = async () => {
-    setIsOrgsLoading(true);
-    try {
-      const data = await apiRequest('/api/admin/organizations');
-      setOrgsList(data);
-    } catch (err) {
-      console.error('Error fetching organizations:', err);
-    } finally {
-      setIsOrgsLoading(false);
     }
   };
 
@@ -202,7 +182,6 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   useEffect(() => {
     if (activeTab === 'overview') fetchOverviewAndAnalytics();
     if (activeTab === 'users') fetchUsers();
-    if (activeTab === 'organizations') fetchOrgs();
     if (activeTab === 'categories') fetchCategories();
     if (activeTab === 'audit') fetchAuditLogs();
   }, [activeTab]);
@@ -277,32 +256,6 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     }
   };
 
-  const handleVerifyOrg = async (orgId: string, currentStatus: string) => {
-    const nextVerify = currentStatus !== 'VERIFIED';
-    try {
-      await apiRequest(`/api/admin/organizations/${orgId}/verify`, {
-        method: 'POST',
-        body: JSON.stringify({ verify: nextVerify }),
-      });
-      alert(nextVerify ? t('admin.orgVerified') : t('admin.orgUnverified'));
-      fetchOrgs();
-      fetchOverviewAndAnalytics();
-    } catch (err: any) {
-      alert(err.message || t('common.error'));
-    }
-  };
-
-  const handleDeleteOrg = async (orgId: string, orgName: string) => {
-    if (!confirm(t('admin.orgDeleteConfirm', { name: orgName }))) return;
-    try {
-      await apiRequest(`/api/admin/organizations/${orgId}`, { method: 'DELETE', requiresStepUp: true });
-      alert(t('admin.orgDeleted'));
-      fetchOrgs();
-    } catch (err: any) {
-      alert(err.message || t('admin.deleteErrFull'));
-    }
-  };
-
   const handleDeleteCategory = async (catId: string, catName: string, isSub?: boolean) => {
     const label = isSub ? t('admin.delLabelSub') : t('admin.delLabelParent');
     if (!confirm(t('admin.catDeleteConfirm', { name: catName, label }))) return;
@@ -357,7 +310,6 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
           { id: 'overview', label: t('admin.tabOverview'), icon: BarChart3 },
           { id: 'platform', label: t('admin.tabPlatform'), icon: Palette },
           { id: 'users', label: t('admin.tabUsers'), icon: Users },
-          { id: 'organizations', label: t('admin.tabOrgs'), icon: Building2 },
           { id: 'categories', label: t('admin.tabCategories'), icon: Layers },
           { id: 'filters', label: t('admin.tabFilters'), icon: Filter },
           { id: 'monetization', label: t('admin.tabMonetization'), icon: DollarSign },
@@ -414,17 +366,11 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                 <span className="text-[10px] text-amber-700 mt-0.5 block">{t('admin.kpiReportsHint')}</span>
               </div>
 
-              <div className="p-5 rounded-2xl bg-white border border-gray-100 shadow-2xs">
-                <span className="text-[11px] font-bold text-emerald-600 uppercase">{t('admin.kpiOrgs')}</span>
-                <p className="text-2xl font-black text-emerald-900 mt-1">
-                  {overview.verified_organizations} / {overview.total_organizations}
-                </p>
-                <span className="text-[10px] text-emerald-700 mt-0.5 block">{t('admin.kpiOrgsHint')}</span>
-              </div>
+
             </div>
           )}
 
-          {/* Saytga kirish/chiqish — mini grafik (14 kun); batafsil modalga ochadi */}
+          {/* Saytga kirish/chiqish — mini grafik (30 kun, sessiya); batafsil modalga ochadi */}
           {visits14 && (
             <div
               className="bg-white rounded-3xl p-5 border border-gray-100 shadow-xs cursor-pointer hover:border-blue-200 transition-colors"
@@ -910,149 +856,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         </div>
       )}
 
-      {/* 4. Organizations Tab */}
-      {activeTab === 'organizations' && (
-        <div className="bg-white rounded-3xl border border-gray-100 shadow-xs overflow-hidden">
-          <div className="p-4 border-b border-gray-100 flex items-center justify-between gap-3">
-            <div>
-              <h3 className="font-bold text-sm text-gray-900">{t('admin.orgsTitle')}</h3>
-              <p className="text-[11px] text-gray-500">
-                {t('admin.orgsHint')}
-              </p>
-            </div>
-            <button
-              onClick={() => {
-                setSelectedOrg(null);
-                setIsOrgModalOpen(true);
-              }}
-              className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>{t('admin.newOrgBtn')}</span>
-            </button>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-gray-700">
-              <thead className="bg-gray-50 border-b border-gray-100 text-[11px] font-bold text-gray-500 uppercase">
-                <tr>
-                  <th className="p-3.5">{t('admin.thOrg')}</th>
-                  <th className="p-3.5">{t('admin.thOwner')}</th>
-                  <th className="p-3.5">{t('admin.thContact')}</th>
-                  <th className="p-3.5">{t('admin.thState')}</th>
-                  <th className="p-3.5 text-right">{t('admin.thActions')}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {isOrgsLoading ? (
-                  <tr>
-                    <td colSpan={5} className="p-8 text-center text-xs text-gray-400">
-                      {t('admin.orgsLoading')}
-                    </td>
-                  </tr>
-                ) : orgsList.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="p-8 text-center text-xs text-gray-400">
-                      {t('admin.orgsEmpty')}
-                    </td>
-                  </tr>
-                ) : (
-                  orgsList.map((o) => (
-                    <tr key={o.id} className="hover:bg-gray-50/70 transition-colors">
-                      <td className="p-3.5 font-bold text-gray-900 flex items-center gap-3">
-                        {o.logo_url ? (
-                          <img
-                            src={o.logo_url}
-                            alt={o.name}
-                            className="w-9 h-9 rounded-xl object-cover border border-gray-100"
-                          />
-                        ) : (
-                          <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
-                            <Building2 className="w-4 h-4" />
-                          </div>
-                        )}
-                        <div>
-                          <span className="block text-gray-950 font-extrabold">{o.name}</span>
-                          <span className="text-[11px] text-gray-500 font-normal line-clamp-1 max-w-xs">
-                            {o.description || o.address || t('admin.noDesc')}
-                          </span>
-                        </div>
-                      </td>
-
-                      <td className="p-3.5">
-                        <span className="font-semibold text-gray-900">{o.owner_name}</span>
-                        {o.owner_username && (
-                          <span className="block text-[10px] text-gray-400 font-mono">@{o.owner_username}</span>
-                        )}
-                      </td>
-
-                      <td className="p-3.5 text-gray-500 font-medium">
-                        <div>{o.phone || t('admin.noPhone')}</div>
-                        {o.website && (
-                          <a
-                            href={o.website}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-600 hover:underline text-[11px] flex items-center gap-1 mt-0.5"
-                          >
-                            <span>{t('admin.goSite')}</span>
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
-                        )}
-                      </td>
-
-                      <td className="p-3.5">
-                        {o.verification_status === 'VERIFIED' ? (
-                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
-                            {t('admin.verifiedOfficial')}
-                          </span>
-                        ) : (
-                          <span className="px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600 text-[10px] font-medium">
-                            UNVERIFIED
-                          </span>
-                        )}
-                      </td>
-
-                      <td className="p-3.5 text-right space-x-1.5">
-                        <button
-                          type="button"
-                          onClick={() => handleVerifyOrg(o.id, o.verification_status)}
-                          className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-colors cursor-pointer ${
-                            o.verification_status === 'VERIFIED'
-                              ? 'border border-amber-200 text-amber-700 hover:bg-amber-50'
-                              : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs'
-                          }`}
-                        >
-                          {o.verification_status === 'VERIFIED' ? t('common.cancel') : t('common.confirm')}
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedOrg(o);
-                            setIsOrgModalOpen(true);
-                          }}
-                          className="px-2.5 py-1 rounded-lg border border-gray-200 hover:bg-gray-100 text-gray-700 text-[11px] font-medium cursor-pointer"
-                        >
-                          {t('common.edit')}
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteOrg(o.id, o.name)}
-                          className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-bold cursor-pointer"
-                        >
-                          {t('common.delete')}
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      {/* Organizations tizimi butunlay olib tashlandi */}
 
       {/* 5. Hierarchical Categories & Subcategories Tab */}
       {activeTab === 'categories' && (() => {
@@ -1422,14 +1226,6 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
           fetchUsers();
           fetchOverviewAndAnalytics();
         }}
-      />
-
-      {/* Organization Create / Edit Modal */}
-      <OrganizationEditModal
-        isOpen={isOrgModalOpen}
-        onClose={() => setIsOrgModalOpen(false)}
-        org={selectedOrg}
-        onSaved={fetchOrgs}
       />
 
       {/* Bulk staff messaging modal (selected users) */}

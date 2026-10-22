@@ -1,5 +1,4 @@
 import { serverError } from '../lib/error.ts';
-import { parseStrictBoolean } from '../lib/params.ts';
 import { Router } from 'express';
 import { requireAuth, requireMinLevel, AuthRequest } from '../auth/telegram.ts';
 import { queryAll } from '../db/database.ts';
@@ -7,7 +6,6 @@ import {
   adminPermanentBan,
   adminUnban,
   adminSetRole,
-  adminVerifyOrganization,
   getStaffPersonalStats,
   getStaffTeamStats,
 } from '../services/moderationService.ts';
@@ -100,33 +98,7 @@ router.post('/users/:id/role', async (req: AuthRequest, res) => {
   }
 });
 
-// Organizations — ro'yxat va tasdiq.
-router.get('/organizations', async (_req: AuthRequest, res) => {
-  try {
-    res.json(await queryAll(
-      `SELECT o.*, u.name AS owner_name, u.telegram_username AS owner_username
-       FROM organizations o
-       JOIN users u ON o.owner_user_id = u.id
-       ORDER BY o.created_at DESC`
-    ));
-  } catch (err: any) {
-    serverError(res, err);
-  }
-});
-
-router.post('/organizations/:id/verify', async (req: AuthRequest, res) => {
-  try {
-    // Report #9: `Boolean(verify)` xato — `Boolean('false')` === true. QAT'IY
-    // parse: faqat aniq true/false qiymatlarni qabul qilamiz, qolganini 400.
-    const parsed = parseStrictBoolean(req.body?.verify);
-    if (parsed === null) {
-      return res.status(400).json({ error: 'verify aniq boolean (true/false) bo‘lishi shart' });
-    }
-    res.json(await adminVerifyOrganization(req.user!.id, req.params.id, parsed));
-  } catch (err: any) {
-    serverError(res, err);
-  }
-});
+// Organizations tizimi olib tashlandi.
 
 // Skoplangan statistika — shaxsiy + jamoa (admin platforma statsi EMAS).
 router.get('/stats/mine', async (req: AuthRequest, res) => {

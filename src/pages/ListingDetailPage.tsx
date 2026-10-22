@@ -16,7 +16,6 @@ import {
   Rocket,
   Play,
   Calendar,
-  Building2,
   ShieldCheck,
   Heart,
   Share2,
@@ -907,9 +906,6 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                   {listing.district_name && (
                     <p className="text-xs text-gray-500 mt-0.5">{listing.district_name}</p>
                   )}
-                  {listing.organization_address && (
-                    <p className="text-xs text-gray-500 mt-1">📍 {listing.organization_address}</p>
-                  )}
                   {!listing.region_name && !listing.district_name && (
                     <p className="text-xs text-gray-400 italic">{t('detail.noAddress')}</p>
                   )}
@@ -968,7 +964,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
           <div id="reviews" className="scroll-mt-20">
             <ReviewsSection
               targetUserId={listing.owner_user_id}
-              employerName={listing.organization_name || listing.owner_name || t('detail.employerFallback')}
+              employerName={listing.owner_name || t('detail.employerFallback')}
               listingId={listing.id}
               onRatingUpdated={(newAvg, total) => {
                 setListing((prev) =>
@@ -1148,46 +1144,6 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
             </button>
           </div>
 
-          {/* Organization Card */}
-          {listing.organization_id && (
-            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-xs">
-              <div className="flex items-center gap-3 mb-3">
-                {listing.organization_logo_url ? (
-                  <img
-                    src={listing.organization_logo_url}
-                    alt={listing.organization_name}
-                    className="w-12 h-12 rounded-xl object-cover border border-gray-100 shrink-0"
-                  />
-                ) : (
-                  <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold text-lg shrink-0">
-                    <Building2 className="w-6 h-6" />
-                  </div>
-                )}
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1">
-                    <h4 className="font-bold text-sm text-gray-900 truncate">{listing.organization_name}</h4>
-                    {listing.organization_verification_status === 'VERIFIED' && (
-                      <VerifiedBadge size="sm" variant="emerald" tooltip={t('detail.orgVerifiedTooltip')} />
-                    )}
-                  </div>
-                  <span className="text-[10px] text-gray-400">{t('detail.orgProfileLabel')}</span>
-                </div>
-              </div>
-
-              {listing.organization_description && (
-                <p className="text-xs text-gray-600 line-clamp-3 mb-3 leading-relaxed">
-                  <Translated text={listing.organization_description} />
-                </p>
-              )}
-
-              <button
-                onClick={() => onNavigate(`/org/${listing.organization_id}`)}
-                className="w-full py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                {t('detail.orgViewBtn')}
-              </button>
-            </div>
-          )}
         </div>
       </div>
 

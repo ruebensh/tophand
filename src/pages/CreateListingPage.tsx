@@ -16,7 +16,6 @@ import type {
   Category,
   Region,
   District,
-  Organization,
   Catalog,
   CategoryAttribute,
 } from '../types/index.ts';
@@ -61,7 +60,7 @@ const makeDefaults = (user: any): WizardFormValues => ({
   // user obyekti ham NUMERIC'ni satr qaytishi mumkin — .toFixed() crash oldini olish.
   latitude: Number.isFinite(Number(user?.latitude)) && user?.latitude != null && user?.latitude !== '' ? Number(user.latitude) : undefined,
   longitude: Number.isFinite(Number(user?.longitude)) && user?.longitude != null && user?.longitude !== '' ? Number(user.longitude) : undefined,
-  contactTime: 'ANY_TIME', contactCustomText: '', organizationId: '',
+  contactTime: 'ANY_TIME', contactCustomText: '',
   images: [], videos: [],
 });
 
@@ -75,7 +74,6 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
   const [categories, setCategories] = useState<Category[]>([]);
   const [regions, setRegions] = useState<Region[]>([]);
   const [districts, setDistricts] = useState<District[]>([]);
-  const [userOrgs, setUserOrgs] = useState<Organization[]>([]);
   const [attrSchema, setAttrSchema] = useState<CategoryAttribute[]>([]);
   const [monetization, setMonetization] = useState<PublicMonetization | null>(null);
 
@@ -154,11 +152,10 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
     resolverRef.current = zodResolver(makeListingSchema({ isJobs, showEmployment, attrSchema, t }));
   }, [isJobs, showEmployment, attrSchema, t]);
 
-  // ── Load catalogs + regions + orgs + monetization once ──
+  // ── Load catalogs + regions + monetization once ──
   useEffect(() => {
     getCatalogs().then(setCatalogs).catch(() => setCatalogs([]));
     apiRequest<Region[]>('/api/locations/regions').then(setRegions).catch(console.error);
-    apiRequest<Organization[]>('/api/organizations/my/list').then(setUserOrgs).catch(console.error);
     getPublicMonetization().then(setMonetization).catch(() => {});
     getPublicSecurity().then((s) => setCaptchaSitekey(s?.turnstile_sitekey ?? null)).catch(() => setCaptchaSitekey(null));
   }, []);
@@ -238,7 +235,6 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
           longitude: l.longitude != null && l.longitude !== '' && Number.isFinite(Number(l.longitude)) ? Number(l.longitude) : undefined,
           contactTime: l.contact_time || 'ANY_TIME',
           contactCustomText: l.contact_custom_text || '',
-          organizationId: l.organization_id || '',
           images: media.filter((u) => !isVid(u)),
           videos: media.filter((u) => isVid(u)),
         });
@@ -502,7 +498,6 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
       attributes: d.attributes,
       contact_time: d.contactTime,
       contact_custom_text: d.contactCustomText || undefined,
-      organization_id: d.organizationId || undefined,
       images: d.images,
       videos: d.videos,
       publish: opts.publish,
@@ -644,7 +639,7 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
 
   // ── Controller (konteyner => qadam komponentlari) ──
   const ctl: WizardController = useMemo(() => ({
-    catalogs, categories, regions, districts, userOrgs, attrSchema, monetization,
+    catalogs, categories, regions, districts, attrSchema, monetization,
     isJobs, isServices, showEmployment, isLeafSelected, subcategoriesOfParent, parentCategories,
     t, localized, intlLocale, userName: user?.name,
     aiSuggestion, isAiLoading, aiFilledKeys, isAttrPrefilling, attrPrefillReason, isGeneratingDesc,
@@ -657,7 +652,7 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
     saveDraft,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [
-    catalogs, categories, regions, districts, userOrgs, attrSchema, monetization, isJobs, isServices, showEmployment,
+    catalogs, categories, regions, districts, attrSchema, monetization, isJobs, isServices, showEmployment,
     isLeafSelected, subcategoriesOfParent, parentCategories, t, localized, intlLocale, user?.name, aiSuggestion, isAiLoading,
     aiFilledKeys, isAttrPrefilling, attrPrefillReason, isGeneratingDesc, isUploadingImage, isUploadingVideo, isLocating,
     isEditing, isDraftEditing, isSavingDraft, lastDraftSavedAt, captchaSitekey, onCaptchaChange, saveDraft,

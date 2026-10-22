@@ -59,7 +59,6 @@ export interface JobPostingPayload {
   price_max?: number;
   contact_time: ContactTime;
   contact_custom_text?: string;
-  organization_id?: string;
   images: string[];
   videos: string[];
   // Qoralama/joylash + bot-himoya (server `publish===false` bo'lsa DRAFT qiladi).
@@ -95,10 +94,9 @@ export interface WizardFormValues {
   districtId: string;
   latitude?: number;
   longitude?: number;
-  // Aloqa va tashkilot.
+  // Aloqa.
   contactTime: ContactTime;
   contactCustomText: string;
-  organizationId: string;
   // Media.
   images: string[];
   videos: string[];

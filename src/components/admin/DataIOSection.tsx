@@ -6,7 +6,6 @@ import { useI18n } from '../../i18n/IntlContext.tsx';
 const ENTITIES: { id: string; labelKey: string; importable: boolean }[] = [
   { id: 'users', labelKey: 'admin.entUsers', importable: true },
   { id: 'listings', labelKey: 'admin.entListings', importable: true },
-  { id: 'organizations', labelKey: 'admin.entOrgs', importable: true },
   { id: 'categories', labelKey: 'admin.entCategories', importable: true },
   { id: 'regions', labelKey: 'admin.entRegions', importable: true },
   { id: 'districts', labelKey: 'admin.entDistricts', importable: true },

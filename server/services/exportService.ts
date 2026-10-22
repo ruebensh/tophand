@@ -11,7 +11,6 @@ import { queryAll, runQuery } from '../db/database.ts';
 export type ExportEntity =
   | 'users'
   | 'listings'
-  | 'organizations'
   | 'categories'
   | 'regions'
   | 'districts';
@@ -37,20 +36,11 @@ const ENTITY_DEFS: Record<ExportEntity, EntityDef> = {
   listings: {
     table: 'listings',
     importColumns: [
-      'id', 'owner_user_id', 'organization_id', 'type', 'title', 'description',
+      'id', 'owner_user_id', 'type', 'title', 'description',
       'category_id', 'region_id', 'district_id', 'price_type', 'status',
     ],
     required: ['id', 'owner_user_id', 'type', 'title', 'description', 'category_id', 'region_id', 'district_id'],
     label: "E'lonlar",
-  },
-  organizations: {
-    table: 'organizations',
-    importColumns: [
-      'id', 'name', 'logo_url', 'description', 'phone', 'website',
-      'region_id', 'district_id', 'address', 'owner_user_id', 'verification_status',
-    ],
-    required: ['id', 'name', 'owner_user_id'],
-    label: 'Tashkilotlar',
   },
   categories: {
     table: 'categories',

@@ -20,7 +20,6 @@ const FILES = [
   'server/routes/savedRoutes.ts',
   'server/routes/notificationRoutes.ts',
   'server/routes/adminRoutes.ts',
-  'server/routes/organizationRoutes.ts',
   'server/routes/authRoutes.ts',
   'server/routes/chatRoutes.ts',
   'server/routes/categoryRoutes.ts',

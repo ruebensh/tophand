@@ -46,7 +46,7 @@ const uz: Record<LegalKind, DocMeta> = {
         p: ['TopHand (tophand.uz) platformasidan foydalanishda siz quyidagi maʼlumotlarni taqdim etishingiz mumkin:'],
         list: [
           'Hisob maʼlumotlari: ism, telefon raqami, elektron pochta.',
-          'Profil maʼlumotlari: hudud, tashkil nomi, eʼlonlarda koʻrsatilgan maʼlumotlar.',
+          'Profil maʼlumotlari: hudud, eʼlonlarda koʻrsatilgan maʼlumotlar.',
           'Texnik maʼlumotlar: IP manzil, brauzer turi, qurilta identifikatorlari va foydalanish statistikasi.',
           'Joylashuv maʼlumotlari (ruxsat berganingizda) — yaqin atrofdagi eʼlonlarni koʻrsatish uchun.',
         ],
@@ -155,7 +155,7 @@ const ru: Record<LegalKind, DocMeta> = {
         p: ['Используя платформу TopHand (tophand.uz), вы можете предоставить следующие данные:'],
         list: [
           'Данные аккаунта: имя, номер телефона, электронная почта.',
-          'Данные профиля: регион, название организации, сведения, указанные в объявлениях.',
+          'Данные профиля: регион, сведения, указанные в объявлениях.',
           'Технические данные: IP-адрес, тип браузера, идентификаторы устройства и статистика использования.',
           'Данные о местоположении (с вашего разрешения) — чтобы показывать объявления рядом.',
         ],
@@ -264,7 +264,7 @@ const en: Record<LegalKind, DocMeta> = {
         p: ['When using the TopHand (tophand.uz) platform you may provide the following information:'],
         list: [
           'Account information: name, phone number, email.',
-          'Profile information: region, organization name, details shown in your listings.',
+          'Profile information: region, details shown in your listings.',
           'Technical information: IP address, browser type, device identifiers and usage statistics.',
           'Location information (with your permission) — to show nearby listings.',
         ],

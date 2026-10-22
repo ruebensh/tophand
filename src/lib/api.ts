@@ -66,14 +66,14 @@ export async function ensureStepUpToken(): Promise<string> {
   return stepUpToken;
 }
 
-// Admin statistika: LOGOUT hodisasini best-effort xabar qiladi (user_events).
+// Admin statistika: sessiya trafigini best-effort xabar qiladi (user_events).
 // sendBeacon header yubora olmasligi uchun fetch keepalive ishlatiladi —
 // brauzer yopilganda ham so'rov ketib qolish ehtimoli yuqori.
-export function reportLogout(): void {
+function reportSessionEvent(endpoint: string): void {
   try {
     const token = getStoredToken();
     if (!token) return;
-    fetch('/api/auth/logout', {
+    fetch(endpoint, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
       keepalive: true,
@@ -81,6 +81,21 @@ export function reportLogout(): void {
   } catch {
     /* statistika hech narsani buzmasligi kerak */
   }
+}
+
+// Sessiya boshlanishi (sayt ochildi) -> VISIT.
+export function reportVisit(): void {
+  reportSessionEvent('/api/auth/visit');
+}
+
+// Sessiya tugashi (sayt yopildi) -> EXIT.
+export function reportExit(): void {
+  reportSessionEvent('/api/auth/leave');
+}
+
+// Hisobdan chiqish (logout tugma) -> LOGOUT (auth darajasi).
+export function reportLogout(): void {
+  reportSessionEvent('/api/auth/logout');
 }
 
 export async function apiRequest<T = any>(

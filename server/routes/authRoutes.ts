@@ -392,6 +392,27 @@ router.post('/logout', requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+// ─── Sessiya trafigi: VISIT (sayt ochildi) va EXIT (sayt yopildi) ─────────
+// Auth LOGIN/LOGOUTdan alohida: har bir brauzer sessiyasi bitta VISIT va
+// uning oxirida bitta EXIT hisoblaydi — shunda kirish≈chiqish (trafik aniq).
+router.post('/visit', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    await recordUserEvent(req.user!.id, 'VISIT', null);
+    res.json({ success: true });
+  } catch (err: any) {
+    serverError(res, err);
+  }
+});
+
+router.post('/leave', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    await recordUserEvent(req.user!.id, 'EXIT', null);
+    res.json({ success: true });
+  } catch (err: any) {
+    serverError(res, err);
+  }
+});
+
 // ─── Step 1: Start email registration → send verification code ──────────
 router.post('/register/send-code', async (req, res) => {
   try {

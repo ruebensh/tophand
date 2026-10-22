@@ -143,7 +143,6 @@ export interface CategoryAttribute {
 export interface Listing {
   id: string;
   owner_user_id: string;
-  organization_id?: string;
   catalog_id?: string;
   type: ListingType;
   title: string;
@@ -190,13 +189,6 @@ export interface Listing {
   owner_role?: UserRole;
   owner_active_listing_count?: number;
   owner_followers_count?: number;
-  organization_name?: string;
-  organization_logo_url?: string;
-  organization_description?: string;
-  organization_phone?: string;
-  organization_website?: string;
-  organization_address?: string;
-  organization_verification_status?: 'UNVERIFIED' | 'VERIFIED';
   is_saved?: boolean;
   is_followed?: boolean;
   is_profile_complete?: boolean;
@@ -236,27 +228,7 @@ export interface RatingSummary {
   };
 }
 
-export interface Organization {
-  id: string;
-  name: string;
-  logo_url?: string;
-  description?: string;
-  phone?: string;
-  website?: string;
-  region_id?: string;
-  region_name?: string;
-  district_id?: string;
-  district_name?: string;
-  address?: string;
-  owner_user_id: string;
-  owner_name?: string;
-  verification_status: 'UNVERIFIED' | 'VERIFIED';
-  verified_at?: string;
-  verified_by?: string;
-  created_at: string;
-  listings?: Listing[];
-  user_membership_role?: 'OWNER' | 'ADMIN' | 'MEMBER' | null;
-}
+// Organization interfeysi olib tashlandi (tizim buzilgan).
 
 export interface Conversation {
   id: string;

@@ -1,7 +1,9 @@
 import crypto from 'crypto';
 import { runQuery } from '../db/database.ts';
 
-export type UserEventType = 'LOGIN' | 'LOGOUT';
+// LOGIN/LOGOUT — hisobga kirish/chiqish (auth); VISIT/EXIT — sessiya asosidagi
+// sayt trafik (ochilish/yopilish). Admin "Saytga kirish/chiqish" grafigi VISIT/EXITni sanaydi.
+export type UserEventType = 'LOGIN' | 'LOGOUT' | 'VISIT' | 'EXIT';
 export type UserEventAuthMethod = 'PASSWORD' | 'GOOGLE' | 'REGISTER';
 
 /**

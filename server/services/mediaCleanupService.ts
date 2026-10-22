@@ -75,7 +75,6 @@ async function collectReferencedBasenames(): Promise<Set<string>> {
        UNION ALL SELECT attachment_url FROM messages WHERE attachment_url IS NOT NULL
        UNION ALL SELECT image_url FROM ads WHERE image_url IS NOT NULL
        UNION ALL SELECT video_url FROM ads WHERE video_url IS NOT NULL
-       UNION ALL SELECT logo_url FROM organizations WHERE logo_url IS NOT NULL
        UNION ALL SELECT value FROM system_settings WHERE value IS NOT NULL
      ) t`
   );
@@ -105,7 +104,6 @@ export async function isMediaStillReferenced(ref: string): Promise<boolean> {
        UNION ALL SELECT attachment_url FROM messages WHERE attachment_url IS NOT NULL
        UNION ALL SELECT image_url FROM ads WHERE image_url IS NOT NULL
        UNION ALL SELECT video_url FROM ads WHERE video_url IS NOT NULL
-       UNION ALL SELECT logo_url FROM organizations WHERE logo_url IS NOT NULL
        UNION ALL SELECT value FROM system_settings WHERE value IS NOT NULL
      ) t WHERE t.v = ? OR t.v LIKE ? LIMIT 1`,
     [ref, `%/${tail}`]

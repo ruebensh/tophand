@@ -87,11 +87,6 @@ export async function getReports(status?: string) {
         `SELECT id, name, telegram_username, role, is_banned, ban_type, bio FROM users WHERE id = ?`,
         [rep.target_id]
       );
-    } else if (rep.target_type === 'ORGANIZATION') {
-      rep.target_data = await queryOne(
-        `SELECT id, name, verification_status, description FROM organizations WHERE id = ?`,
-        [rep.target_id]
-      );
     } else if (rep.target_type === 'MESSAGE') {
       rep.target_data = await queryOne(
         `SELECT m.id, m.text, m.attachment_url, u.name as sender_name FROM messages m JOIN users u ON m.sender_user_id = u.id WHERE m.id = ?`,
@@ -255,41 +250,13 @@ export async function adminSetRole(adminId: string, userId: string, newRole: Rol
   return { success: true };
 }
 
-export async function adminVerifyOrganization(adminId: string, orgId: string, verify: boolean) {
-  const now = new Date().toISOString();
-  const status = verify ? 'VERIFIED' : 'UNVERIFIED';
-
-  await runQuery(
-    `UPDATE organizations 
-     SET verification_status = ?, verified_at = ?, verified_by = ?, updated_at = ? 
-     WHERE id = ?`,
-    [status, verify ? now : null, verify ? adminId : null, now, orgId]
-  );
-
-  const auditId = `audit_${crypto.randomUUID().slice(0, 16)}`;
-  await runQuery(
-    `INSERT INTO audit_logs (id, actor_user_id, action, target_type, target_id, metadata, created_at)
-     VALUES (?, ?, ?, 'ORGANIZATION', ?, ?, ?)`,
-    [
-      auditId,
-      adminId,
-      verify ? 'ORGANIZATION_VERIFIED' : 'ORGANIZATION_UNVERIFIED',
-      orgId,
-      JSON.stringify({ status }),
-      now,
-    ]
-  );
-
-  return { success: true };
-}
+// adminVerifyOrganization olib tashlandi (organizations tizimi buzilgan).
 
 export async function getAdminOverview() {
   const usersCount = await queryOne<{ count: number }>('SELECT COUNT(*) as count FROM users');
   const activeListingsCount = await queryOne<{ count: number }>("SELECT COUNT(*) as count FROM listings WHERE status = 'ACTIVE'");
   const archivedListingsCount = await queryOne<{ count: number }>("SELECT COUNT(*) as count FROM listings WHERE status IN ('ARCHIVED', 'COMPLETED')");
   const pendingReportsCount = await queryOne<{ count: number }>("SELECT COUNT(*) as count FROM reports WHERE status = 'PENDING'");
-  const orgsCount = await queryOne<{ count: number }>('SELECT COUNT(*) as count FROM organizations');
-  const verifiedOrgsCount = await queryOne<{ count: number }>("SELECT COUNT(*) as count FROM organizations WHERE verification_status = 'VERIFIED'");
   const moderatorsCount = await queryOne<{ count: number }>("SELECT COUNT(*) as count FROM users WHERE role = 'MODERATOR'");
   const bannedCount = await queryOne<{ count: number }>("SELECT COUNT(*) as count FROM users WHERE is_banned = 1");
 
@@ -298,8 +265,6 @@ export async function getAdminOverview() {
     active_listings: activeListingsCount?.count || 0,
     archived_listings: archivedListingsCount?.count || 0,
     pending_reports: pendingReportsCount?.count || 0,
-    total_organizations: orgsCount?.count || 0,
-    verified_organizations: verifiedOrgsCount?.count || 0,
     moderators_count: moderatorsCount?.count || 0,
     banned_users: bannedCount?.count || 0,
   };

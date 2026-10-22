@@ -13,7 +13,6 @@ import {
   adminPermanentBan,
   adminUnban,
   adminSetRole,
-  adminVerifyOrganization,
   purgeVerificationMedia,
 } from '../services/moderationService.ts';
 import { getAdvancedAnalytics } from '../services/autoModerationService.ts';
@@ -162,35 +161,7 @@ router.post('/users/:id/role', requireStepUp, async (req: AuthRequest, res) => {
   }
 });
 
-// Organization verification
-router.post('/organizations/:id/verify', async (req: AuthRequest, res) => {
-  try {
-    // Report #9: `Boolean(verify)` o'rniga qat'iy parse (`Boolean('false')` === true xato).
-    const parsed = parseStrictBoolean(req.body?.verify);
-    if (parsed === null) {
-      return res.status(400).json({ error: 'verify aniq boolean (true/false) bo‘lishi shart' });
-    }
-    const result = await adminVerifyOrganization(req.user!.id, req.params.id, parsed);
-    res.json(result);
-  } catch (err: any) {
-    serverError(res, err);
-  }
-});
-
-// Get all organizations for admin
-router.get('/organizations', async (_req, res) => {
-  try {
-    const orgs = await queryAll(
-      `SELECT o.*, u.name as owner_name, u.telegram_username as owner_username 
-       FROM organizations o
-       JOIN users u ON o.owner_user_id = u.id
-       ORDER BY o.created_at DESC`
-    );
-    res.json(orgs);
-  } catch (err: any) {
-    serverError(res, err);
-  }
-});
+// Organizations tizimi olib tashlandi.
 
 // Category management: Create
 router.post('/categories', async (req: AuthRequest, res) => {
@@ -663,9 +634,9 @@ router.get('/analytics', async (_req, res) => {
   }
 });
 
-// ── Saytga kirganlar: oylik yoki kunlik LOGIN/LOGOUT/noyob mehmonlar ──
+// ── Saytga kirganlar: oylik yoki kunlik VISIT/EXIT/noyob mehmonlar (sessiya) ──
 // ?months=N -> so'nggi N oy (har oy alohida nuqta, chiziqli grafik uchun).
-// ?days=N   -> so'nggi N kun (mini-sparkline). Bo'sh davrlar 0 bilan to'ladi.
+// ?days=N   -> so'nggi N kun (kunlik). Bo'sh davrlar 0 bilan to'ladi.
 router.get('/visits', async (req, res) => {
   try {
     const monthsParam = req.query.months != null ? Number(req.query.months) : null;
@@ -684,8 +655,8 @@ router.get('/visits', async (req, res) => {
         LEFT JOIN (
           SELECT DATE_TRUNC('month', created_at AT TIME ZONE 'UTC')::date AS m,
                  COUNT(DISTINCT user_id) AS unique_visitors,
-                 COUNT(*) FILTER (WHERE event_type = 'LOGIN') AS logins,
-                 COUNT(*) FILTER (WHERE event_type = 'LOGOUT') AS logouts
+                 COUNT(*) FILTER (WHERE event_type = 'VISIT') AS logins,
+                 COUNT(*) FILTER (WHERE event_type = 'EXIT') AS logouts
           FROM user_events
           WHERE created_at >= (DATE_TRUNC('month', NOW() AT TIME ZONE 'UTC')::timestamp - ($1::INTEGER * INTERVAL '1 month'))
           GROUP BY 1
@@ -712,8 +683,8 @@ router.get('/visits', async (req, res) => {
       LEFT JOIN (
         SELECT (created_at AT TIME ZONE 'UTC')::date AS day,
                COUNT(DISTINCT user_id) AS unique_visitors,
-               COUNT(*) FILTER (WHERE event_type = 'LOGIN') AS logins,
-               COUNT(*) FILTER (WHERE event_type = 'LOGOUT') AS logouts
+               COUNT(*) FILTER (WHERE event_type = 'VISIT') AS logins,
+               COUNT(*) FILTER (WHERE event_type = 'EXIT') AS logouts
         FROM user_events
         WHERE created_at >= DATE_TRUNC('day', NOW() AT TIME ZONE 'UTC')::date - ($1)::INTEGER
         GROUP BY 1
@@ -920,145 +891,7 @@ router.put('/users/:id/passport', async (req: AuthRequest, res) => {
   }
 });
 
-// Organizations: Create organization by admin
-router.post('/organizations', async (req: AuthRequest, res) => {
-  try {
-    const {
-      name,
-      owner_user_id,
-      description,
-      phone,
-      website,
-      address,
-      region_id,
-      district_id,
-      logo_url,
-      verification_status,
-    } = req.body;
-
-    if (!name || !name.trim()) {
-      return res.status(400).json({ error: 'Tashkilot nomi kiritilishi shart' });
-    }
-
-    const orgId = `org_${crypto.randomUUID().slice(0, 16)}`;
-    const now = new Date().toISOString();
-    const ownerId = owner_user_id || req.user!.id;
-
-    await runQuery(
-      `INSERT INTO organizations (
-        id, name, logo_url, description, phone, website,
-        region_id, district_id, address, owner_user_id,
-        verification_status, verified_at, verified_by, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        orgId,
-        name.trim(),
-        logo_url || null,
-        description || null,
-        phone || null,
-        website || null,
-        region_id || null,
-        district_id || null,
-        address || null,
-        ownerId,
-        verification_status || 'UNVERIFIED',
-        verification_status === 'VERIFIED' ? now : null,
-        verification_status === 'VERIFIED' ? req.user!.id : null,
-        now,
-        now,
-      ]
-    );
-
-    // Add owner membership
-    const memberId = `mem_${crypto.randomUUID().slice(0, 16)}`;
-    await runQuery(
-      `INSERT INTO organization_members (id, organization_id, user_id, role, created_at)
-       VALUES (?, ?, ?, 'OWNER', ?)`,
-      [memberId, orgId, ownerId, now]
-    );
-
-    const created = await queryOne('SELECT * FROM organizations WHERE id = ?', [orgId]);
-    await persistDb();
-    res.status(201).json(created);
-  } catch (err: any) {
-    serverError(res, err);
-  }
-});
-
-// Organizations: Edit organization
-router.put('/organizations/:id', async (req: AuthRequest, res) => {
-  try {
-    const {
-      name,
-      description,
-      phone,
-      website,
-      address,
-      region_id,
-      district_id,
-      logo_url,
-      verification_status,
-    } = req.body;
-
-    const orgId = req.params.id;
-    const now = new Date().toISOString();
-    // Eski logotipni almashtirishda o'chirish uchun oldin o'qib olamiz.
-    const prevOrg = await queryOne<any>('SELECT logo_url FROM organizations WHERE id = ?', [orgId]);
-
-    await runQuery(
-      `UPDATE organizations SET
-        name = COALESCE(?, name),
-        description = COALESCE(?, description),
-        phone = COALESCE(?, phone),
-        website = COALESCE(?, website),
-        address = COALESCE(?, address),
-        region_id = COALESCE(?, region_id),
-        district_id = COALESCE(?, district_id),
-        logo_url = COALESCE(?, logo_url),
-        verification_status = COALESCE(?, verification_status),
-        updated_at = ?
-       WHERE id = ?`,
-      [
-        name ? name.trim() : null,
-        description !== undefined ? description : null,
-        phone !== undefined ? phone : null,
-        website !== undefined ? website : null,
-        address !== undefined ? address : null,
-        region_id !== undefined ? region_id : null,
-        district_id !== undefined ? district_id : null,
-        logo_url !== undefined ? logo_url : null,
-        verification_status !== undefined ? verification_status : null,
-        now,
-        orgId,
-      ]
-    );
-
-    const updated = await queryOne('SELECT * FROM organizations WHERE id = ?', [orgId]);
-    // Tozalash: logotip almashtirilsa, eski faylni o'chiramiz (faqat bizniki).
-    if (logo_url && prevOrg?.logo_url && prevOrg.logo_url !== logo_url) {
-      await deleteStoredMediaIfUnreferenced(prevOrg.logo_url);
-    }
-    await persistDb();
-    res.json(updated);
-  } catch (err: any) {
-    serverError(res, err);
-  }
-});
-
-// Organizations: Delete organization
-router.delete('/organizations/:id', requireStepUp, async (req: AuthRequest, res) => {
-  try {
-    const orgId = req.params.id;
-    const prevOrg = await queryOne<any>('SELECT logo_url FROM organizations WHERE id = ?', [orgId]);
-    await runQuery('DELETE FROM organizations WHERE id = ?', [orgId]);
-    // Tozalash: tashkilot o'chirilganda uning logotip fayli ham ketadi.
-    if (prevOrg?.logo_url) await deleteStoredMediaIfUnreferenced(prevOrg.logo_url);
-    await persistDb();
-    res.json({ success: true, message: 'Tashkilot muvaffaqiyatli o‘chirildi' });
-  } catch (err: any) {
-    serverError(res, err);
-  }
-});
+// Organizations CRUD olib tashlandi.
 
 // Categories: Delete category
 router.delete('/categories/:id', requireStepUp, async (req: AuthRequest, res) => {
