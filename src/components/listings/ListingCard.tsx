@@ -264,20 +264,22 @@ export const ListingCard: React.FC<ListingCardProps> = ({
         )}
       </div>
 
-      {/* ── CONTENT (below photo, like Avito) ── */}
+      {/* ── CONTENT (below photo, like Avito) ──
+          Qat'iy 4 qatorli tuzilma — barcha kartalarda bir xil chiziqlar:
+          1: narx (bitta qator, h-5) · 2-3: sarlavha (2 qator joy band) · 4: lokatsiya */}
       <div className="p-2.5 flex flex-col gap-1 flex-1">
 
         {/* Holat belgisi (ixtiyoriy) — profil/arxiv ko'rinishi uchun */}
         {statusBadge && <div className="mb-0.5 self-start">{statusBadge}</div>}
 
-        {/* Price — bright, heavy, brand color (yakunlangan e'londa narx o'rniga "Yakunlangan") */}
+        {/* 1-qator: Price — bright, heavy, brand color (yakunlangan e'londa narx o'rniga "Yakunlangan") */}
         {listing.status === 'COMPLETED' ? (
-          <div className="inline-flex items-center gap-1 text-base font-extrabold leading-tight text-emerald-600">
+          <div className="inline-flex items-center gap-1 h-5 text-base font-extrabold leading-tight text-emerald-600">
             <BadgeCheck className="w-4 h-4" />
             <span>{t('listing.completed')}</span>
           </div>
         ) : (
-          <div className="text-base font-extrabold leading-tight text-ink">
+          <div className="h-5 truncate text-base font-extrabold leading-tight text-ink">
             <PriceDisplay
               priceType={listing.price_type}
               priceMin={listing.price_min}
@@ -292,12 +294,13 @@ export const ListingCard: React.FC<ListingCardProps> = ({
           </div>
         )}
 
-        {/* Title */}
-        <h3 className="text-[13px] font-medium text-gray-700 line-clamp-2 leading-snug group-hover:text-blue-600 transition-colors">
+        {/* 2-3-qatorlar: Title — 1 qatorlik bo'lsa ham 2 qator JOY BAND qilinadi,
+            shunda lokatsiya qatori hamma kartalarda bitta chiziqda turadi */}
+        <h3 className="text-[13px] font-medium text-gray-700 line-clamp-2 leading-snug min-h-[calc(2*1.375*13px)] group-hover:text-blue-600 transition-colors">
           {title}
         </h3>
 
-        {/* Location */}
+        {/* 4-qator: Location */}
         <div className="mt-0.5 flex items-center gap-0.5 text-[11px] text-gray-400">
           <MapPin className="w-3 h-3 shrink-0" />
           <span className="truncate leading-none">

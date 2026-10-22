@@ -45,6 +45,10 @@ import { buildRateLimit, resolveTrustProxy } from './server/lib/rateLimit.ts';
 import { verifiedUserIdFromRequest } from './server/auth/telegram.ts';
 
 const app = express();
+
+// Dev auto-reload uchun: har bir jarayon start'ida yangilanadi (tsx watch
+// restart qilganda ID o'zgaradi — sahifa buni sezib o'zi reload bo'ladi).
+const BOOT_ID = String(Date.now());
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 const GOOGLE_CLIENT_ID_FOR_STARTUP = (process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || '').trim();
 
@@ -270,7 +274,8 @@ app.use('/api/translate', translateLimiter, translateRoutes);
 
 // Health check endpoint
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', time: new Date().toISOString() });
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ status: 'ok', time: new Date().toISOString(), boot: BOOT_ID });
 });
 
 // Centralized API error handler

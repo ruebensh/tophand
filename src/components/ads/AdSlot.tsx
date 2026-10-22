@@ -267,12 +267,14 @@ export function AdSlot({
       ) : null;
 
     // ---- card variant (grid ichida) ----
+    // ListingCard bilan BIR XIL qat'iy 4 qatorli tuzilma:
+    // 1: sarlavha (narx qatori o'rnida, h-5) · 2-3: tavsif (2 qator joy band) · 4: CTA (lokatsiya o'rnida)
     if (variant === 'card') {
       return (
         <div
           onMouseEnter={() => setIsPaused(true)}
           onMouseLeave={() => setIsPaused(false)}
-          className={`group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-[#EBECF0] bg-white transition-all hover:shadow-md ${className}`}
+          className={`group relative flex flex-col overflow-hidden rounded-2xl border border-[#EBECF0] bg-white transition-all hover:shadow-md ${className}`}
         >
           {badge}
           {closeBtn}
@@ -295,20 +297,17 @@ export function AdSlot({
                 )}
               </div>
             </div>
-            <div className="p-2.5">
-              <p className="text-[13px] font-bold text-gray-900 line-clamp-2 leading-snug">{camp.title}</p>
-              {camp.body && <p className="mt-1 text-[11px] text-[#5E6C84] line-clamp-2">{camp.body}</p>}
+            <div className="p-2.5 flex flex-col gap-1">
+              {/* 1-qator: sarlavha — narx qatori balandligida (h-5) */}
+              <p className="h-5 truncate text-base font-extrabold leading-tight text-gray-900">{camp.title}</p>
+              {/* 2-3-qatorlar: tavsif — 2 qator JOY BAND (ListingCard sarlavhasi bilan bir xil) */}
+              <p className="text-[13px] font-medium leading-snug text-[#5E6C84] line-clamp-2 min-h-[calc(2*1.375*13px)]">{camp.body || ''}</p>
+              {/* 4-qator: CTA — lokatsiya qatori o'rnida */}
+              <span className="mt-0.5 inline-flex items-center gap-0.5 text-[11px] font-bold leading-none text-[#1673E6] group-hover:underline">
+                {camp.cta_label || t('ads.ctaDefault')} <span aria-hidden>→</span>
+              </span>
             </div>
           </a>
-          <div className="px-2.5 pb-2.5 flex items-center justify-between gap-2">
-            <a
-              {...linkProps}
-              onClick={onClick}
-              className="inline-flex items-center gap-1 text-[11px] font-bold text-[#1673E6] hover:underline"
-            >
-              {camp.cta_label || t('ads.ctaDefault')} <span aria-hidden>→</span>
-            </a>
-          </div>
         </div>
       );
     }
