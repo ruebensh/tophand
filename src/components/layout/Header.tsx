@@ -668,7 +668,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
 
             {isMegaOpen && (
               <div className="absolute left-0 top-full pt-2 z-50 hidden lg:block">
-                <div key={megaKey} className="mega-panel-enter w-[min(1100px,92vw)] bg-white/95 backdrop-blur-2xl rounded-3xl border border-white/80 shadow-[0_20px_50px_rgba(0,0,0,0.12)] p-0 max-h-[74vh] overflow-hidden flex">
+                <div key={megaKey} className="mega-panel-enter w-[min(1100px,92vw)] bg-white rounded-3xl border border-gray-100 shadow-[0_20px_50px_rgba(0,0,0,0.12)] p-0 max-h-[74vh] overflow-hidden flex">
                   {renderMegaBody(false)}
                 </div>
               </div>
