@@ -9,21 +9,15 @@ import {
   Bell,
   MessageSquare,
   Heart,
-  Wallet,
-  Shield,
-  Settings,
-  LogOut,
-  User as UserIcon,
   ChevronDown,
   LayoutGrid,
   Map as MapIcon,
   X,
 } from 'lucide-react';
-import { formatDateAgo, isOfficialAccount, isStaffAccount } from '../../lib/utils.ts';
+import { formatDateAgo } from '../../lib/utils.ts';
 import { getPublicMonetization, getCatalogs, getCategoryTree } from '../../lib/api.ts';
 import type { Catalog, Category, Notification } from '../../types/index.ts';
 import { TopHandLogo } from '../common/TopHandLogo.tsx';
-import { VerifiedBadge } from '../common/VerifiedBadge.tsx';
 import { CategoryChip } from '../common/CategoryIcon.tsx';
 import { NearbyMapModal } from '../modals/NearbyMapModal.tsx';
 import { useI18n } from '../../i18n/IntlContext.tsx';
@@ -59,6 +53,7 @@ const CatalogRailIcon: React.FC<{ catalogId: string; icon: string; tone: string;
         src={`/catalogs/${catalogId}.png`}
         alt=""
         loading="lazy"
+        decoding="async"
         onError={() => setFailed(true)}
         className={`${mobile ? 'h-9 w-9' : 'h-8 w-8'} shrink-0 object-contain mix-blend-multiply`}
       />
@@ -414,8 +409,9 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
 
   return (
     <>
-      {/* ── Tier-1: Brend qatori — oddiy oqim (scroll'da tepaga chiqib ketadi) ── */}
-      <header className="relative z-30 bg-white pt-safe border-b border-[#EBECF0]">
+      {/* ── Tier-1: Brend qatori — oddiy oqim (scroll'da tepaga chiqib ketadi).
+          z-50: profil ochiladigan menyusi sticky toolbar (z-40) USTIDA chiqishi kerak. ── */}
+      <header className="relative z-50 bg-white pt-safe border-b border-[#EBECF0]">
         <div className="max-w-[1440px] w-full mx-auto px-4 sm:px-8 h-16 flex items-center gap-2 sm:gap-3">
           {/* Brand Logo */}
           <div
@@ -567,6 +563,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
                   <img
                     src={user.profile_photo_url || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user.name)}`}
                     alt={user.name}
+                    decoding="async"
                     className="w-9 h-9 rounded-full object-cover ring-2 ring-blue-500/20"
                   />
                   <span className="hidden lg:block text-xs font-semibold text-gray-800 max-w-[100px] truncate">{user.name.split(' ')[0]}</span>
@@ -584,53 +581,44 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
                       ) : user.email ? (
                         <p className="text-[11px] text-gray-400 truncate">{user.email}</p>
                       ) : null}
-                      <div className="mt-1 flex items-center gap-1">
-                        <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-[10px] font-bold">{user.role}</span>
-                        {isOfficialAccount(user) ? (
-                          <VerifiedBadge size="xs" showLabel={true} variant="official" labelText={t('badge.official')} tooltip={t('badge.officialTooltip')} />
-                        ) : isStaffAccount(user) ? (
-                          <VerifiedBadge size="xs" showLabel={true} variant="staff" labelText={t('badge.staff')} tooltip={t('badge.staffTooltip')} />
-                        ) : user.verification_status === 'VERIFIED' ? (
-                          <VerifiedBadge size="xs" showLabel={true} labelText={t('badge.verified')} tooltip={t('badge.verifiedTooltip')} />
-                        ) : null}
-                      </div>
                     </div>
+                    {/* Iconlar olib tashlandi — oddiy matnli ro'yxat. */}
                     <div className="py-1">
-                      <button onClick={() => { setIsUserMenuOpen(false); onNavigate(`/profile/${user.id}`); }} className="w-full px-3.5 py-2 text-xs text-left font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-                        <UserIcon className="w-4 h-4 text-gray-400" /> {t('nav.myProfile')}
+                      <button onClick={() => { setIsUserMenuOpen(false); onNavigate(`/profile/${user.id}`); }} className="w-full px-3.5 py-2 text-xs text-left font-medium text-gray-700 hover:bg-gray-50">
+                        {t('nav.myProfile')}
                       </button>
-                      <button onClick={() => { setIsUserMenuOpen(false); onNavigate('/saved'); }} className="w-full px-3.5 py-2 text-xs text-left font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-                        <Heart className="w-4 h-4 text-gray-400" /> {t('nav.savedListings')}
+                      <button onClick={() => { setIsUserMenuOpen(false); onNavigate('/saved'); }} className="w-full px-3.5 py-2 text-xs text-left font-medium text-gray-700 hover:bg-gray-50">
+                        {t('nav.savedListings')}
                       </button>
-                      <button onClick={() => { setIsUserMenuOpen(false); onNavigate('/chat'); }} className="w-full px-3.5 py-2 text-xs text-left font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-                        <MessageSquare className="w-4 h-4 text-gray-400" /> {t('nav.chat')}
+                      <button onClick={() => { setIsUserMenuOpen(false); onNavigate('/chat'); }} className="w-full px-3.5 py-2 text-xs text-left font-medium text-gray-700 hover:bg-gray-50">
+                        {t('nav.chat')}
                       </button>
                       {walletVisible && (
-                        <button onClick={() => { setIsUserMenuOpen(false); onNavigate('/wallet'); }} className="w-full px-3.5 py-2 text-xs text-left font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-                          <Wallet className="w-4 h-4 text-gray-400" /> {t('nav.wallet')}
+                        <button onClick={() => { setIsUserMenuOpen(false); onNavigate('/wallet'); }} className="w-full px-3.5 py-2 text-xs text-left font-medium text-gray-700 hover:bg-gray-50">
+                          {t('nav.wallet')}
                         </button>
                       )}
                     </div>
                     {(user.role === 'MODERATOR' || user.role === 'LEAD_MOD' || user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') && (
                       <div className="py-1 bg-amber-50/50">
-                        <button onClick={() => { setIsUserMenuOpen(false); onNavigate('/moderator'); }} className="w-full px-3.5 py-2 text-xs text-left font-semibold text-amber-800 hover:bg-amber-100/50 flex items-center gap-2">
-                          <Shield className="w-4 h-4 text-amber-600" /> {t('nav.moderatorPanel')}
+                        <button onClick={() => { setIsUserMenuOpen(false); onNavigate('/moderator'); }} className="w-full px-3.5 py-2 text-xs text-left font-semibold text-amber-800 hover:bg-amber-100/50">
+                          {t('nav.moderatorPanel')}
                         </button>
                         {(user.role === 'LEAD_MOD' || user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') && (
-                          <button onClick={() => { setIsUserMenuOpen(false); onNavigate('/lead'); }} className="w-full px-3.5 py-2 text-xs text-left font-semibold text-fuchsia-800 hover:bg-fuchsia-100/50 flex items-center gap-2">
-                            <Shield className="w-4 h-4 text-fuchsia-600" /> {t('nav.chiefPanel')}
+                          <button onClick={() => { setIsUserMenuOpen(false); onNavigate('/lead'); }} className="w-full px-3.5 py-2 text-xs text-left font-semibold text-fuchsia-800 hover:bg-fuchsia-100/50">
+                            {t('nav.chiefPanel')}
                           </button>
                         )}
                         {(user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') && (
-                          <button onClick={() => { setIsUserMenuOpen(false); onNavigate('/admin'); }} className="w-full px-3.5 py-2 text-xs text-left font-semibold text-blue-800 hover:bg-blue-100/50 flex items-center gap-2">
-                            <Settings className="w-4 h-4 text-blue-600" /> {t('nav.adminPanel')}
+                          <button onClick={() => { setIsUserMenuOpen(false); onNavigate('/admin'); }} className="w-full px-3.5 py-2 text-xs text-left font-semibold text-blue-800 hover:bg-blue-100/50">
+                            {t('nav.adminPanel')}
                           </button>
                         )}
                       </div>
                     )}
                     <div className="py-1">
-                      <button onClick={() => { setIsUserMenuOpen(false); logout(); }} className="w-full px-3.5 py-2 text-xs text-left font-medium text-rose-600 hover:bg-rose-50 flex items-center gap-2">
-                        <LogOut className="w-4 h-4 text-rose-500" /> {t('nav.logout')}
+                      <button onClick={() => { setIsUserMenuOpen(false); logout(); }} className="w-full px-3.5 py-2 text-xs text-left font-medium text-rose-600 hover:bg-rose-50">
+                        {t('nav.logout')}
                       </button>
                     </div>
                   </div>
@@ -664,22 +652,16 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
                 : 'inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.9), inset 0 -1px 1px rgba(22, 115, 230, 0.08), 0 8px 24px -6px rgba(22, 115, 230, 0.12)',
             }}
           >
-          {/* Barcha kataloglar — 3D TopHand Glass tugma */}
+          {/* Barcha kataloglar — oddiy flat uslub ("E'lon joylash" tugmasi kabi) */}
           <div className="relative shrink-0" ref={megaRef}>
             <button
               type="button"
               onClick={openMega}
-              className={`flex items-center gap-1.5 h-10 px-2.5 sm:px-4 rounded-2xl font-bold text-xs sm:text-sm text-white transition-all duration-300 cursor-pointer ${
-                isMegaOpen ? 'scale-95' : 'hover:scale-[1.02] active:scale-95'
+              className={`flex items-center gap-1.5 h-10 px-2.5 sm:px-4 rounded-xl th-accent-bg font-semibold text-xs sm:text-sm text-white transition-opacity cursor-pointer ${
+                isMegaOpen ? 'opacity-90' : 'hover:opacity-90'
               }`}
-              style={{
-                background: 'linear-gradient(145deg, #1E82EE 0%, #1673E6 48%, #125FD0 100%)',
-                border: '1.5px solid rgba(255, 255, 255, 0.85)',
-                boxShadow:
-                  '0 0 0 1.5px rgba(22, 115, 230, 0.45), 0 4px 12px rgba(22, 115, 230, 0.4), inset 0 2px 3px rgba(255, 255, 255, 0.9), inset 0 -2px 3px rgba(0, 0, 0, 0.2)',
-              }}
             >
-              <LayoutGrid className="w-5 h-5 sm:w-4 sm:h-4 shrink-0 drop-shadow-xs" />
+              <LayoutGrid className="w-5 h-5 sm:w-4 sm:h-4 shrink-0" />
               <span className="hidden sm:inline">{subContext ? t('nav.subcategories') : activeCatalogId ? t('nav.categories') : t('nav.catalogs')}</span>
               <ChevronDown className={`hidden sm:block w-3.5 h-3.5 transition-transform ${isMegaOpen ? 'rotate-180' : ''}`} />
             </button>

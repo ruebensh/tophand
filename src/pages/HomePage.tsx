@@ -1650,12 +1650,14 @@ export const HomePage: React.FC<HomePageProps> = ({
                     {/* O'ng: rasm — faqat desktop */}
                     <div className="hidden sm:block absolute right-0 top-0 bottom-0 w-1/2">
                       <img src="/catalog-heroes/avto-hero.jpg" alt=""
+                        decoding="async"
                         className="w-full h-full object-cover" />
                       <div className="absolute inset-0"
                            style={{ background: 'linear-gradient(90deg, #06101f 0%, transparent 40%)' }} />
                     </div>
                     {/* Mobil: rasm background */}
                     <img src="/catalog-heroes/avto-hero.jpg" alt=""
+                      decoding="async"
                       className="sm:hidden absolute inset-0 w-full h-full object-cover opacity-20" />
                     {/* Cyan bottom line */}
                     <div className="absolute bottom-0 left-0 right-0 h-0.5"
@@ -1666,7 +1668,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                 {/* ── REALTY HERO: To'liq rasm + breadcrumb + pastda stats qatori ── */}
                 {isUylar && (
                   <div className="relative w-full rounded-2xl overflow-hidden mb-5 min-h-[200px] sm:min-h-[280px]">
-                    <img src="/catalog-heroes/uylar-hero.jpg" alt="TopHand Uylar" className="absolute inset-0 w-full h-full object-cover" />
+                    <img src="/catalog-heroes/uylar-hero.jpg" alt="TopHand Uylar" decoding="async" className="absolute inset-0 w-full h-full object-cover" />
                     <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.55) 0%, transparent 40%, rgba(10,5,0,0.88) 100%)' }} />
                     {/* Breadcrumb top */}
                     <div className="absolute top-4 left-4 z-10">
@@ -1691,7 +1693,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                 {/* ── ZAPCHASTLAR HERO: Rasm to'la + texnik grid overlay + markazda panel ── */}
                 {isParts && (
                   <div className="relative w-full rounded-2xl overflow-hidden mb-5 min-h-[200px] sm:min-h-[280px]">
-                    <img src="/catalog-heroes/zapchast-hero.jpg" alt="Zapchastlar" className="absolute inset-0 w-full h-full object-cover" />
+                    <img src="/catalog-heroes/zapchast-hero.jpg" alt="Zapchastlar" decoding="async" className="absolute inset-0 w-full h-full object-cover" />
                     <div className="absolute inset-0" style={{ background: 'rgba(12,4,0,0.74)' }} />
                     {/* Texnik grid overlay */}
                     <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: 'linear-gradient(rgba(251,146,60,0.07) 1px,transparent 1px),linear-gradient(90deg,rgba(251,146,60,0.07) 1px,transparent 1px)', backgroundSize: '40px 40px' }} />
@@ -1712,7 +1714,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                 {/* ── HUNARMANDLAR HERO: Rasm o'ngda, chap artisan floating card ── */}
                 {isHandmade && (
                   <div className="relative w-full rounded-2xl overflow-hidden mb-5 min-h-[200px] sm:min-h-[280px]">
-                    <img src="/catalog-heroes/hunarmand-hero.jpg" alt="Hunarmandlar" className="absolute inset-0 w-full h-full object-cover" />
+                    <img src="/catalog-heroes/hunarmand-hero.jpg" alt="Hunarmandlar" decoding="async" className="absolute inset-0 w-full h-full object-cover" />
                     <div className="absolute inset-0" style={{ background: 'rgba(10,5,2,0.42)' }} />
                     {/* Floating artisan card — kattaroq, shisha (glass) + lupa effekti */}
                     <div className="relative z-10 flex items-center h-full min-h-[220px] sm:min-h-[300px] p-4 sm:p-5">
@@ -1731,6 +1733,8 @@ export const HomePage: React.FC<HomePageProps> = ({
                           src="/catalog-heroes/hunarmand-hero.jpg"
                           alt=""
                           aria-hidden
+                          loading="lazy"
+                          decoding="async"
                           className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-45 blur-[2px]"
                           style={{ transform: 'scale(1.9)' }}
                         />

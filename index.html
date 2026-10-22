@@ -13,10 +13,16 @@
     <link rel="apple-touch-icon" href="/favicon-light.png" />
 
     <!-- QA-01: Brend shriftini preconnect + stylesheet bilan oldindan bog'laymiz
-         (sobiq CSS @import render-bloklashchi edi). -->
+         (sobiq CSS @import render-bloklashchi edi).
+         PERF: stylesheet endi render-ni bloklamaydi — preload + onload almashtirish
+         usuli (display=swap bilan matn avval sistem shriftida ko'rinadi). -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" />
+    <link rel="preload" as="style" crossorigin href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" media="print" onload="this.media='all'" />
+    <noscript>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" />
+    </noscript>
 
     <!-- ─── SEO: asosiy kalit so'zlar (O'zbekiston bozori) ─── -->
     <title>TopHand — O'zbekistonda ko'p tarmoqli bozor: xizmatlar, tovarlar, ko'chmas mulk, transport va ish e'lonlari</title>

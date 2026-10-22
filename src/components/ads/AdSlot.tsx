@@ -216,17 +216,15 @@ export function AdSlot({
 
     const onClick = () => trackAdEvent(camp.id, 'click');
 
-    // CTA — banner/box ichidagi tugma ko'rinishi. Butun banner allaqachon <a>
-    // bilan o'ralgan, shuning uchun bu <span> bo'ladi (ichma-ich <a> HTML
-    // invalidligi va React hydration xatosining oldini oladi). Klik ota-<a> ga
-    // ko'tarilib, yo'naltirish va click-tracking avtomatik ishlaydi.
     const cta = (
-      <span
+      <a
+        {...linkProps}
+        onClick={onClick}
         className="inline-flex items-center gap-1 rounded-full bg-[#1673E6] px-3.5 py-1.5 text-[11px] sm:text-xs font-bold text-white shadow-xs hover:bg-blue-700 transition-colors whitespace-nowrap"
       >
         {camp.cta_label || t('ads.ctaDefault')}
         <span aria-hidden>→</span>
-      </span>
+      </a>
     );
 
     const yt = camp.type === 'video' && camp.video_url ? youtubeId(camp.video_url) : null;
@@ -283,19 +281,26 @@ export function AdSlot({
             onClick={onClick}
             className="block flex-1"
           >
-            <div className="aspect-square overflow-hidden bg-gradient-to-br from-[#F5F8FF] to-[#EEF4FF]">
-              {media || (
-                <div className="flex h-full items-center justify-center px-3 text-center">
-                  <span className="text-sm font-extrabold text-[#172B4D]">{camp.title}</span>
-                </div>
-              )}
+            {/* Rasm maydoni — ListingCard grid kartasi bilan BIR XIL nisbat (66%),
+                shunda qatordagi kartalar o'lchami o'zgarmaydi. */}
+            <div
+              className="relative w-full overflow-hidden bg-gradient-to-br from-[#F5F8FF] to-[#EEF4FF]"
+              style={{ paddingBottom: '66%' }}
+            >
+              <div className="absolute inset-0">
+                {media || (
+                  <div className="flex h-full items-center justify-center px-3 text-center">
+                    <span className="text-sm font-extrabold text-[#172B4D]">{camp.title}</span>
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="p-3">
+            <div className="p-2.5">
               <p className="text-[13px] font-bold text-gray-900 line-clamp-2 leading-snug">{camp.title}</p>
               {camp.body && <p className="mt-1 text-[11px] text-[#5E6C84] line-clamp-2">{camp.body}</p>}
             </div>
           </a>
-          <div className="px-3 pb-3 flex items-center justify-between gap-2">
+          <div className="px-2.5 pb-2.5 flex items-center justify-between gap-2">
             <a
               {...linkProps}
               onClick={onClick}
@@ -375,12 +380,18 @@ export function AdSlot({
 
   if (variant === 'card') {
     return (
-      <div className={`relative overflow-hidden rounded-2xl border border-[#EBECF0] bg-white ${className}`}>
+      <div className={`relative flex flex-col overflow-hidden rounded-2xl border border-[#EBECF0] bg-white ${className}`}>
         {badge}
-        <div className="flex aspect-square items-center justify-center bg-gradient-to-br from-[#F5F8FF] to-[#EEF4FF]">
-          <span className="text-3xl">📣</span>
+        {/* Nisbat ListingCard (66%) bilan bir xil — qator kengligi saqlanadi. */}
+        <div
+          className="relative w-full overflow-hidden bg-gradient-to-br from-[#F5F8FF] to-[#EEF4FF]"
+          style={{ paddingBottom: '66%' }}
+        >
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-3xl">📣</span>
+          </div>
         </div>
-        <div className="p-3">
+        <div className="p-2.5">
           <div className="h-3.5 w-3/4 rounded bg-gray-100" />
           <div className="mt-2 h-3 w-1/2 rounded bg-gray-100" />
           <p className="mt-2 text-[11px] font-medium text-[#5E6C84]">{t('ads.slotForAd')}</p>

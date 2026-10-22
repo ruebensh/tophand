@@ -58,7 +58,9 @@ const makeDefaults = (user: any): WizardFormValues => ({
   salaryType: 'SALARY_FIXED', salaryMin: '', salaryMax: '',
   workFormat: 'ONSITE', experienceLevel: '1-3',
   regionId: user?.region_id || '', districtId: user?.district_id || '',
-  latitude: user?.latitude, longitude: user?.longitude,
+  // user obyekti ham NUMERIC'ni satr qaytishi mumkin — .toFixed() crash oldini olish.
+  latitude: Number.isFinite(Number(user?.latitude)) && user?.latitude != null && user?.latitude !== '' ? Number(user.latitude) : undefined,
+  longitude: Number.isFinite(Number(user?.longitude)) && user?.longitude != null && user?.longitude !== '' ? Number(user.longitude) : undefined,
   contactTime: 'ANY_TIME', contactCustomText: '', organizationId: '',
   images: [], videos: [],
 });
@@ -94,6 +96,8 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
   // Saqlangan qoralama id'si — keyincha PUT bilan yangilanadi (takror POST bo'lmaydi).
   const draftIdRef = useRef<string | null>(null);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Avtoyaratiladigan DRAFT POSTining qo'shaloq oldini olish (in-flight belgisi).
+  const draftCreatingRef = useRef(false);
 
   // ── AI state ──
   const [aiSuggestion, setAiSuggestion] = useState<AiSuggestion | null>(null);
@@ -228,8 +232,10 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
           experienceLevel: l.experience_level || '1-3',
           regionId: l.region_id || '',
           districtId: l.district_id || '',
-          latitude: l.latitude != null ? l.latitude : undefined,
-          longitude: l.longitude != null ? l.longitude : undefined,
+          // BUGFIX: server NUMERIC ustunlarni SATR qilib qaytaradi — `.toFixed()`
+          // string'da chaqirilsa oq ekran (crash) bo'lardi. Number'ga keltiramiz.
+          latitude: l.latitude != null && l.latitude !== '' && Number.isFinite(Number(l.latitude)) ? Number(l.latitude) : undefined,
+          longitude: l.longitude != null && l.longitude !== '' && Number.isFinite(Number(l.longitude)) ? Number(l.longitude) : undefined,
           contactTime: l.contact_time || 'ANY_TIME',
           contactCustomText: l.contact_custom_text || '',
           organizationId: l.organization_id || '',
@@ -581,27 +587,46 @@ export const CreateListingPage: React.FC<CreateListingPageProps> = ({ onNavigate
     }
   }, [getValues, buildPayload, composeDescription, isEditing, editListingId, t]);
 
-  // ── Avtosaqlash: faqat mavjud qoralama (id) bo'lganda, o'zgarishlardan ~2.5s keyin PUT ──
+  // ── Avtosaqlash (qoralama) ──
+  // Yangi e'londa: minimal ma'lumot (katalog+tur+kategoriya+sarlavha+lokatsiya)
+  // to'lgach 2.5s debounce bilan DRAFT yaratiladi — foydalanuvchi oxiriga
+  // yetmasa ham qoralamalar bo'limida ko'rinadi va davom ettiriladi.
+  // Mavjud qoralama sonkeyin PUT bilan yangilanadi. ACTIVE tahrirlashda
+  // avtosaqlash ISHLAMAYDI (qoralama ustiga yozib yubormasligi uchun).
   useEffect(() => {
-    if (!isDraftEditing) return;
+    if (isEditing && !isDraftEditing) return;
     const sub = watch(() => {
       if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
       autosaveTimerRef.current = setTimeout(() => {
         const id = draftIdRef.current;
-        if (!id) return;
         const d = getValues();
         if (!d.title.trim() || !d.categoryId || !d.regionId || !d.districtId) return;
         const payload = buildPayload(d, composeDescription(d), { publish: false });
-        apiRequest(`/api/listings/${id}`, { method: 'PUT', body: JSON.stringify(payload) })
-          .then(() => setLastDraftSavedAt(Date.now()))
-          .catch(() => { /* jim o'tamiz */ });
+        if (!id) {
+          // Hali qoralama yo'q — bir marta POST bilan yaratamiz.
+          if (!d.catalogId || !d.type) return;
+          if (draftCreatingRef.current || isSubmitting) return;
+          draftCreatingRef.current = true;
+          apiRequest<any>('/api/listings', { method: 'POST', body: JSON.stringify(payload) })
+            .then((res) => {
+              draftIdRef.current = res.id;
+              setIsDraftEditing(true);
+              setLastDraftSavedAt(Date.now());
+            })
+            .catch(() => { /* jim o'tamiz — keyingi o'zgarishda qayta uriladi */ })
+            .finally(() => { draftCreatingRef.current = false; });
+        } else {
+          apiRequest(`/api/listings/${id}`, { method: 'PUT', body: JSON.stringify(payload) })
+            .then(() => setLastDraftSavedAt(Date.now()))
+            .catch(() => { /* jim o'tamiz */ });
+        }
       }, 2500);
     });
     return () => {
       sub.unsubscribe();
       if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
     };
-  }, [isDraftEditing, watch, getValues, buildPayload, composeDescription]);
+  }, [isEditing, isDraftEditing, isSubmitting, watch, getValues, buildPayload, composeDescription]);
 
   const onCaptchaChange = useCallback((token: string) => { captchaTokenRef.current = token; }, []);
 

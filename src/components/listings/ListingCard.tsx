@@ -171,8 +171,8 @@ export const ListingCard: React.FC<ListingCardProps> = ({
         dimmed ? ' opacity-60 saturate-[.4]' : ''
       }`}
     >
-      {/* ── PHOTO ── */}
-      <div className="relative w-full overflow-hidden bg-gray-100" style={{ paddingBottom: '75%' }}>
+      {/* ── PHOTO ── (66% — ixchamroq, reklama kartasi bilan bir xil nisbat) */}
+      <div className="relative w-full overflow-hidden bg-gray-100" style={{ paddingBottom: '66%' }}>
         {coverImage && !imgFailed ? (
           isVideoCover ? (
             <video
@@ -259,7 +259,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
       </div>
 
       {/* ── CONTENT (below photo, like Avito) ── */}
-      <div className="p-3 flex flex-col gap-1 flex-1">
+      <div className="p-2.5 flex flex-col gap-1 flex-1">
 
         {/* Holat belgisi (ixtiyoriy) — profil/arxiv ko'rinishi uchun */}
         {statusBadge && <div className="mb-0.5 self-start">{statusBadge}</div>}
@@ -271,7 +271,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
             <span>{t('listing.completed')}</span>
           </div>
         ) : (
-          <div className="text-lg font-extrabold leading-tight text-ink">
+          <div className="text-base font-extrabold leading-tight text-ink">
             <PriceDisplay
               priceType={listing.price_type}
               priceMin={listing.price_min}
@@ -281,7 +281,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
               salaryMin={listing.salary_min}
               salaryMax={listing.salary_max}
               isJob={isJob}
-              className="text-brand-dark font-extrabold text-lg"
+              className="text-brand-dark font-extrabold text-base"
             />
           </div>
         )}
@@ -292,7 +292,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
         </h3>
 
         {/* Location */}
-        <div className="mt-1 flex items-center gap-0.5 text-[11px] text-gray-400">
+        <div className="mt-0.5 flex items-center gap-0.5 text-[11px] text-gray-400">
           <MapPin className="w-3 h-3 shrink-0" />
           <span className="truncate leading-none">
             {[listing.district_name, listing.region_name].filter(Boolean).join(', ')}

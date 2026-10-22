@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { apiRequest } from '../../lib/api.ts';
 import { DollarSign, Save, Loader2, CheckCircle2, Rocket, RefreshCw, Megaphone } from 'lucide-react';
 import { useI18n } from '../../i18n/IntlContext.tsx';
-import ToggleSwitch from '../common/ToggleSwitch.tsx';
 
 /** Shape returned by GET /api/admin/monetization (MonetizationConfig). */
 interface AdminMonetizationConfig {
@@ -45,23 +44,23 @@ const AdToggle: React.FC<{
   disabled?: boolean;
   onChange: (v: boolean) => void;
 }> = ({ label, hint, checked, disabled, onChange }) => (
-  <div
+  <label
     className={`flex items-start justify-between gap-3 p-3 rounded-2xl border transition-colors ${
-      disabled ? 'bg-gray-50/50 border-gray-100 opacity-50 cursor-not-allowed' : ''
+      disabled ? 'bg-gray-50/50 border-gray-100 opacity-50 cursor-not-allowed' : 'cursor-pointer'
     } ${checked && !disabled ? 'bg-blue-50/60 border-blue-200' : 'bg-white border-gray-200 hover:bg-gray-50'}`}
   >
     <span className="min-w-0">
       <span className="block text-xs font-bold text-gray-800">{label}</span>
       <span className="block text-[11px] text-gray-400 mt-0.5">{hint}</span>
     </span>
-    <ToggleSwitch
-      size="sm"
+    <input
+      type="checkbox"
       checked={checked}
       disabled={disabled}
-      onChange={onChange}
-      ariaLabel={label}
+      onChange={(e) => onChange(e.target.checked)}
+      className="w-4 h-4 mt-0.5 accent-blue-600 shrink-0"
     />
-  </div>
+  </label>
 );
 
 export const MonetizationSettings: React.FC = () => {

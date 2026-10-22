@@ -216,11 +216,16 @@ app.use('/uploads', express.static(uploadDir, {
 }));
 
 // Static public assets folder (logos, icons, favicons)
+// PERF: rasm/font resurslari 7 kun cache — qayta tashrifda tarqatish tezlaydi.
+// (sw.js va HTML'lar maydon-check orqali tashqarida qoladi — ular har doim yangi.)
 const publicDir = path.resolve(process.cwd(), 'public');
 app.use(express.static(publicDir, {
-  setHeaders: (res) => {
+  setHeaders: (res, filePath) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    if (/\.(png|jpe?g|webp|avif|svg|ico|woff2?)$/i.test(filePath)) {
+      res.setHeader('Cache-Control', 'public, max-age=604800');
+    }
   }
 }));
 
@@ -335,7 +340,19 @@ async function startServer() {
       app.use(vite.middlewares);
     } else {
       const distDir = path.resolve(process.cwd(), 'dist');
-      app.use(express.static(distDir, { index: false }));
+      // PERF: content-hashed /assets/* fayllari 1 yil immutable cache (nomi
+      // har build'da o'zgaradi, shuning uchun xavfsiz); qolgan statik resurslar
+      // (public'dan ko'chirilgan rasmlar) 7 kun.
+      app.use(express.static(distDir, {
+        index: false,
+        setHeaders: (res, filePath) => {
+          if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          } else if (/\.(png|jpe?g|webp|avif|svg|ico|woff2?)$/i.test(filePath)) {
+            res.setHeader('Cache-Control', 'public, max-age=604800');
+          }
+        },
+      }));
       app.get('*', async (req, res) => {
         const htmlFile = path.resolve(distDir, 'index.html');
         const googleClientId = process.env.VITE_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || '';
@@ -355,6 +372,8 @@ async function startServer() {
             );
           }
           res.setHeader('Content-Type', 'text/html; charset=utf-8');
+          // HTML hech qachon cache qilinmaydi — yangi build darhol ko'rinadi.
+          res.setHeader('Cache-Control', 'no-cache');
           res.send(html);
         } catch {
           res.sendFile(htmlFile);

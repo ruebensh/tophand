@@ -83,6 +83,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
   const [isFollowed, setIsFollowed] = useState(false);
   const [isFollowLoading, setIsFollowLoading] = useState(false);
   const [isRenewing, setIsRenewing] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
 
   // Monetization state (Faza 5)
   const [monetization, setMonetization] = useState<PublicMonetization | null>(null);
@@ -310,6 +311,22 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
       fetchDetail();
     } finally {
       setIsRenewing(false);
+    }
+  };
+
+  // «Yakunlash» — e'lon bajarilgan deb yopiladi va egasining arxiviga o'tadi
+  // (server status=COMPLETED qo'yadi; COMPLETEDlar Arxiv tab'ida ko'rinadi).
+  const handleComplete = async () => {
+    if (!user) return;
+    if (!window.confirm(t('profile.completeConfirm'))) return;
+    setIsCompleting(true);
+    try {
+      await apiRequest(`/api/listings/${listingId}/complete`, { method: 'POST' });
+      fetchDetail();
+    } catch (err: any) {
+      alert(err.message || t('profile.errComplete'));
+    } finally {
+      setIsCompleting(false);
     }
   };
 
@@ -578,6 +595,15 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                 {promoPrice > 0 ? ` · ${promoPrice.toLocaleString(intlLocale)} ${t('wallet.som')}` : ` · ${t('common.free')}`}
               </span>
             </button>
+            {/* Yakunlash — e'lon bajarilgan deb yopib, arxivga o'tkaziladi. */}
+            <button
+              onClick={handleComplete}
+              disabled={isCompleting}
+              className="px-4 py-2 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs flex items-center gap-1.5"
+            >
+              <CheckCircle2 className={`w-3.5 h-3.5 ${isCompleting ? 'animate-pulse' : ''}`} />
+              <span>{t('profile.completeListing')}</span>
+            </button>
           </div>
         </div>
       )}
@@ -619,6 +645,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                       key={selectedImageIdx}
                       src={currentMedia}
                       alt={title}
+                      decoding="async"
                       className="w-full h-full object-cover th-gallery-img"
                     />
                   )}
@@ -678,7 +705,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                             </span>
                           </div>
                         ) : (
-                          <img src={img} alt={t('detail.imageAlt', { n: idx + 1 })} className="w-full h-full object-cover" />
+                          <img src={img} alt={t('detail.imageAlt', { n: idx + 1 })} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                         )}
                       </button>
                     ))}
@@ -1056,7 +1083,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                 {listing.employer_review_count && listing.employer_review_count > 0 && listing.employer_rating ? (
                   <a href="#reviews" className="mt-1 flex items-center gap-1 text-amber-600 hover:underline">
                     <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                    <span className="text-xs font-bold">{listing.employer_rating.toFixed(1)}</span>
+                    <span className="text-xs font-bold">{Number(listing.employer_rating).toFixed(1)}</span>
                     <span className="text-[11px] text-gray-500">({t('common.count', { n: listing.employer_review_count })})</span>
                   </a>
                 ) : (

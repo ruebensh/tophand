@@ -118,7 +118,10 @@ const SummaryReview: React.FC<{ onEdit: (step: number) => void }> = ({ onEdit })
       <GroupCard title={t('wizard.step.location')} icon={<MapPin className="w-3.5 h-3.5 text-blue-600" />} onEdit={() => onEdit(4)}>
         <Row k={t('create.regionLabel')} v={region ? localized(region) : undefined} />
         <Row k={t('create.districtLabel')} v={district ? localized(district) : undefined} />
-        {v.latitude && v.longitude && <Row k="GPS" v={`${v.latitude.toFixed(4)}, ${v.longitude.toFixed(4)}`} />}
+        {/* Number() keltiramiz: server NUMERIC'ni satr qaytarsa .toFixed() crash qiladi */}
+        {v.latitude && v.longitude && Number.isFinite(Number(v.latitude)) && Number.isFinite(Number(v.longitude)) && (
+          <Row k="GPS" v={`${Number(v.latitude).toFixed(4)}, ${Number(v.longitude).toFixed(4)}`} />
+        )}
       </GroupCard>
 
       {/* MEDIA */}

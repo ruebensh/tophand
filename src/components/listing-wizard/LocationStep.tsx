@@ -138,8 +138,9 @@ const LocationStep: React.FC = () => {
         <div className="flex items-center gap-2 text-gray-700">
           <MapPin className="w-4 h-4 text-blue-600 shrink-0" />
           <span>
-            {latitude && longitude
-              ? `${t('create.gpsSet')} (${latitude.toFixed(4)}, ${longitude.toFixed(4)})`
+            {latitude && longitude && Number.isFinite(Number(latitude)) && Number.isFinite(Number(longitude))
+              // Number() — server NUMERIC'ni satr qaytishi mumkin (.toFixed() crash).
+              ? `${t('create.gpsSet')} (${Number(latitude).toFixed(4)}, ${Number(longitude).toFixed(4)})`
               : t('create.gpsNearby')}
           </span>
         </div>

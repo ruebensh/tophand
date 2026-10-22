@@ -394,6 +394,19 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     }
   };
 
+  // «Yakunlash» — faol e'lon bajarilgan deb yopiladi (status=COMPLETED) va
+  // avtomatik Arxiv tab'iga o'tadi (server COMPLETEDlarni arxiv so'roviga kiritadi).
+  const handleCompleteListing = async (listingId: string) => {
+    if (!window.confirm(t('profile.completeConfirm'))) return;
+    try {
+      await apiRequest(`/api/listings/${listingId}/complete`, { method: 'POST' });
+      alert(t('profile.completeOk'));
+      fetchProfile();
+    } catch (err: any) {
+      alert(err.message || t('profile.errComplete'));
+    }
+  };
+
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSavingProfile(true);
@@ -776,6 +789,19 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                     key={l.id}
                     listing={l}
                     onClick={() => onOpenListing(l.id)}
+                    footer={isOwner ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCompleteListing(l.id);
+                        }}
+                        className="w-full py-1.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>{t('profile.completeListing')}</span>
+                      </button>
+                    ) : undefined}
                   />
                 ))}
               </div>
@@ -1513,6 +1539,19 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                     key={l.id}
                     listing={l}
                     onClick={() => onOpenListing(l.id)}
+                    footer={isOwner ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCompleteListing(l.id);
+                        }}
+                        className="w-full py-2 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>{t('profile.completeListing')}</span>
+                      </button>
+                    ) : undefined}
                   />
                 ))}
               </div>
