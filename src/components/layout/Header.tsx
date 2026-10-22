@@ -646,20 +646,17 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
       </header>
 
       {/* ── Toolbar: qidiruv + kataloglar/xarita — sticky; header tepaga ketgach,
-          uning o'rnini bosib tepada qoladi. MobileNav bilan uyg'unlashgan Liquid Glassmorphism. ── */}
-      <div className={`sticky top-0 z-40 transition-all duration-300 ${hideToolbarEverywhere ? 'hidden' : hideToolbarDesktop ? 'lg:hidden' : ''} ${isScrolled ? 'bg-white/60 backdrop-blur-md shadow-xs' : 'bg-transparent'}`}>
-        <div className={`max-w-[1440px] w-full mx-auto px-3 sm:px-8 transition-all duration-300 ${isScrolled ? 'py-1 sm:py-2' : 'py-2 sm:py-3'}`}>
+          uning o'rnini bosib tepada qoladi. Animatsiya: faqat GPU xossalar
+          (transform + rang/soya crossfade, 200ms) — padding/blur morphing yo'q,
+          shuning uchun qotish (reflow/repaint) bo'lmaydi. ── */}
+      <div className={`sticky top-0 z-40 transition-colors duration-200 ${hideToolbarEverywhere ? 'hidden' : hideToolbarDesktop ? 'lg:hidden' : ''} ${isScrolled ? 'bg-white' : 'bg-transparent'}`}>
+        <div className="max-w-[1440px] w-full mx-auto px-3 sm:px-8 py-1.5 sm:py-2">
           <div
-            className={`flex w-full items-center gap-1.5 sm:gap-2 rounded-[28px] border transition-all duration-300 ${
+            className={`flex w-full items-center gap-1.5 sm:gap-2 rounded-[28px] border px-2 sm:px-3 py-1.5 origin-top will-change-transform transition-[transform,background-color,border-color,box-shadow] duration-200 ease-out ${
               isScrolled
-                ? 'border-white/80 bg-gradient-to-r from-white/85 via-white/70 to-white/80 backdrop-blur-xl shadow-[0_12px_36px_-8px_rgba(22,115,230,0.18),0_4px_16px_rgba(0,0,0,0.06)] py-1.5 px-2 sm:px-3'
-                : 'border-white/75 bg-gradient-to-r from-white/75 via-white/55 to-white/65 backdrop-blur-lg shadow-[0_8px_26px_-6px_rgba(22,115,230,0.12),0_2px_10px_rgba(0,0,0,0.04)] py-2 sm:py-2.5 px-2.5 sm:px-4'
+                ? 'scale-[0.985] bg-white border-[#E3E8EF] shadow-[0_6px_18px_-6px_rgba(22,115,230,0.18)]'
+                : 'scale-100 bg-[#F6F8FB] border-[#E6EAF0] shadow-[0_2px_10px_rgba(22,115,230,0.06)]'
             }`}
-            style={{
-              boxShadow: isScrolled
-                ? 'inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.95), inset 0 -1px 2px rgba(22, 115, 230, 0.1), 0 12px 34px -8px rgba(22, 115, 230, 0.18)'
-                : 'inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.9), inset 0 -1px 1px rgba(22, 115, 230, 0.08), 0 8px 24px -6px rgba(22, 115, 230, 0.12)',
-            }}
           >
           {/* Barcha kataloglar — oddiy flat uslub ("E'lon joylash" tugmasi kabi) */}
           <div className="relative shrink-0" ref={megaRef}>
@@ -684,10 +681,10 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
             )}
           </div>
 
-          {/* Qidiruv — Kristall Shisha Input */}
+          {/* Qidiruv — oddiy solid input (yangi solid pill uslubiga mos) */}
           <form
             onSubmit={handleSearchSubmit}
-            className="flex items-center flex-1 min-w-0 h-10 bg-white/60 hover:bg-white/80 focus-within:bg-white border border-white/80 focus-within:border-[#1673E6] focus-within:ring-2 focus-within:ring-blue-100 rounded-full px-3.5 transition-all shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]"
+            className="flex items-center flex-1 min-w-0 h-10 bg-white hover:bg-[#FBFCFE] focus-within:bg-white border border-[#E3E8EF] focus-within:border-[#1673E6] focus-within:ring-2 focus-within:ring-blue-100 rounded-full px-3.5 transition-colors duration-150 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]"
           >
             <button type="submit" className="shrink-0 text-[#1673E6]" aria-label={t('nav.search')}>
               <Search className="w-5 h-5 sm:w-4 sm:h-4" />
@@ -714,11 +711,11 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
           {/* Til almashtgich */}
           <LocaleSwitcher />
 
-          {/* Xarita tugmasi — Shisha Kapsula */}
+          {/* Xarita tugmasi — solid kapsula */}
           <button
             type="button"
             onClick={() => setIsMapOpen(true)}
-            className="flex items-center gap-1.5 h-10 w-10 sm:w-auto sm:px-3 justify-center shrink-0 rounded-2xl text-xs sm:text-sm font-bold text-[#0f172a] bg-white/70 hover:bg-white/95 border border-white/80 hover:border-[#1673E6]/60 shadow-2xs transition-all cursor-pointer active:scale-95"
+            className="flex items-center gap-1.5 h-10 w-10 sm:w-auto sm:px-3 justify-center shrink-0 rounded-2xl text-xs sm:text-sm font-bold text-[#0f172a] bg-white hover:bg-[#F4F7FB] border border-[#E6EAF0] hover:border-[#1673E6]/60 shadow-2xs transition-[transform,background-color,border-color] duration-150 cursor-pointer active:scale-95"
             title={t('nav.mapAllListings')}
           >
             <MapIcon className="w-5 h-5 sm:w-4 sm:h-4 text-[#1673E6] shrink-0" />
