@@ -676,7 +676,27 @@ async function main() {
         assert(mb4.status === 200, 'desktop UA: /api/admin → 200 (ruxsat etilgan)');
 
         const mb5 = await req('/api/catalogs', { headers: { 'user-agent': MOBILE_UA } });
-        assert(mb5.status === 200, 'mobil UA: GET /api/catalogs (public) → 200, ta\'sirlanmaydi'); 
+        assert(mb5.status === 200, 'mobil UA: GET /api/catalogs (public) → 200, ta\'sirlanmaydi');
+      }
+      
+      // ── Seed non-destructive: syncCategories() admin o'zgarishlarini qayta yozmaydi ──
+      {
+        const anyCat = await queryOne<any>('SELECT id, sort_order FROM catalogs ORDER BY created_at ASC LIMIT 1');
+        if (anyCat) {
+          const newOrder = Number(anyCat.sort_order ?? 0) === 77 ? 78 : 77;
+          await runQuery('UPDATE catalogs SET sort_order = ? WHERE id = ?', [newOrder, anyCat.id]);
+          // Admin panel orqali qo'shilgan kategoriya (seed'da yo'q id)
+          const kRes = await req('/api/admin/categories', { ...authJson({ name_uz: `Integ SeedK ${RUN_ID}`, slug: `itg-seedk-${RUN_ID}`, catalog_id: anyCat.id }, adminToken) });
+          const kBody: any = await kRes.json().catch(() => ({}));
+          const { syncCategories } = await import('../server/db/init.ts');
+          await syncCategories();
+          const after = await queryOne<any>('SELECT sort_order FROM catalogs WHERE id = ?', [anyCat.id]);
+          assert(Number(after?.sort_order) === newOrder, "seed: syncCategories katalog sort_order'ini qayta yozmaydi");
+          const kAfter = await queryOne<any>('SELECT is_active FROM categories WHERE id = ?', [kBody.id]);
+          assert(!!kAfter && Number(kAfter.is_active) === 1, "seed: admin qo'shgan kategoriya sync'dan keyin ham faol");
+          try { await runQuery('DELETE FROM categories WHERE id = ?', [kBody.id]); } catch {}
+          try { await runQuery('UPDATE catalogs SET sort_order = ? WHERE id = ?', [Number(anyCat.sort_order ?? 0), anyCat.id]); } catch {}
+        }
       }
 
       // ── SEO: sitemap.xml professional + Google Image sitemap ──

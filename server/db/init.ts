@@ -575,78 +575,46 @@ export async function initDatabase() {
 }
 
 // ─── Seed catalogs + categories ────────────────────────────────────────
+// DIQQAT: seed NON-DESTRUCTIVE — admin panel endi source of truth.
+// ON CONFLICT DO NOTHING: mavjud qatorlarning nomi, tartibi (sort_order),
+// is_active va boshqa admin tahrirlagan maydonlari seed bilan BOSQILMAYDI.
+// (Avval DO UPDATE edi — har cold-start'da admin reorder/qayta nomlash
+// natijalari seed qiymatlariga qaytib ketardi.)
 export async function syncCategories() {
   const now = new Date().toISOString();
 
-  // 1. Sync catalogs (services, jobs, etc.)
+  // 1. Catalogs (services, jobs, etc.) — faqat yangi id'lar qo'shiladi
   for (const cat of CATALOGS_LIST) {
     await pool.query(`
       INSERT INTO catalogs (id, name_uz, name_ru, name_en, slug, icon, description, listing_types, sort_order, is_active, created_at, updated_at)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 1, $10, $11)
-      ON CONFLICT (id) DO UPDATE SET
-        name_uz = EXCLUDED.name_uz,
-        name_ru = EXCLUDED.name_ru,
-        name_en = EXCLUDED.name_en,
-        slug = EXCLUDED.slug,
-        icon = EXCLUDED.icon,
-        description = EXCLUDED.description,
-        listing_types = EXCLUDED.listing_types,
-        sort_order = EXCLUDED.sort_order,
-        updated_at = EXCLUDED.updated_at
+      ON CONFLICT (id) DO NOTHING
     `, [cat.id, cat.name_uz, cat.name_ru ?? null, cat.name_en ?? null, cat.slug, cat.icon, cat.description, cat.listing_types, cat.sort_order, now, now]);
   }
   console.log(`✅ Catalogs synced: ${CATALOGS_LIST.length} catalogs.`);
 
-  // 2. Sync categories (all catalogs). Collects seeded ids so removed ones can be
-  //    deactivated (kept for FK integrity) instead of deleted.
-  const seededIds: string[] = [];
+  // 2. Categories (all catalogs) — faqat yangi id'lar qo'shiladi. Avvalgisidek
+  // "seed'da yo'q qatorlarni deactivate qilish" endi QILINMAYDI: admin panel
+  // orqali qo'shilgan kategoriyalar ham seed'da yo'q — ular o'chib qolardi.
+  // Kategoriyalar tartibi/tarkibi endi admin panelning mas'uliyati.
   let order = 1;
   for (const parent of ALL_CATALOG_CATEGORIES) {
     const catalogId = parent.catalog_id || 'services';
     const scope = parent.scope ?? null;
-    seededIds.push(parent.id);
     await pool.query(`
       INSERT INTO categories (id, catalog_id, name_uz, slug, icon, parent_id, scope, is_active, sort_order, created_at, updated_at)
       VALUES ($1,$2,$3,$4,$5,NULL,$6,1,$7,$8,$9)
-      ON CONFLICT (id) DO UPDATE SET
-        catalog_id = EXCLUDED.catalog_id,
-        name_uz = EXCLUDED.name_uz,
-        slug = EXCLUDED.slug,
-        icon = EXCLUDED.icon,
-        parent_id = NULL,
-        scope = EXCLUDED.scope,
-        is_active = 1,
-        sort_order = EXCLUDED.sort_order,
-        updated_at = EXCLUDED.updated_at
+      ON CONFLICT (id) DO NOTHING
     `, [parent.id, catalogId, parent.name_uz, parent.slug, parent.icon, scope, order++, now, now]);
 
     let subOrder = 1;
     for (const sub of parent.subs) {
-      seededIds.push(sub.id);
       await pool.query(`
         INSERT INTO categories (id, catalog_id, name_uz, slug, icon, parent_id, scope, is_active, sort_order, created_at, updated_at)
         VALUES ($1,$2,$3,$4,'Layers',$5,$6,1,$7,$8,$9)
-        ON CONFLICT (id) DO UPDATE SET
-          catalog_id = EXCLUDED.catalog_id,
-          name_uz = EXCLUDED.name_uz,
-          slug = EXCLUDED.slug,
-          parent_id = EXCLUDED.parent_id,
-          scope = EXCLUDED.scope,
-          is_active = 1,
-          sort_order = EXCLUDED.sort_order,
-          updated_at = EXCLUDED.updated_at
+        ON CONFLICT (id) DO NOTHING
       `, [sub.id, catalogId, sub.name_uz, sub.slug, parent.id, scope, subOrder++, now, now]);
     }
-  }
-
-  // Deactivate any category that is no longer in the seed (old taxonomy) — never
-  // DELETE, because listings.category_id has an FK to categories.
-  if (seededIds.length > 0) {
-    const ph = seededIds.map((_, i) => `$${i + 1}`).join(',');
-    await pool.query(
-      `UPDATE categories SET is_active = 0 WHERE id NOT IN (${ph})`,
-      seededIds
-    );
   }
 
   // Update existing listings catalog_id if null, based on listing type
