@@ -7,6 +7,7 @@ import { AdsProvider } from './context/AdsContext.tsx';
 import { GeoProvider } from './context/GeoContext.tsx';
 import { Header } from './components/layout/Header.tsx';
 import { ADMIN_PANEL_PATH } from './lib/utils.ts';
+import { useIsMobile } from './lib/useIsMobile.ts';
 import { StepUpPromptModal } from './components/admin/StepUpPromptModal.tsx';
 import { MobileNav } from './components/layout/MobileNav.tsx';
 import { Footer } from './components/layout/Footer.tsx';
@@ -42,15 +43,9 @@ const AppContent: React.FC = () => {
   );
   const [homeStamp, setHomeStamp] = useState(0);
 
-  // Mobil responsive (<768px, md breykpoint — MobileNav bilan bir xil):
-  // admin panel bunda butunlay o'chirilgan — hatto admin akkauntida ham.
-  const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches);
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 767px)');
-    const onChange = (e: MediaQueryListEvent) => setIsMobile(e.matches);
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
-  }, []);
+  // Mobil responsive (<768px): barcha boshqaruv panellari (admin/moderator/lead)
+  // bunda butunlay cheklangan — hatto tegishli akkauntlarda ham.
+  const isMobile = useIsMobile();
 
   // Sync browser popstate (back/forward)
   useEffect(() => {
@@ -215,6 +210,15 @@ const AppContent: React.FC = () => {
 
     // 9. Moderator Dashboard: /moderator
     if (currentRoute === '/moderator') {
+      // Mobil ekranda boshqaruv panellari umuman ochilmaydi.
+      if (isMobile) {
+        return (
+          <div className="max-w-md mx-auto py-16 text-center">
+            <h3 className="font-bold text-base text-gray-900">{t('common.accessDenied')}</h3>
+            <p className="text-xs text-gray-500 mt-1">{t('common.mobileStaffBlocked')}</p>
+          </div>
+        );
+      }
       const STAFF_ROLES = ['INTERN_MOD', 'MODERATOR', 'LEAD_MOD', 'ADMIN', 'SUPER_ADMIN'];
       if (!user || !STAFF_ROLES.includes(user.role)) {
         return (
@@ -280,6 +284,15 @@ const AppContent: React.FC = () => {
 
     // 9b. Chief Moderator Dashboard: /lead (bosh moderator uchun alohida panel)
     if (currentRoute === '/lead') {
+      // Mobil ekranda boshqaruv panellari umuman ochilmaydi.
+      if (isMobile) {
+        return (
+          <div className="max-w-md mx-auto py-16 text-center">
+            <h3 className="font-bold text-base text-gray-900">{t('common.accessDenied')}</h3>
+            <p className="text-xs text-gray-500 mt-1">{t('common.mobileStaffBlocked')}</p>
+          </div>
+        );
+      }
       const LEAD_ROLES = ['LEAD_MOD', 'ADMIN', 'SUPER_ADMIN'];
       if (!user || !LEAD_ROLES.includes(user.role)) {
         return (

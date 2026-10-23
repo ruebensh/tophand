@@ -609,7 +609,8 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
                       )}
                     </div>
                     {(user.role === 'MODERATOR' || user.role === 'LEAD_MOD' || user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') && (
-                      <div className="py-1 bg-amber-50/50">
+                      /* Mobil ekranda barcha boshqaruv panel kirishlari yashirin (md: 768px+) */
+                      <div className="hidden md:block py-1 bg-amber-50/50">
                         <button onClick={() => { setIsUserMenuOpen(false); onNavigate('/moderator'); }} className="w-full px-3.5 py-2 text-xs text-left font-semibold text-amber-800 hover:bg-amber-100/50">
                           {t('nav.moderatorPanel')}
                         </button>

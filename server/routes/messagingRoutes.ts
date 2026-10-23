@@ -1,6 +1,6 @@
 import { serverError } from '../lib/error.ts';
 import { Router, Response, NextFunction } from 'express';
-import { requireAuth, requireMinLevel, AuthRequest } from '../auth/telegram.ts';
+import { requireAuth, requireMinLevel, isMobileUserAgent, AuthRequest } from '../auth/telegram.ts';
 import { sendStaffMessage, getMessagingHistory, canUserMessage, listSelectableUsers } from '../services/messagingService.ts';
 import { listCannedResponses } from '../services/moderationAssignService.ts';
 
@@ -10,6 +10,10 @@ const router = Router();
 async function requireMessaging(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     if (!req.user) return res.status(401).json({ error: 'Avtorizatsiya talab qilinadi' });
+    // Staff-xabarlashuv — smartfon UA'da bloklanadi (boshqa staff API'lar kabi)
+    if (isMobileUserAgent(req)) {
+      return res.status(403).json({ error: 'mobile_blocked', message: 'Boshqaruv panellari mobil qurilmalarda ishlatilmaydi — kompyuter yoki planshetdan kiring' });
+    }
     const allowed = await canUserMessage(req.user.role, req.user.id);
     if (!allowed) {
       return res.status(403).json({ error: 'Xabar yuborish uchun ruxsat berilmagan' });

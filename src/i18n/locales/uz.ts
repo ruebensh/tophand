@@ -38,6 +38,7 @@ const uz = {
     notFound: "Hech narsa topilmadi",
     count: '{{n}} ta',
     accessDenied: 'Ruxsat cheklangan',
+    mobileStaffBlocked: 'Boshqaruv panellari mobil ekranda ishlatilmaydi — kompyuter yoki planshetdan kiring (yoki brauzerda "Desktop versiyasi" rejimini yoqing).',
     from: 'dan',
     to: 'gacha',
     fromLabel: 'Kimdan',

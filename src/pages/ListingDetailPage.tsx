@@ -5,6 +5,7 @@ import { ListingTypeBadge } from '../components/listings/ListingTypeBadge.tsx';
 import { Translated } from '../components/common/Translated.tsx';
 import { PriceDisplay } from '../components/listings/PriceDisplay.tsx';
 import { getContactTimeLabel, formatDateAgo, isOfficialAccount, isStaffAccount } from '../lib/utils.ts';
+import { useIsMobile } from '../lib/useIsMobile.ts';
 import { applyPageSeo, restoreDefaultSeo } from '../lib/seo.ts';
 import { useAuth } from '../context/AuthContext.tsx';
 import { useGeo } from '../context/GeoContext.tsx';
@@ -69,6 +70,8 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [isAdminDeleting, setIsAdminDeleting] = useState(false);
+  // Mobil ekranda staff amaliyotlari ko'rsatilmaydi (admin banner ham)
+  const isMobile = useIsMobile();
 
   // Modals state
   const [isCallModalOpen, setIsCallModalOpen] = useState(false);
@@ -498,8 +501,8 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
         <span className="truncate max-w-[160px] font-medium text-gray-700">{title}</span>
       </div>
 
-      {/* Admin Action Banner */}
-      {user?.role === 'ADMIN' && (
+      {/* Admin Action Banner — faqat desktop/planshetda (mobil'da oddiy akkaunt kabi) */}
+      {user?.role === 'ADMIN' && !isMobile && (
         <div className="mb-4 p-4 rounded-2xl bg-rose-50 border border-rose-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-rose-900 shadow-xs">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-xl bg-rose-600 text-white shadow-xs">

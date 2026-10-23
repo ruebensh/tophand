@@ -207,6 +207,26 @@ export async function optionalAuth(req: AuthRequest, res: Response, next: NextFu
   next();
 }
 
+// ─── Mobil cheklov: boshqaruv panel so'rovlari smartfondan kelmasligi kerak ───
+// Frontend mobil (<768px) rejimda panellarni umuman ko'rsatmaydi; bu — API to'siqi.
+// User-agent UX-che'lovi (niyatli foydalanuvchini to'xtatadi), haqiqiy xavfsizlik
+// chegarasi emas (asosiysi: role + step-up auth). Oddiy foydalanuvchi so'rovlari
+// (report/appeal — faqat requireAuth) ta'sirlanmaydi.
+export function isMobileUserAgent(req: Request): boolean {
+  const ua = String(req.headers['user-agent'] || '').toLowerCase();
+  if (!ua) return false;
+  if (/iphone|ipod|windows phone|blackberry/.test(ua)) return true;
+  // Android: smartfonlar UA'da "Mobile" tokenini saqlaydi; planshetlarda yo'q.
+  return ua.includes('android') && ua.includes('mobile');
+}
+
+function mobileBlocked(res: Response) {
+  return res.status(403).json({
+    error: 'mobile_blocked',
+    message: 'Boshqaruv panellari mobil qurilmalarda ishlatilmaydi — kompyuter yoki planshetdan kiring',
+  });
+}
+
 export function requireRole(allowedRoles: Role[]) {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
     if (!req.user) {
@@ -216,6 +236,9 @@ export function requireRole(allowedRoles: Role[]) {
     if (!allowedRoles.includes(req.user.role as any)) {
       return res.status(403).json({ error: 'Ushbu amalni bajarish uchun sizda yetarli ruxsat yo‘q' });
     }
+
+    // Staff amaliyoti — smartfon UA'da bloklanadi
+    if (isMobileUserAgent(req)) return mobileBlocked(res);
 
     next();
   };
@@ -250,6 +273,8 @@ export function requireMinLevel(min: Role) {
     if (!hasMinLevel(req.user.role, min)) {
       return res.status(403).json({ error: 'Ushbu amalni bajarish uchun ruxsat darajangiz yetarli emas' });
     }
+    // Staff amaliyoti — smartfon UA'da bloklanadi (moderator/admin/lead API'lari)
+    if (isMobileUserAgent(req)) return mobileBlocked(res);
     next();
   };
 }

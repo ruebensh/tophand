@@ -3,6 +3,7 @@ import { Review, RatingSummary } from '../../types/index.ts';
 import { apiRequest } from '../../lib/api.ts';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { formatDateAgo } from '../../lib/utils.ts';
+import { useIsMobile } from '../../lib/useIsMobile.ts';
 import { Modal } from '../common/Modal.tsx';
 import { Translated } from '../common/Translated.tsx';
 import { useI18n } from '../../i18n/IntlContext.tsx';
@@ -97,7 +98,9 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
   }, [targetUserId]);
 
   const isOwner = user?.id === targetUserId;
-  const isStaff = user?.role === 'MODERATOR' || user?.role === 'ADMIN';
+  // Mobil ekranda staff ham oddiy akkaunt kabi — moderator amallari ko'rsatilmaydi
+  const isMobile = useIsMobile();
+  const isStaff = !isMobile && (user?.role === 'MODERATOR' || user?.role === 'ADMIN');
 
   // Handle open review form modal
   const handleOpenAddReview = () => {

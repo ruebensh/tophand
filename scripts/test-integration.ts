@@ -656,6 +656,29 @@ async function main() {
         try { await runQuery('DELETE FROM catalogs WHERE id IN (?, ?)', [catAId, catBId]); } catch {}
       }
 
+      // ── Mobil UA cheklovi: staff API smartfondan bloklanadi, oddiy so'rovlar o'tadi ──
+      {
+        const MOBILE_UA = 'Mozilla/5.0 (Linux; Android 13; SM-A515F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36';
+        const DESKTOP_UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36';
+
+        const mb1 = await req('/api/admin/overview', { headers: { authorization: `Bearer ${adminToken}`, 'user-agent': MOBILE_UA } });
+        const mb1j: any = await mb1.json().catch(() => ({}));
+        assert(mb1.status === 403 && mb1j?.error === 'mobile_blocked', 'mobil UA: /api/admin → 403 mobile_blocked');
+
+        const mb2 = await req('/api/moderation/queue/pool', { headers: { authorization: `Bearer ${adminToken}`, 'user-agent': MOBILE_UA } });
+        assert(mb2.status === 403, 'mobil UA: /api/moderation (staff) → 403');
+
+        const mobPost = authJson({ name_uz: `Mob ${RUN_ID}`, slug: `itg-mob-${RUN_ID}`, listing_types: 'SELL' }, adminToken);
+        const mb3 = await req('/api/catalogs', { ...mobPost, headers: { ...(mobPost.headers as any), 'user-agent': MOBILE_UA } });
+        assert(mb3.status === 403, 'mobil UA: POST /api/catalogs (admin) → 403');
+
+        const mb4 = await req('/api/admin/overview', { headers: { authorization: `Bearer ${adminToken}`, 'user-agent': DESKTOP_UA } });
+        assert(mb4.status === 200, 'desktop UA: /api/admin → 200 (ruxsat etilgan)');
+
+        const mb5 = await req('/api/catalogs', { headers: { 'user-agent': MOBILE_UA } });
+        assert(mb5.status === 200, 'mobil UA: GET /api/catalogs (public) → 200, ta\'sirlanmaydi');
+      }
+
       // ── SEO: sitemap.xml professional + Google Image sitemap ──
       {
         const cat = await queryOne<any>('SELECT id FROM categories LIMIT 1');

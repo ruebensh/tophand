@@ -36,6 +36,7 @@ const en = {
     notFound: 'Nothing found',
     count: '{{n}} items',
     accessDenied: 'Access denied',
+    mobileStaffBlocked: 'Control panels are not available on mobile screens. Please open them from a computer or tablet (or enable "Desktop site" mode in your browser).',
     from: 'from',
     to: 'to',
     fromLabel: 'From',
