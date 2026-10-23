@@ -484,6 +484,72 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
     },
   ];
 
+  // Bog'lanish paneli — ikki joyda ishlatiladi: mobil (sm:hidden) va desktop (hidden sm:block).
+  const contactPanel = isCompleted ? (
+    <div className="bg-white p-4 sm:p-5 sm:rounded-2xl sm:border sm:border-emerald-200 sm:shadow-xs flex items-start gap-3">
+      <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600 shrink-0">
+        <CheckCircle2 className="w-5 h-5" />
+      </div>
+      <div>
+        <p className="font-bold text-sm text-emerald-800">{t('detail.contactCompletedTitle')}</p>
+        <p className="text-xs text-gray-500 mt-0.5">
+          {t('detail.contactCompletedBody')}
+        </p>
+      </div>
+    </div>
+  ) : (
+    <div className="bg-white p-4 sm:p-5 sm:rounded-2xl sm:border sm:border-gray-100 sm:shadow-xs">
+      <h3 className="font-bold text-sm text-gray-900 mb-3">{t('detail.contactTitle')}</h3>
+
+      {/* Safety note */}
+      <div className="p-3 rounded-xl bg-blue-50 border border-blue-100 text-[11px] text-blue-900 mb-4 flex items-start gap-2">
+        <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+        <span>
+          {t('detail.safetyNote')}
+        </span>
+      </div>
+
+      <div className="space-y-2.5">
+        {/* 1. Chat */}
+        <button
+          onClick={() => {
+            if (!user) {
+              openLoginModal(() => setIsChatOpen(true));
+            } else {
+              setIsChatOpen(true);
+            }
+          }}
+          className="apple-tap w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 group cursor-pointer"
+        >
+          <MessageSquare className="w-4 h-4 group-hover:scale-110 transition-transform" />
+          <span>{t('detail.chatBtn')}</span>
+        </button>
+
+        {/* 2. Telegram */}
+        {listing.owner_username && (
+          <a
+            href={`https://t.me/${listing.owner_username}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="apple-tap w-full py-2.5 rounded-xl bg-[#2AABEE]/10 hover:bg-[#2AABEE]/20 text-[#2AABEE] font-bold text-xs border border-[#2AABEE]/30 transition-colors flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <Send className="w-4 h-4 -rotate-45" />
+            <span>{t('detail.telegram', { username: listing.owner_username })}</span>
+          </a>
+        )}
+
+        {/* 3. Phone */}
+        <button
+          onClick={handleRevealPhone}
+          className="apple-tap w-full py-2.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
+        >
+          <Phone className="w-4 h-4 text-blue-600" />
+          <span>{revealedPhone ? revealedPhone : t('detail.showPhone')}</span>
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="max-w-6xl mx-auto w-full min-w-0 max-w-full px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-0 sm:pb-6">
       {/* Breadcrumb / Back */}
@@ -812,6 +878,9 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
             </div>
           </div>
 
+          {/* 2a. Bog'lanish (mobil) — Avitodagidek narx/sarlavha va tavsif orasida */}
+          <div className="sm:hidden">{contactPanel}</div>
+
           {/* 2b. Tavsif (Описание) — Avito style */}
           {listing.description && (
             <div className="th-section-in bg-white p-3 sm:p-5 sm:rounded-2xl sm:border sm:border-gray-100 sm:shadow-xs" style={{ '--si': '120ms' } as React.CSSProperties}>
@@ -986,71 +1055,8 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
         {/* ── Right Column: Sticky Contact & Owner ── */}
         <div className="space-y-4 min-w-0 lg:self-start lg:sticky lg:top-20">
 
-          {/* Contact Panel (yakunlangan e'londa bog'lanish yopiq) */}
-          {isCompleted ? (
-            <div className="bg-white rounded-2xl border border-emerald-200 p-4 sm:p-5 shadow-xs flex items-start gap-3">
-              <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600 shrink-0">
-                <CheckCircle2 className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="font-bold text-sm text-emerald-800">{t('detail.contactCompletedTitle')}</p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {t('detail.contactCompletedBody')}
-                </p>
-              </div>
-            </div>
-          ) : (
-          <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-xs">
-            <h3 className="font-bold text-sm text-gray-900 mb-3">{t('detail.contactTitle')}</h3>
-
-            {/* Safety note */}
-            <div className="p-3 rounded-xl bg-blue-50 border border-blue-100 text-[11px] text-blue-900 mb-4 flex items-start gap-2">
-              <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-              <span>
-                {t('detail.safetyNote')}
-              </span>
-            </div>
-
-            <div className="space-y-2.5">
-              {/* 1. Chat */}
-              <button
-                onClick={() => {
-                  if (!user) {
-                    openLoginModal(() => setIsChatOpen(true));
-                  } else {
-                    setIsChatOpen(true);
-                  }
-                }}
-                className="apple-tap w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 group cursor-pointer"
-              >
-                <MessageSquare className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                <span>{t('detail.chatBtn')}</span>
-              </button>
-
-              {/* 2. Telegram */}
-              {listing.owner_username && (
-                <a
-                  href={`https://t.me/${listing.owner_username}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="apple-tap w-full py-2.5 rounded-xl bg-[#2AABEE]/10 hover:bg-[#2AABEE]/20 text-[#2AABEE] font-bold text-xs border border-[#2AABEE]/30 transition-colors flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <Send className="w-4 h-4 -rotate-45" />
-                  <span>{t('detail.telegram', { username: listing.owner_username })}</span>
-                </a>
-              )}
-
-              {/* 3. Phone */}
-              <button
-                onClick={handleRevealPhone}
-                className="apple-tap w-full py-2.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <Phone className="w-4 h-4 text-blue-600" />
-                <span>{revealedPhone ? revealedPhone : t('detail.showPhone')}</span>
-              </button>
-            </div>
-          </div>
-          )}
+          {/* Contact Panel — faqat desktop; mobil versiyasi chap ustunda (2a) */}
+          <div className="hidden sm:block">{contactPanel}</div>
 
           {/* Owner Profile Card */}
           <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-xs">
