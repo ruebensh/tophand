@@ -656,7 +656,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
           <div
             className={`flex w-full items-center gap-1.5 sm:gap-2 rounded-[28px] border px-2 sm:px-3 py-1.5 origin-top will-change-transform transition-[transform,background-color,border-color,box-shadow] duration-200 ease-out ${
               isScrolled
-                ? 'scale-[0.985] bg-white border-[#E3E8EF] shadow-[0_6px_18px_-6px_rgba(22,115,230,0.18)]'
+                ? 'scale-[0.985] max-md:scale-[0.955] bg-white border-[#E3E8EF] shadow-[0_6px_18px_-6px_rgba(22,115,230,0.18)]'
                 : 'scale-100 bg-[#F6F8FB] border-[#E6EAF0] shadow-[0_2px_10px_rgba(22,115,230,0.06)]'
             }`}
           >

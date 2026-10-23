@@ -65,6 +65,8 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
   const { value: title } = useTranslate(listing?.title);
   const { value: description } = useTranslate(listing?.description);
   const [selectedImageIdx, setSelectedImageIdx] = useState(0);
+  // Yo'nalishni sezuvchi galereya siljishi: 'next' — o'ngdan, 'prev' — chapdan kiradi
+  const [gallerySlide, setGallerySlide] = useState<'next' | 'prev' | null>(null);
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -700,6 +702,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                     const dy = e.changedTouches[0].clientY - (touchStartY.current ?? 0);
                     touchStartX.current = null;
                     if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+                      setGallerySlide(dx < 0 ? 'next' : 'prev');
                       setSelectedImageIdx((i) => Math.min(Math.max(i + (dx < 0 ? 1 : -1), 0), images.length - 1));
                     }
                   }}
@@ -717,7 +720,9 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                       src={currentMedia}
                       alt={title}
                       decoding="async"
-                      className="w-full h-full object-cover lg:object-contain th-gallery-img"
+                      className={`w-full h-full object-cover lg:object-contain ${
+                        gallerySlide === 'next' ? 'th-slide-next' : gallerySlide === 'prev' ? 'th-slide-prev' : 'th-gallery-img'
+                      }`}
                     />
                   )}
                   {/* Mobil: oldingi keyingi strelkalar */}
@@ -727,7 +732,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                         <button
                           type="button"
                           aria-label={t('detail.prevImage')}
-                          onClick={() => setSelectedImageIdx((i) => Math.max(i - 1, 0))}
+                          onClick={() => { setGallerySlide('prev'); setSelectedImageIdx((i) => Math.max(i - 1, 0)); }}
                           className="absolute left-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-black/40 backdrop-blur-sm text-white flex items-center justify-center active:bg-black/60"
                         >
                           <ChevronLeft className="w-5 h-5" />
@@ -737,7 +742,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                         <button
                           type="button"
                           aria-label={t('detail.nextImage')}
-                          onClick={() => setSelectedImageIdx((i) => Math.min(i + 1, images.length - 1))}
+                          onClick={() => { setGallerySlide('next'); setSelectedImageIdx((i) => Math.min(i + 1, images.length - 1)); }}
                           className="absolute right-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-black/40 backdrop-blur-sm text-white flex items-center justify-center active:bg-black/60"
                         >
                           <ChevronRight className="w-5 h-5" />
@@ -761,7 +766,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                     {images.map((img, idx) => (
                       <button
                         key={idx}
-                        onClick={() => setSelectedImageIdx(idx)}
+                        onClick={() => { setGallerySlide(idx > selectedImageIdx ? 'next' : 'prev'); setSelectedImageIdx(idx); }}
                         className={`relative w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden shrink-0 border-2 transition-all ${
                           selectedImageIdx === idx
                             ? 'border-blue-600 ring-2 ring-blue-600/20 opacity-100'

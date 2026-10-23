@@ -807,3 +807,87 @@ html { overscroll-behavior-y: none; }
     will-change: transform;
   }
 }
+
+/* ═══ Mobil animatsiya kuchi (v3) ═══
+   Qoida: FAQAT transform + opacity — layout/paint yo'q, 120fps saqlanadi.
+   Har bir animatsiya qisqa (<0.45s) va ekranda bir vaqtda ko'p qatlam
+   ochilmasin deb cheklangan. */
+
+/* 16. LISTING CARD — kirish stagger. Faqat birinchi 12 karta animatsiya
+       qiladi: qolganlari statik — GPU qatlamlari shishib jank keltirmasin. */
+@keyframes card-in {
+  0%   { opacity: 0; transform: translateY(16px) scale(0.955); }
+  70%  { opacity: 1; transform: translateY(-2px) scale(1.012); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* 17. GALEREYA — yo'nalishni sezuvchi siljish (keyingi/oldingi) */
+@keyframes gallery-slide-next {
+  0%   { opacity: 0; transform: translateX(30px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+@keyframes gallery-slide-prev {
+  0%   { opacity: 0; transform: translateX(-30px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+
+/* 18. KUCHAYTIRILGAN kirish variantlari (mobil) */
+@keyframes apple-page-in-strong {
+  0%   { opacity: 0; transform: translateY(26px) scale(0.985); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes section-reveal-strong {
+  0%   { opacity: 0; transform: translateY(26px) scale(0.975); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes apple-sheet-in-strong {
+  0%   { opacity: 0.85; transform: translateY(100%); }
+  80%  { opacity: 1; transform: translateY(-1.5%); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes apple-spring-in-strong {
+  0%   { opacity: 0; transform: scale(0.88) translateY(18px); }
+  60%  { opacity: 1; transform: scale(1.035) translateY(-3px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@media (max-width: 767px) {
+  .th-card-in {
+    animation: card-in 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+  }
+  .th-card-in:nth-child(2)  { animation-delay: 35ms; }
+  .th-card-in:nth-child(3)  { animation-delay: 70ms; }
+  .th-card-in:nth-child(4)  { animation-delay: 105ms; }
+  .th-card-in:nth-child(5)  { animation-delay: 140ms; }
+  .th-card-in:nth-child(6)  { animation-delay: 170ms; }
+  .th-card-in:nth-child(7)  { animation-delay: 200ms; }
+  .th-card-in:nth-child(8)  { animation-delay: 225ms; }
+  .th-card-in:nth-child(9)  { animation-delay: 250ms; }
+  .th-card-in:nth-child(10) { animation-delay: 275ms; }
+  .th-card-in:nth-child(11) { animation-delay: 300ms; }
+  .th-card-in:nth-child(12) { animation-delay: 320ms; }
+  .th-card-in:nth-child(n+13) { animation: none; }
+
+  .th-slide-next { animation: gallery-slide-next 0.3s cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .th-slide-prev { animation: gallery-slide-prev 0.3s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+  /* Sahifa kirishi — ancha sezilarli */
+  .apple-page-enter { animation-name: apple-page-in-strong; animation-duration: 0.38s; }
+  /* Detail bo'limlari — chuqurroq kirish */
+  .th-section-in    { animation-name: section-reveal-strong; }
+  /* Bottom sheet — spring overshoot bilan */
+  .apple-sheet      { animation-name: apple-sheet-in-strong; animation-duration: 0.4s; }
+  /* Modal — kuchliroq bounce */
+  .apple-modal      { animation-name: apple-spring-in-strong; animation-duration: 0.42s; }
+  /* Tap — aniqroq cho'kish */
+  .apple-tap:active { transform: scale(0.94); }
+}
+
+/* Prefers-reduced-motion: v3 animatsiyalarni ham to'liq o'chirish */
+@media (prefers-reduced-motion: reduce) {
+  .th-card-in, .th-slide-next, .th-slide-prev {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}

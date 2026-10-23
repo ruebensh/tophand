@@ -98,7 +98,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
     return (
       <div
         onClick={onClick}
-        className="group relative th-card border border-gray-100 rounded-2xl hover:border-blue-300 hover:shadow-lg transition-all bg-white overflow-hidden cursor-pointer flex gap-0 w-full"
+        className="group relative th-card th-card-in border border-gray-100 rounded-2xl hover:border-blue-300 hover:shadow-lg transition-all bg-white overflow-hidden cursor-pointer flex gap-0 w-full"
       >
         {/* Left: Image */}
         <div className="relative w-40 sm:w-48 shrink-0 bg-gray-100 overflow-hidden">
@@ -174,7 +174,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
   return (
     <div
       onClick={onClick}
-      className={`group relative th-card flex flex-col bg-surface rounded-2xl border border-black/5 shadow-soft hover:shadow-card active:scale-[.99] transition-all duration-200 cursor-pointer overflow-hidden${
+      className={`group relative th-card th-card-in flex flex-col bg-surface rounded-2xl border border-black/5 shadow-soft hover:shadow-card active:scale-[.99] transition-all duration-200 cursor-pointer overflow-hidden${
         dimmed ? ' opacity-60 saturate-[.4]' : ''
       }`}
     >
