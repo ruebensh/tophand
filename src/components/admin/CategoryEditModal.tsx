@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { apiRequest } from '../../lib/api.ts';
-import { X, Layers, Save, Trash2, GitBranch } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { apiRequest, uploadImageFile } from '../../lib/api.ts';
+import { X, Layers, Save, Trash2, GitBranch, ImagePlus, Loader2 } from 'lucide-react';
 import { CategoryChip } from '../common/CategoryIcon.tsx';
 import type { Catalog } from '../../types/index.ts';
 import { useI18n } from '../../i18n/IntlContext.tsx';
@@ -51,6 +52,10 @@ export const CategoryEditModal: React.FC<CategoryEditModalProps> = ({
   const [sortOrder, setSortOrder] = useState<number>(0);
   const [isActive, setIsActive] = useState<number>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Kategoriya rasmi (PNG/JPG -> serverda WebP'ga siqiladi).
+  const [imageUrl, setImageUrl] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -62,6 +67,7 @@ export const CategoryEditModal: React.FC<CategoryEditModalProps> = ({
       setSortOrder(category.sort_order || 0);
       setIsActive(category.is_active !== undefined ? category.is_active : 1);
       setCatalogId(category.catalog_id || 'services');
+      setImageUrl(category.image_url || '');
       const hasParent = Boolean(category.parent_id);
       setIsSubcategory(hasParent);
       setParentId(category.parent_id || '');
@@ -70,6 +76,7 @@ export const CategoryEditModal: React.FC<CategoryEditModalProps> = ({
       setSlug('');
       setSortOrder(0);
       setIsActive(1);
+      setImageUrl('');
       setCatalogId(defaultCatalogId || 'services');
       if (defaultParentId) {
         setIsSubcategory(true);
@@ -108,6 +115,7 @@ export const CategoryEditModal: React.FC<CategoryEditModalProps> = ({
         parent_id: isSubcategory ? parentId : null,
         sort_order: sortOrder,
         is_active: isActive,
+        image_url: imageUrl,
       };
 
       if (category?.id) {
@@ -149,7 +157,22 @@ export const CategoryEditModal: React.FC<CategoryEditModalProps> = ({
     }
   };
 
-  return (
+  // Rasm tanlash -> /api/upload?folder=categories (server PNG/JPG'ni WebP'ga siqadi).
+  const handleImage = async (file?: File) => {
+    if (!file) return;
+    setIsUploading(true);
+    try {
+      const url = await uploadImageFile(file, 'categories');
+      setImageUrl(url);
+    } catch (err: any) {
+      alert(err.message || t('admin.cemImgErr'));
+    } finally {
+      setIsUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
+
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-950/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div
         className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col animate-in zoom-in-95 duration-200 max-h-[90vh]"
@@ -353,6 +376,48 @@ export const CategoryEditModal: React.FC<CategoryEditModalProps> = ({
             </div>
           </div>
 
+          {/* Rasm (ixtiyoriy) — PNG/JPG yuklanadi, server WebP'ga aylantiradi */}
+          <div>
+            <label className="font-bold text-gray-700 block mb-1.5">{t('admin.cemImageLabel')}</label>
+            <div className="flex items-center gap-3">
+              <div className="w-16 h-16 rounded-xl border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden shrink-0">
+                {imageUrl ? (
+                  <img src={imageUrl} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <ImagePlus className="w-6 h-6 text-gray-300" />
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  disabled={isUploading}
+                  className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-60 cursor-pointer flex items-center gap-1.5"
+                >
+                  {isUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImagePlus className="w-3.5 h-3.5" />}
+                  <span>{isUploading ? t('admin.cemImgUploading') : t('admin.cemImgPick')}</span>
+                </button>
+                {imageUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setImageUrl('')}
+                    className="px-3 py-1.5 rounded-lg text-rose-600 hover:bg-rose-50 border border-rose-200 text-xs font-bold cursor-pointer"
+                  >
+                    {t('common.delete')}
+                  </button>
+                )}
+              </div>
+            </div>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              className="sr-only"
+              onChange={(e) => handleImage(e.target.files?.[0])}
+            />
+            <p className="text-[10px] text-gray-400 mt-1">{t('admin.cemImgHint')}</p>
+          </div>
+
           {/* Status */}
           <div>
             <label className="font-bold text-gray-700 block mb-1">{t('admin.thState')}</label>
@@ -399,6 +464,7 @@ export const CategoryEditModal: React.FC<CategoryEditModalProps> = ({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

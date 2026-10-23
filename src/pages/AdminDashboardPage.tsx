@@ -32,6 +32,9 @@ import {
   Megaphone,
   Activity,
   Globe,
+  LayoutGrid,
+  ArrowUp,
+  ArrowDown,
   X,
 } from 'lucide-react';
 import { formatDateAgo } from '../lib/utils.ts';
@@ -43,6 +46,7 @@ import { ModeratorTeam } from '../components/admin/ModeratorTeam.tsx';
 import { StaffMessaging } from '../components/admin/StaffMessaging.tsx';
 import { UserPassportModal } from '../components/admin/UserPassportModal.tsx';
 import { CategoryEditModal } from '../components/admin/CategoryEditModal.tsx';
+import { CatalogEditModal } from '../components/admin/CatalogEditModal.tsx';
 import { FiltersAdminSection } from '../components/admin/FiltersAdminSection.tsx';
 import { AdsManagerSection } from '../components/admin/AdsManagerSection.tsx';
 import { VisitsModal, BrowserStatsModal } from '../components/admin/ActivityModals.tsx';
@@ -64,7 +68,7 @@ interface AdminDashboardPageProps {
 export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNavigate }) => {
   const { t } = useI18n();
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'platform' | 'theme' | 'users' | 'categories' | 'filters' | 'monetization' | 'ads' | 'data' | 'team' | 'messaging' | 'audit'
+    'overview' | 'platform' | 'theme' | 'users' | 'categories' | 'catalogs' | 'filters' | 'monetization' | 'ads' | 'data' | 'team' | 'messaging' | 'audit'
   >('overview');
 
   // Stats
@@ -100,6 +104,12 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const [modalDefaultParentId, setModalDefaultParentId] = useState<string | null>(null);
   const [modalDefaultCatalogId, setModalDefaultCatalogId] = useState<string>('services');
+
+  // Catalogs tab & modal (katalog boshqaruvi: qo'shish/tahrirlash/tartib)
+  const [catalogsAll, setCatalogsAll] = useState<Catalog[]>([]);
+  const [isCatalogsLoading, setIsCatalogsLoading] = useState(false);
+  const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false);
+  const [selectedCatalog, setSelectedCatalog] = useState<any | null>(null);
 
   // Audit tab
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
@@ -163,6 +173,46 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     }
   };
 
+  // Barcha kataloglar (nofaollar ham) — boshqaruv ro'yxati uchun.
+  const fetchCatalogsAll = async () => {
+    setIsCatalogsLoading(true);
+    try {
+      const data = await apiRequest('/api/catalogs/all');
+      setCatalogsAll(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Error fetching catalogs:', err);
+    } finally {
+      setIsCatalogsLoading(false);
+    }
+  };
+
+  const handleDeleteCatalog = async (cat: Catalog) => {
+    if (!window.confirm(t('admin.catmDeleteConfirm', { name: cat.name_uz }))) return;
+    try {
+      const r: any = await apiRequest(`/api/catalogs/${cat.id}`, { method: 'DELETE' });
+      if (r?.message) window.alert(r.message);
+      fetchCatalogsAll();
+    } catch (err: any) {
+      alert(err.message || t('admin.deleteErrFull'));
+    }
+  };
+
+  // Kataloglar tartibini yuqoriga/pastga ko'chirish va saqlash.
+  const moveCatalog = async (id: string, dir: -1 | 1) => {
+    const idx = catalogsAll.findIndex((c) => c.id === id);
+    const to = idx + dir;
+    if (idx < 0 || to < 0 || to >= catalogsAll.length) return;
+    const next = [...catalogsAll];
+    [next[idx], next[to]] = [next[to], next[idx]];
+    setCatalogsAll(next);
+    try {
+      await apiRequest('/api/catalogs/reorder', { method: 'POST', body: JSON.stringify({ order: next.map((c) => c.id) }) });
+    } catch (err: any) {
+      alert(err.message || t('admin.reorderErr'));
+      fetchCatalogsAll();
+    }
+  };
+
   const fetchAuditLogs = async () => {
     setIsAuditLoading(true);
     try {
@@ -183,6 +233,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     if (activeTab === 'overview') fetchOverviewAndAnalytics();
     if (activeTab === 'users') fetchUsers();
     if (activeTab === 'categories') fetchCategories();
+    if (activeTab === 'catalogs') fetchCatalogsAll();
     if (activeTab === 'audit') fetchAuditLogs();
   }, [activeTab]);
 
@@ -267,6 +318,32 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     }
   };
 
+  // Ota-kategoriyalarni bitta katalog ichida yuqoriga/pastga ko'chirish.
+  const moveCategory = async (parent: any, dir: -1 | 1) => {
+    const cid = parent.catalog_id || 'services';
+    const group = categoriesList.filter((p: any) => (p.catalog_id || 'services') === cid);
+    const idx = group.findIndex((p: any) => p.id === parent.id);
+    const to = idx + dir;
+    if (idx < 0 || to < 0 || to >= group.length) return;
+    const nextGroup = [...group];
+    [nextGroup[idx], nextGroup[to]] = [nextGroup[to], nextGroup[idx]];
+    // Optimistik: shu katalog a'zolarini yangi tartibda joylashtiramiz.
+    let cursor = 0;
+    const rebuilt = categoriesList.map((p: any) =>
+      (p.catalog_id || 'services') === cid ? nextGroup[cursor++] : p
+    );
+    setCategoriesList(rebuilt);
+    try {
+      await apiRequest('/api/admin/categories/reorder', {
+        method: 'POST',
+        body: JSON.stringify({ order: nextGroup.map((p: any) => p.id) }),
+      });
+    } catch (err: any) {
+      alert(err.message || t('admin.reorderErr'));
+      fetchCategories();
+    }
+  };
+
   const openPassportModal = (user: any) => {
     setPassportModalUser(user);
     setIsPassportModalOpen(true);
@@ -311,6 +388,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
           { id: 'platform', label: t('admin.tabPlatform'), icon: Palette },
           { id: 'users', label: t('admin.tabUsers'), icon: Users },
           { id: 'categories', label: t('admin.tabCategories'), icon: Layers },
+          { id: 'catalogs', label: t('admin.tabCatalogs'), icon: LayoutGrid },
           { id: 'filters', label: t('admin.tabFilters'), icon: Filter },
           { id: 'monetization', label: t('admin.tabMonetization'), icon: DollarSign },
           { id: 'ads', label: t('admin.tabAds'), icon: Megaphone },
@@ -916,6 +994,10 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
           const isExpanded = expandedCategories[parent.id] === true; // default yopiq
           const isJobs = parent.catalog_id === 'jobs';
           const scopeLabel = parent.scope === 'JOB_OPENING' ? t('admin.scopeVacancy') : parent.scope === 'JOB_SEEKER' ? t('admin.scopeResume') : '';
+          // Shu katalog ichidagi o'rin (strelka yoqish/o'chirish uchun).
+          const grpCid = parent.catalog_id || 'services';
+          const grp = categoriesList.filter((p: any) => (p.catalog_id || 'services') === grpCid);
+          const gIdx = grp.findIndex((p: any) => p.id === parent.id);
           return (
             <div key={parent.id} className="border-t border-gray-100 first:border-t-0">
               {/* Parent Category Row */}
@@ -958,6 +1040,26 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
 
                 {/* Parent Actions */}
                 <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                  <div className="flex items-center gap-0.5 mr-0.5">
+                    <button
+                      type="button"
+                      onClick={() => moveCategory(parent, -1)}
+                      disabled={gIdx <= 0}
+                      className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                      title={t('admin.moveUp')}
+                    >
+                      <ArrowUp className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => moveCategory(parent, 1)}
+                      disabled={gIdx < 0 || gIdx >= grp.length - 1}
+                      className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                      title={t('admin.moveDown')}
+                    >
+                      <ArrowDown className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                   <button
                     type="button"
                     onClick={() => { setSelectedCategory(null); setModalDefaultParentId(parent.id); setModalDefaultCatalogId(parent.catalog_id || 'services'); setIsCategoryModalOpen(true); }}
@@ -1143,6 +1245,107 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         );
       })()}
 
+      {/* 5b. Catalogs management Tab (qo'shish/tahrirlash/tartib + rasm) */}
+      {activeTab === 'catalogs' && (
+        <div className="space-y-4">
+          <div className="bg-white rounded-3xl border border-gray-100 p-5 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h3 className="font-extrabold text-base text-gray-900 flex items-center gap-2">
+                  <LayoutGrid className="w-5 h-5 text-blue-600" />
+                  {t('admin.tabCatalogs')}
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5">{t('admin.catmSummary', { n: catalogsAll.length })}</p>
+              </div>
+              <button
+                onClick={() => { setSelectedCatalog(null); setIsCatalogModalOpen(true); }}
+                className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition-colors flex items-center gap-2 shadow-xs cursor-pointer shrink-0"
+              >
+                <Plus className="w-4 h-4" />
+                <span>{t('admin.catmAddTitle')}</span>
+              </button>
+            </div>
+          </div>
+
+          {isCatalogsLoading ? (
+            <div className="bg-white rounded-3xl p-12 text-center text-xs text-gray-400 border border-gray-100">
+              {t('admin.catsLoading')}
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-2xs overflow-hidden">
+              {catalogsAll.length === 0 ? (
+                <div className="p-8 text-center text-xs text-gray-400">{t('admin.catmEmpty')}</div>
+              ) : (
+                catalogsAll.map((cat, idx) => (
+                  <div key={cat.id} className="p-3.5 flex items-center justify-between gap-3 border-t border-gray-100 first:border-t-0 hover:bg-gray-50/60 transition-colors">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-white border border-gray-100 text-gray-600 flex items-center justify-center overflow-hidden shrink-0">
+                        {cat.image_url ? (
+                          <img src={cat.image_url} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <CategoryChip name={cat.icon} size="sm" tone={CAT_TONE[cat.id]} className="w-8 h-8" />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-extrabold text-sm text-gray-900">{cat.name_uz}</span>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${cat.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'}`}>
+                            {cat.is_active ? t('status.active') : t('admin.inactive')}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3 text-[11px] text-gray-400 mt-0.5">
+                          <span className="font-mono">slug: {cat.slug}</span>
+                          <span>•</span>
+                          <span>{t('admin.catSectionCount', { n: cat.categories_count || 0, id: cat.id })}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <div className="flex items-center gap-0.5 mr-0.5">
+                        <button
+                          type="button"
+                          onClick={() => moveCatalog(cat.id, -1)}
+                          disabled={idx <= 0}
+                          className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                          title={t('admin.moveUp')}
+                        >
+                          <ArrowUp className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveCatalog(cat.id, 1)}
+                          disabled={idx >= catalogsAll.length - 1}
+                          className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                          title={t('admin.moveDown')}
+                        >
+                          <ArrowDown className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => { setSelectedCatalog(cat); setIsCatalogModalOpen(true); }}
+                        className="px-2.5 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-100 text-gray-700 text-xs font-medium cursor-pointer transition-colors"
+                      >
+                        {t('common.edit')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteCatalog(cat)}
+                        className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 cursor-pointer transition-colors"
+                        title={t('common.delete')}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* 6. Monetization Tab (Faza 4) */}
       {activeTab === 'monetization' && <MonetizationSettings />}
 
@@ -1257,6 +1460,20 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         parentCategories={categoriesList}
         catalogs={catalogsList}
         onSaved={fetchCategories}
+      />
+
+      {/* Catalog Create / Edit Modal */}
+      <CatalogEditModal
+        isOpen={isCatalogModalOpen}
+        onClose={() => {
+          setIsCatalogModalOpen(false);
+          setSelectedCatalog(null);
+        }}
+        catalog={selectedCatalog}
+        onSaved={() => {
+          fetchCatalogsAll();
+          setCatalogsList([]); // kategoriya tabidagi zaxira kataloglarni yangilash
+        }}
       />
 
       {/* Saytga kirganlar + brauzer qidiruvlari (GSC) modallari */}

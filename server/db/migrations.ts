@@ -327,6 +327,11 @@ export async function runMigrations() {
   //    (vacancies by job-function vs resumes by industry).
   await addColumnIfNotExists('categories', 'scope', 'TEXT DEFAULT NULL');
 
+  // 3a) Admin tomonidan yuklanadigan rasm (PNG/JPG -> WebP) kategoriya va katalog
+  //     uchun. Bo'sh bo'lsa frontend icon'ga qaytadi.
+  await addColumnIfNotExists('categories', 'image_url', 'TEXT');
+  await addColumnIfNotExists('catalogs', 'image_url', 'TEXT');
+
   // 3b) Category slug can no longer be globally UNIQUE: the multi-sector tree
   //     intentionally reuses generic names ("Boshqalar", "Aksessuarlar") across
   //     parents/catalogs and even repeats parents across the two jobs scopes.

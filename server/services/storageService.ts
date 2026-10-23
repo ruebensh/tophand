@@ -27,7 +27,7 @@ const SAFE_FOLDER_RE = /^[a-z0-9][a-z0-9_-]{0,31}$/;
 // `videos`; bo'sh bo'lsa ichki fallback `photos`). Foydalanuvchi istalgan
 // yangi papka yarata olmasligi uchun ijobiy ro'yxat (`verifications` bu yerda
 // YO'Q — u alohida, xavfsiz endpoint orqali yoziladi).
-const ALLOWED_UPLOAD_FOLDERS = new Set(['listings', 'videos', 'avatars', 'covers', 'ads', 'chat', 'photos']);
+const ALLOWED_UPLOAD_FOLDERS = new Set(['listings', 'videos', 'avatars', 'covers', 'ads', 'chat', 'photos', 'categories', 'catalogs']);
 
 // SECURITY (M-04 / P2-2): resource-exhaustion / decompression-bomb guards for the
 // image decoder. We bound total input pixels, per-side dimensions, disable

@@ -31,6 +31,21 @@ router.get('/', async (_req, res) => {
   }
 });
 
+// ADMIN: GET /api/catalogs/all - Barcha kataloglar (nofaollar ham) — boshqaruv uchun.
+router.get('/all', requireAuth, requireRole(['ADMIN']), async (_req, res) => {
+  try {
+    const catalogs = await queryAll(`
+      SELECT c.*,
+        (SELECT COUNT(*) FROM categories cat WHERE cat.catalog_id = c.id AND cat.parent_id IS NULL) AS categories_count
+      FROM catalogs c
+      ORDER BY c.sort_order ASC, c.created_at ASC
+    `);
+    res.json(catalogs);
+  } catch (err: any) {
+    serverError(res, err);
+  }
+});
+
 // GET /api/catalogs/:id - Bitta katalog ma'lumotlari
 router.get('/:id', async (req, res) => {
   try {
@@ -50,7 +65,7 @@ router.get('/:id', async (req, res) => {
 // ADMIN: POST /api/catalogs - Yangi katalog qo'shish
 router.post('/', requireAuth, requireRole(['ADMIN']), async (req: AuthRequest, res) => {
   try {
-    const { name_uz, slug, icon, description, listing_types, sort_order } = req.body;
+    const { name_uz, slug, icon, description, listing_types, sort_order, image_url } = req.body;
     if (!name_uz || !slug) {
       return res.status(400).json({ error: 'Nomi va slug kiritilishi shart' });
     }
@@ -59,14 +74,15 @@ router.post('/', requireAuth, requireRole(['ADMIN']), async (req: AuthRequest, r
     const now = new Date().toISOString();
 
     await runQuery(`
-      INSERT INTO catalogs (id, name_uz, slug, icon, description, listing_types, sort_order, is_active, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+      INSERT INTO catalogs (id, name_uz, slug, icon, description, image_url, listing_types, sort_order, is_active, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
     `, [
       id,
       name_uz.trim(),
       slug.trim(),
       icon || 'Briefcase',
       description || null,
+      image_url || null,
       listing_types || 'SERVICE_OFFER,SERVICE_REQUEST',
       sort_order || 0,
       now,
@@ -83,7 +99,7 @@ router.post('/', requireAuth, requireRole(['ADMIN']), async (req: AuthRequest, r
 // ADMIN: PUT /api/catalogs/:id - Katalogni tahrirlash
 router.put('/:id', requireAuth, requireRole(['ADMIN']), async (req: AuthRequest, res) => {
   try {
-    const { name_uz, icon, description, listing_types, sort_order, is_active } = req.body;
+    const { name_uz, icon, description, listing_types, sort_order, is_active, image_url } = req.body;
     const now = new Date().toISOString();
 
     await runQuery(`
@@ -91,6 +107,7 @@ router.put('/:id', requireAuth, requireRole(['ADMIN']), async (req: AuthRequest,
       SET name_uz = COALESCE(?, name_uz),
           icon = COALESCE(?, icon),
           description = COALESCE(?, description),
+          image_url = COALESCE(?, image_url),
           listing_types = COALESCE(?, listing_types),
           sort_order = COALESCE(?, sort_order),
           is_active = COALESCE(?, is_active),
@@ -100,6 +117,7 @@ router.put('/:id', requireAuth, requireRole(['ADMIN']), async (req: AuthRequest,
       name_uz || null,
       icon || null,
       description !== undefined ? description : null,
+      image_url !== undefined ? image_url : null,
       listing_types || null,
       sort_order !== undefined ? sort_order : null,
       is_active !== undefined ? is_active : null,
@@ -109,6 +127,19 @@ router.put('/:id', requireAuth, requireRole(['ADMIN']), async (req: AuthRequest,
 
     const updated = await queryOne('SELECT * FROM catalogs WHERE id = ?', [req.params.id]);
     res.json(updated);
+  } catch (err: any) {
+    serverError(res, err);
+  }
+});
+
+// ADMIN: POST /api/catalogs/reorder - Kataloglar tartibini saqlash (body: { order: id[] })
+router.post('/reorder', requireAuth, requireRole(['ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const order = Array.isArray(req.body?.order) ? req.body.order : [];
+    for (let i = 0; i < order.length; i++) {
+      await runQuery('UPDATE catalogs SET sort_order = ? WHERE id = ?', [i, String(order[i])]);
+    }
+    res.json({ success: true });
   } catch (err: any) {
     serverError(res, err);
   }

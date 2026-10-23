@@ -166,7 +166,7 @@ router.post('/users/:id/role', requireStepUp, async (req: AuthRequest, res) => {
 // Category management: Create
 router.post('/categories', async (req: AuthRequest, res) => {
   try {
-    const { name_uz, slug, icon, catalog_id, parent_id, sort_order } = req.body;
+    const { name_uz, slug, icon, catalog_id, parent_id, sort_order, image_url } = req.body;
     if (!name_uz || !slug) {
       return res.status(400).json({ error: 'Nomi va slug kiritilishi shart' });
     }
@@ -175,9 +175,9 @@ router.post('/categories', async (req: AuthRequest, res) => {
     const now = new Date().toISOString();
 
     await runQuery(
-      `INSERT INTO categories (id, catalog_id, name_uz, slug, icon, parent_id, is_active, sort_order, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
-      [id, catalog_id || 'services', name_uz.trim(), slug.trim(), icon || 'Briefcase', parent_id || null, sort_order || 0, now, now]
+      `INSERT INTO categories (id, catalog_id, name_uz, slug, icon, image_url, parent_id, is_active, sort_order, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
+      [id, catalog_id || 'services', name_uz.trim(), slug.trim(), icon || 'Briefcase', image_url || null, parent_id || null, sort_order || 0, now, now]
     );
 
     const created = await queryOne('SELECT * FROM categories WHERE id = ?', [id]);
@@ -190,7 +190,7 @@ router.post('/categories', async (req: AuthRequest, res) => {
 // Category management: Update/Toggle
 router.put('/categories/:id', async (req: AuthRequest, res) => {
   try {
-    const { name_uz, slug, icon, catalog_id, parent_id, is_active, sort_order } = req.body;
+    const { name_uz, slug, icon, catalog_id, parent_id, is_active, sort_order, image_url } = req.body;
     const now = new Date().toISOString();
 
     await runQuery(
@@ -198,6 +198,7 @@ router.put('/categories/:id', async (req: AuthRequest, res) => {
        SET name_uz = COALESCE(?, name_uz),
            slug = COALESCE(?, slug),
            icon = COALESCE(?, icon),
+           image_url = COALESCE(?, image_url),
            catalog_id = COALESCE(?, catalog_id),
            parent_id = COALESCE(?, parent_id),
            is_active = COALESCE(?, is_active),
@@ -208,6 +209,7 @@ router.put('/categories/:id', async (req: AuthRequest, res) => {
         name_uz || null,
         slug || null,
         icon || null,
+        image_url !== undefined ? image_url : null,
         catalog_id || null,
         parent_id !== undefined ? parent_id : null,
         is_active !== undefined ? is_active : null,
@@ -219,6 +221,24 @@ router.put('/categories/:id', async (req: AuthRequest, res) => {
 
     const updated = await queryOne('SELECT * FROM categories WHERE id = ?', [req.params.id]);
     res.json(updated);
+  } catch (err: any) {
+    serverError(res, err);
+  }
+});
+
+// Category management: Reorder — bitta katalog ichidagi ota-kategoriyalar tartibi
+// body: { order: string[] } (kategoriya id'lari kerakli tartibda) → sort_order = index
+router.post('/categories/reorder', async (req: AuthRequest, res) => {
+  try {
+    const order = Array.isArray(req.body?.order) ? req.body.order : [];
+    for (let i = 0; i < order.length; i++) {
+      await runQuery('UPDATE categories SET sort_order = ?, updated_at = ? WHERE id = ?', [
+        i,
+        new Date().toISOString(),
+        String(order[i]),
+      ]);
+    }
+    res.json({ success: true });
   } catch (err: any) {
     serverError(res, err);
   }
