@@ -234,7 +234,8 @@ export async function initDatabase() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       expires_at TIMESTAMPTZ NOT NULL,
       archived_at TIMESTAMPTZ,
-      renewed_at TIMESTAMPTZ
+      renewed_at TIMESTAMPTZ,
+      completion_count INTEGER NOT NULL DEFAULT 0
     )
   `);
 

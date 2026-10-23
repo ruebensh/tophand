@@ -176,6 +176,7 @@ export interface Listing {
   archived_at?: string;
   completed_at?: string | null;
   renewed_at?: string;
+  completion_count?: number;
   promoted_until?: string | null;
   is_promoted?: boolean;
   images: string[];

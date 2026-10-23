@@ -877,12 +877,10 @@ export async function renewListing(listingId: string, userId: string) {
     throw new Error("Siz faqat o'zingizning e'loningizni uzaytirishingiz mumkin");
   }
 
-  // Yakunlangan (COMPLETED) e'lonlarni arxivdan qaytarib bo'lmaydi — faqat
-  // platforma tomonidan muddati tugab arxivlangan (ARCHIVED) yoki yashirilgan (HIDDEN) e'lonlar qayta faollashtiriladi.
-  if (listing.status === 'COMPLETED') {
-    throw new Error("Yakunlangan e'lonni arxivdan qaytarib bo'lmaydi");
-  }
-  if (!['ACTIVE', 'ARCHIVED', 'HIDDEN'].includes(listing.status)) {
+  // Yakunlangan (COMPLETED) e'lon ham qayta ochiladi: egasi yangi e'lon ochmasdan,
+  // eski yozuvni qayta faollashtiradi (DB shishining oldini oladi). completion_count
+  // tozalanmaydi — necha marta yakunlangani shu yozuvda saqlanib qoladi.
+  if (!['ACTIVE', 'ARCHIVED', 'HIDDEN', 'COMPLETED'].includes(listing.status)) {
     throw new Error("Bu holatdagi e'lonni uzaytirib bo'lmaydi");
   }
 

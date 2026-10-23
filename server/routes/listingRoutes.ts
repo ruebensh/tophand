@@ -485,8 +485,9 @@ router.post('/:id/complete', requireAuth, async (req: AuthRequest, res) => {
     }
 
     const now = new Date().toISOString();
+    // Har bir yakunlashda hisoblagich +1 ga o'sadi (qayta ochilib yana yopilsa 2, 3...).
     await runQuery(
-      `UPDATE listings SET status = 'COMPLETED', completed_at = ?, updated_at = ? WHERE id = ?`,
+      `UPDATE listings SET status = 'COMPLETED', completed_at = ?, updated_at = ?, completion_count = completion_count + 1 WHERE id = ?`,
       [now, now, listing.id]
     );
 

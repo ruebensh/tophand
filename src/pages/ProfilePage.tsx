@@ -394,6 +394,19 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     }
   };
 
+  // «Qayta ochish» — yakunlangan (COMPLETED) e'lonni egasi yangi e'lon ochmasdan
+  // qayta faollashtiradi. Server /renew orqali COMPLETED'ni ham ACTIVE'ga qaytaradi;
+  // completion_count saqlanib, keyingi yakunlashda 2, 3... bo'lib boradi.
+  const handleReopenListing = async (listingId: string) => {
+    try {
+      await apiRequest(`/api/listings/${listingId}/renew`, { method: 'POST' });
+      alert(t('profile.reopenOk'));
+      fetchProfile();
+    } catch (err: any) {
+      alert(err.message || t('profile.errRenew'));
+    }
+  };
+
   // «Yakunlash» — faol e'lon bajarilgan deb yopiladi (status=COMPLETED) va
   // avtomatik Arxiv tab'iga o'tadi (server COMPLETEDlarni arxiv so'roviga kiritadi).
   const handleCompleteListing = async (listingId: string) => {
@@ -828,7 +841,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                       hideSave
                       onClick={() => onOpenListing(l.id)}
                       statusBadge={
-                        isCompleted ? undefined : (
+                        isCompleted ? (
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold text-[10px] border border-emerald-200">
+                            {t('profile.completedCount', { n: l.completion_count ?? 1 })}
+                          </span>
+                        ) : (
                           <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 font-bold text-[10px] border border-amber-300">
                             {t('profile.inArchive')}
                           </span>
@@ -836,9 +853,17 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                       }
                       footer={
                         isCompleted ? (
-                          <p className="text-[10px] text-gray-400 text-center">
-                            {t('profile.completedListing')}
-                          </p>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleReopenListing(l.id);
+                            }}
+                            className="w-full py-1.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                            <span>{t('profile.reopen')}</span>
+                          </button>
                         ) : (
                           <button
                             type="button"
@@ -1579,7 +1604,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                       hideSave
                       onClick={() => onOpenListing(l.id)}
                       statusBadge={
-                        isCompleted ? undefined : (
+                        isCompleted ? (
+                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold text-xs border border-emerald-200">
+                            {t('profile.completedCount', { n: l.completion_count ?? 1 })}
+                          </span>
+                        ) : (
                           <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 font-bold text-xs border border-amber-300">
                             {t('profile.inArchive')}
                           </span>
@@ -1587,9 +1616,17 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                       }
                       footer={
                         isCompleted ? (
-                          <p className="text-xs text-slate-400 text-center">
-                            {t('profile.completedListing')}
-                          </p>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleReopenListing(l.id);
+                            }}
+                            className="w-full py-2 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
+                          >
+                            <RefreshCw className="w-4 h-4" />
+                            <span>{t('profile.reopen')}</span>
+                          </button>
                         ) : (
                           <button
                             type="button"

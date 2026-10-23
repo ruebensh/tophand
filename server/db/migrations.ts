@@ -111,6 +111,9 @@ export async function runMigrations() {
   // ── Listing lifecycle: allow an owner to CLOSE a fulfilled request as COMPLETED,
   //    and to save an unfinished listing as DRAFT (owner-only, not public). ──
   await addColumnIfNotExists('listings', 'completed_at', 'TIMESTAMPTZ');
+  // Nechta marta yakunlangan (COMPLETED) hisoblagichi — e'lon qayta ochilib yana
+  // yakunlanganda o'sib boradi (yangi e'lon ochmasdan eski yozuv qayta ishlatiladi).
+  await addColumnIfNotExists('listings', 'completion_count', 'INTEGER NOT NULL DEFAULT 0');
   await pool.query(`
     DO $$
     DECLARE r RECORD;

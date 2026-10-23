@@ -501,6 +501,55 @@ async function main() {
         }
       }
 
+      // ── Yakunlash hisoblagichi + qayta ochish ──
+      // Talab: e'lon har yakunlanganda completion_count +1; egasi yangi e'lon ochmasdan
+      // uni qayta ochishi (renew) mumkin va yana yakunlasa hisoblagich 2 bo'ladi.
+      // (ADMIN billing-exempt => uzaytirish/vakinsiz to'lov, test to'ovga to'yxamaydi.)
+      {
+        const owner = await mkUser(`usr_integ_reopen_${RUN_ID}`, `reopen_${RUN_ID}@integ.example`, 'ADMIN');
+        const ownerToken = generateToken(owner);
+        const cat = await queryOne<any>('SELECT id FROM categories LIMIT 1');
+        const region = await queryOne<any>('SELECT id FROM regions LIMIT 1');
+        const district = await queryOne<any>('SELECT id FROM districts LIMIT 1');
+        if (cat && region && district) {
+          const listingId = `lst_integ_reopen_${RUN_ID}`;
+          await runQuery(
+            `INSERT INTO listings (id, owner_user_id, type, title, description, category_id, region_id, district_id, price_type, status, created_at, updated_at, expires_at)
+             VALUES (?, ?, 'SERVICE_OFFER', ?, ?, ?, ?, ?, 'FIXED', 'ACTIVE', NOW(), NOW(), NOW() + INTERVAL '30 days')`,
+            [listingId, owner.id, `Integ Reopen Listing ${RUN_ID}`, 'desc', cat.id, region.id, district.id]
+          );
+
+          // 1) Birinchi yakunlash → COMPLETED, completion_count = 1
+          const c1 = await req(`/api/listings/${listingId}/complete`, { method: 'POST', headers: { authorization: `Bearer ${ownerToken}` } });
+          assert(c1.status === 200, 'reopen: first /complete → 200');
+          const afterC1 = await queryOne<any>('SELECT status, completion_count FROM listings WHERE id = ?', [listingId]);
+          assert(afterC1?.status === 'COMPLETED' && Number(afterC1?.completion_count) === 1, 'reopen: after 1st complete status=COMPLETED & count=1');
+
+          // 2) Qayta ochish (renew) → ACTIVE, count saqlanadi, completed_at tozalanadi
+          const r1 = await req(`/api/listings/${listingId}/renew`, { method: 'POST', headers: { authorization: `Bearer ${ownerToken}` } });
+          assert(r1.status === 200, 'reopen: COMPLETED listing can be reopened via /renew → 200');
+          const afterReopen = await queryOne<any>('SELECT status, completion_count, completed_at FROM listings WHERE id = ?', [listingId]);
+          assert(afterReopen?.status === 'ACTIVE' && Number(afterReopen?.completion_count) === 1 && afterReopen?.completed_at === null, 'reopen: reopened to ACTIVE, count kept=1, completed_at cleared');
+
+          // 3) Yana yakunlash → count = 2
+          const c2 = await req(`/api/listings/${listingId}/complete`, { method: 'POST', headers: { authorization: `Bearer ${ownerToken}` } });
+          assert(c2.status === 200, 'reopen: second /complete → 200');
+          const afterC2 = await queryOne<any>('SELECT completion_count FROM listings WHERE id = ?', [listingId]);
+          assert(Number(afterC2?.completion_count) === 2, 'reopen: after 2nd complete count=2');
+
+          // 4) Allaqachon COMPLETED'ni qayta yakunlash count'ni ikki baravar oshirmaydi
+          const c3 = await req(`/api/listings/${listingId}/complete`, { method: 'POST', headers: { authorization: `Bearer ${ownerToken}` } });
+          const afterC3 = await queryOne<any>('SELECT completion_count FROM listings WHERE id = ?', [listingId]);
+          assert(c3.status === 200 && Number(afterC3?.completion_count) === 2, 'reopen: re-completing an already-COMPLETED listing does not double-increment');
+
+          try { await runQuery('DELETE FROM notifications WHERE user_id = ?', [owner.id]); } catch {}
+          try { await runQuery('DELETE FROM listings WHERE id = ?', [listingId]); } catch {}
+          try { await runQuery('DELETE FROM users WHERE id = ?', [owner.id]); } catch {}
+        } else {
+          assert(false, 'reopen: seeded category/region/district available for fixture');
+        }
+      }
+
       // ── SEO: sitemap.xml professional + Google Image sitemap ──
       {
         const cat = await queryOne<any>('SELECT id FROM categories LIMIT 1');
