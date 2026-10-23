@@ -351,7 +351,8 @@ export function CategoryBrowser(props: CategoryBrowserProps) {
             </div>
           ) : listings.length === 0 ? (
             <div className="bg-[#F9FAFB] rounded-3xl border border-[#EBECF0] p-12 text-center max-w-md mx-auto my-8">
-              <div className="w-16 h-16 rounded-full bg-blue-50 text-[#1673E6] flex items-center justify-center text-2xl mx-auto mb-3">🔍</div>
+              {/* "No Results" illiustratsiyasi — emoji doira o'rniga (public/not-found.webp) */}
+              <img src="/not-found.webp" alt="" width={112} height={112} loading="lazy" decoding="async" className="w-28 h-28 mx-auto mb-2 object-contain select-none" />
               <h3 className="font-bold text-base text-[#172B4D]">{t('home.noResultsTitle')}</h3>
               <p className="text-xs text-[#5E6C84] mt-1 mb-5">{t('home.noResultsBody')}</p>
               <button onClick={onReset} className="px-5 py-2.5 rounded-xl bg-[#1673E6] hover:bg-blue-700 text-white font-bold text-xs cursor-pointer">{t('home.clearAllFilters')}</button>

@@ -261,17 +261,19 @@ export async function searchListings(filter: ListingFilter) {
 
   if (filter.keyword && filter.keyword.trim().length > 0) {
     const term = `%${filter.keyword.trim().toLowerCase()}%`;
+    // E'lon egasi (u), kategoriya (c) va geo (r/d) bo'yicha ham izlanadi.
+    // DIQQAT: `o.name` (organizatsiyalar) butunlay olib tashlangan — qoldiq
+    // referent har qanday keyword qidiruvini 500 qilib yuborardi.
     sql += ` AND (
       LOWER(l.title) LIKE ? 
       OR LOWER(l.description) LIKE ? 
       OR LOWER(l.skills) LIKE ?
       OR LOWER(u.name) LIKE ?
-      OR LOWER(COALESCE(o.name, '')) LIKE ?
       OR LOWER(c.name_uz) LIKE ?
       OR LOWER(r.name_uz) LIKE ?
       OR LOWER(d.name_uz) LIKE ?
     )`;
-    params.push(term, term, term, term, term, term, term, term);
+    params.push(term, term, term, term, term, term, term);
   }
 
   let allMatching = await queryAll<any>(sql, params);

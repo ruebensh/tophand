@@ -244,6 +244,7 @@ export async function getAdvancedAnalytics() {
       COUNT(id) as search_count
     FROM search_filter_logs
     WHERE keyword IS NOT NULL AND TRIM(keyword) != ''
+      AND LENGTH(TRIM(keyword)) >= 3 -- klaviatura fragmentlari (yozilmagan "so'zlar") statistikaiga aralashmasin
     GROUP BY LOWER(keyword)
     ORDER BY search_count DESC
     LIMIT 10

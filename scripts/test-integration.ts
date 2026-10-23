@@ -741,6 +741,38 @@ async function main() {
         try { await runQuery('DELETE FROM users WHERE id LIKE ?', [`usr_integ_xl_${RUN_ID}%`]); } catch {}
       }
 
+      // ── Top qidiruv so'zlari (topbar typewriter placeholder) ──
+      {
+        const tkRes = await req('/api/listings/top-keywords');
+        assert(tkRes.status === 200, `top-keywords 200 (got ${tkRes.status})`);
+        const tkBody: any = await tkRes.json().catch(() => ({}));
+        const tk = tkBody?.keywords;
+        assert(Array.isArray(tk) && tk.length > 0 && tk.length <= 15, `1..15 ta so'z (got ${Array.isArray(tk) ? tk.length : 'no'})`);
+        assert(tk.every((k: any) => typeof k === 'string' && k.trim().length >= 3), 'barcha so\'zlar 3+ belgili matn');
+        const tkRes2 = await req('/api/listings/top-keywords'); // keshlangan javob barqaror
+        const tkBody2: any = await tkRes2.json().catch(() => ({}));
+        assert(tkRes2.status === 200 && tkBody2?.keywords?.length === tk.length, 'kesh javobi barqaror');
+
+        // Qidiruv logi: bir xil so'z 15 daqiqa ichida bir marta sanaladi,
+        // 2 belgidan qisqa fragmentlar yozilmaydi (admin statistikasi tozaligi).
+        const probeKw = `zz_kws_${RUN_ID}`;
+        try { await runQuery("DELETE FROM search_filter_logs WHERE keyword = ?", [probeKw]); } catch {}
+        const kwRes1 = await req(`/api/listings?keyword=${probeKw}&limit=1`);
+        assert(kwRes1.status === 200, `keyword qidiruvi 200 (o.name regressiyasi; got ${kwRes1.status})`);
+        await new Promise((r) => setTimeout(r, 150)); // fire-and-forget insert1 yetishiga imkon
+        await req(`/api/listings?keyword=${probeKw}&limit=1`);
+        await new Promise((r) => setTimeout(r, 150));
+        await req(`/api/listings?keyword=${probeKw}&limit=1&page=2`);
+        await new Promise((r) => setTimeout(r, 400)); // fire-and-forget loglarga ulgurish
+        const logRow: any = await queryOne('SELECT COUNT(*)::int AS c FROM search_filter_logs WHERE keyword = ?', [probeKw]);
+        assert(logRow.c === 1, `dedup: 3 ta takroriy qidiruv 1 marta sanaldi (got ${logRow.c})`);
+        await req(`/api/listings?keyword=a&limit=1`); // 1 belgili fragment
+        await new Promise((r) => setTimeout(r, 300));
+        const fragRow: any = await queryOne("SELECT COUNT(*)::int AS c FROM search_filter_logs WHERE keyword = 'a'");
+        assert(fragRow.c === 0, '1 belgili fragment loglanmaydi');
+        try { await runQuery('DELETE FROM search_filter_logs WHERE keyword = ?', [probeKw]); } catch {}
+      }
+
       // ── SEO: sitemap.xml professional + Google Image sitemap ──
       {
         const cat = await queryOne<any>('SELECT id FROM categories LIMIT 1');

@@ -485,27 +485,51 @@ export const HomePage: React.FC<HomePageProps> = ({
     onlyFollowed,
   ]);
 
-  // Real-time qidiruv: kalit so'z o'zgarganda kichik pauza (debounce) bilan
-  // joyida qayta izlaydi — Enter tugmasi shart emas. Sahifa qayta mount
-  // bo'lmaydi, scroll sakramaydi (navigate'siz, in-place fetch).
+  // Real-time qidiruv: yozish tugagandan 2 soniya keyin avtomatik izlaydi.
+  // Enter bosilsa (immediate bayrog'i) kutmaydi — darhol ishga tushadi.
+  // Sahifa qayta mount bo'lmaydi, scroll sakramaydi (navigate'siz, in-place fetch).
   const searchDebounceRef = useRef<number | undefined>(undefined);
+  const searchImmediateRef = useRef(false);
   const lastKeywordRef = useRef(keyword);
+  // Eng so'nggi fetchListings/keyword — Enter'da bir xil so'z qayta izlanganda
+  // state update'ni kutmasdan darhol qidirish uchun.
+  const fetchListingsRef = useRef(fetchListings);
+  fetchListingsRef.current = fetchListings;
+  const keywordRef = useRef(keyword);
+  keywordRef.current = keyword;
   useEffect(() => {
     if (keyword === lastKeywordRef.current) return; // mount qiymatini trigger effekt allaqachon oladi
     lastKeywordRef.current = keyword;
     window.clearTimeout(searchDebounceRef.current);
+    const delay = searchImmediateRef.current ? 0 : 2000;
+    searchImmediateRef.current = false;
     searchDebounceRef.current = window.setTimeout(() => {
       fetchListings(1, false);
-    }, 350);
+    }, delay);
     return () => window.clearTimeout(searchDebounceRef.current);
   }, [keyword]);
 
   // Header toolbar'dagi qidiruv vidjeti real-time: tashqi event orqali kalit
-  // so'zni qabul qilamiz (navigate/remount yo'q). Yuqoridagi debounce-fetch ishga tushadi.
+  // so'zni qabul qilamiz (navigate/remount yo'q). Yuqoridagi debounce-fetch
+  // ishga tushadi. Detail: string (eski) yoki { q, immediate } (Enter/submit).
   useEffect(() => {
     const onLiveSearch = (e: Event) => {
-      const q = (e as CustomEvent<string>).detail;
-      setKeyword(typeof q === 'string' ? q : '');
+      const d = (e as CustomEvent<any>).detail;
+      if (d && typeof d === 'object' && 'q' in d) {
+        const q = typeof d.q === 'string' ? d.q : '';
+        if (d.immediate) {
+          window.clearTimeout(searchDebounceRef.current);
+          if (q === keywordRef.current) {
+            // So'z o'zgarmagan — effect trigger bo'lmaydi, darhol qidiramyiz.
+            fetchListingsRef.current(1, false);
+            return;
+          }
+          searchImmediateRef.current = true;
+        }
+        setKeyword(q);
+      } else {
+        setKeyword(typeof d === 'string' ? d : '');
+      }
     };
     window.addEventListener('tophand:search', onLiveSearch);
     return () => window.removeEventListener('tophand:search', onLiveSearch);
@@ -1916,9 +1940,16 @@ export const HomePage: React.FC<HomePageProps> = ({
             </div>
           ) : listings.length === 0 ? (
             <div className="bg-[#F9FAFB] rounded-3xl border border-[#EBECF0] p-12 text-center max-w-md mx-auto my-8">
-              <div className="w-16 h-16 rounded-full bg-blue-50 text-[#1673E6] flex items-center justify-center text-2xl mx-auto mb-3">
-                🔍
-              </div>
+              {/* "No Results" illiustratsiyasi — emoji doira o'rniga (public/not-found.webp) */}
+              <img
+                src="/not-found.webp"
+                alt=""
+                width={112}
+                height={112}
+                loading="lazy"
+                decoding="async"
+                className="w-28 h-28 mx-auto mb-2 object-contain select-none"
+              />
               <h3 className="font-bold text-base text-[#172B4D]">{t('home.noResultsTitle')}</h3>
               <p className="text-xs text-[#5E6C84] mt-1 mb-5">
                 {t('home.noResultsBody')}

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { formatDateAgo, ADMIN_PANEL_PATH } from '../../lib/utils.ts';
 import { getPublicMonetization, getCatalogs, getCategoryTree } from '../../lib/api.ts';
+import { useTypewriterPlaceholder } from '../../lib/useTypewriterPlaceholder.ts';
 import type { Catalog, Category, Notification } from '../../types/index.ts';
 import { TopHandLogo } from '../common/TopHandLogo.tsx';
 import { CategoryChip } from '../common/CategoryIcon.tsx';
@@ -66,11 +67,17 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
   const { user, logout, openLoginModal } = useAuth();
   const { notifications, unreadCount, markAllAsRead, markAsRead, refreshNotifications } = useNotifications();
   const { t, localized } = useI18n();
+  // Topbar qidiruv: eng ko'p qidirilgan so'zlar typewriter ko'rinishida almashinadi
+  const searchPlaceholder = useTypewriterPlaceholder(t('nav.searchPlaceholder'));
 
   // "Topbar" (katalog + qidiruv + xarita paneli) ba'zi sahifalarda kerak emas:
   // - /create, /chat, /profile — barcha o'lchamlarda (mobil + desktop) yashiriladi;
   // - admin panellar (yashirin /th-adm-…, /moderator, /lead) — faqat desktop'da (lg+) yashiriladi.
   const toolbarPath = currentRoute.split('?')[0];
+  const isHomePath = toolbarPath === '/';
+  // Boshqa sahifalarda qidiruv vidjeti: yozish tugagandan 2s keyin avtomatik
+  // Home'ga olib kiradi (?search= bilan). Enter bo'lsa — darhol (pastda).
+  const searchNavTimerRef = useRef<number | undefined>(undefined);
   const hideToolbarEverywhere =
     toolbarPath.startsWith('/create') || toolbarPath.startsWith('/chat') || toolbarPath.startsWith('/profile');
   const hideToolbarDesktop =
@@ -226,9 +233,15 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Boshqa sahifaga o'tmaymiz — joriy sahifa kontenti ichida qidirishni
-    // darhol qo'llaymiz (debounce kutmasdan, remountsiz).
-    window.dispatchEvent(new CustomEvent('tophand:search', { detail: searchQuery }));
+    // Enter — debounce kutmasdan qidiruvni DARHOL ishga tushiramiz.
+    window.clearTimeout(searchNavTimerRef.current);
+    if (isHomePath) {
+      window.dispatchEvent(new CustomEvent('tophand:search', { detail: { q: searchQuery, immediate: true } }));
+      return;
+    }
+    // Boshqa sahifada: Home'ga o'tkazamiz (?search=) — u yerda bo'sh natija
+    // holda "topilmadi" holati ko'rsatiladi.
+    if (searchQuery.trim()) onNavigate(`/?search=${encodeURIComponent(searchQuery.trim())}`);
   };
 
   const go = (route: string) => {
@@ -698,13 +711,21 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
               onChange={(e) => {
                 const v = e.target.value;
                 setSearchQuery(v);
-                window.dispatchEvent(new CustomEvent('tophand:search', { detail: v }));
+                window.dispatchEvent(new CustomEvent('tophand:search', { detail: { q: v, immediate: false } }));
+                if (!isHomePath) {
+                  window.clearTimeout(searchNavTimerRef.current);
+                  if (v.trim()) {
+                    searchNavTimerRef.current = window.setTimeout(() => {
+                      onNavigate(`/?search=${encodeURIComponent(v.trim())}`);
+                    }, 2000);
+                  }
+                }
               }}
-              placeholder={t('nav.searchPlaceholder')}
+              placeholder={searchPlaceholder}
               className="w-full bg-transparent text-[15px] sm:text-sm font-medium text-[#0f172a] placeholder-[#64748b] focus:outline-hidden mx-2 min-w-0"
             />
             {searchQuery && (
-              <button type="button" onClick={() => { setSearchQuery(''); window.dispatchEvent(new CustomEvent('tophand:search', { detail: '' })); }} aria-label={t('nav.clear')} className="shrink-0 text-[#64748b] hover:text-[#0f172a] p-1">
+              <button type="button" onClick={() => { setSearchQuery(''); window.clearTimeout(searchNavTimerRef.current); window.dispatchEvent(new CustomEvent('tophand:search', { detail: { q: '', immediate: true } })); }} aria-label={t('nav.clear')} className="shrink-0 text-[#64748b] hover:text-[#0f172a] p-1">
                 <X className="w-4 h-4" />
               </button>
             )}

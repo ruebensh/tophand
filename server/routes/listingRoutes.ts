@@ -137,8 +137,33 @@ router.get('/', optionalAuth, async (req: AuthRequest, res) => {
     if (filter.category_id) {
       logSearchOrFilter({ event_type: 'CATEGORY_FILTER', category_id: filter.category_id, filter_type: 'CATEGORY', user_id: req.user?.id });
     }
-    if (filter.keyword) {
-      logSearchOrFilter({ event_type: 'SEARCH_KEYWORD', keyword: filter.keyword, user_id: req.user?.id });
+    if (filter.keyword && filter.keyword.trim().length >= 2) {
+      // Statistika tozaligi: 2 belgidan qisqa (klaviatura fragmentlari) yozilmaydi,
+      // bir xil foydalanuvchi + bir xil so'z 15 daqiqa ichida QAYTA sanalmaydi
+      // (qayta kirish/paginatiya shovvini oldini oladi). Fire-and-forget — javobni sekinlatmaydi.
+      const kw = filter.keyword.trim();
+      void (async () => {
+        try {
+          const dupe = req.user?.id
+            ? await queryOne<{ one: number }>(
+                `SELECT 1 AS one FROM search_filter_logs
+                  WHERE event_type = 'SEARCH_KEYWORD' AND LOWER(TRIM(keyword)) = LOWER(TRIM(?))
+                    AND user_id = ? AND created_at > NOW() - INTERVAL '15 minutes' LIMIT 1`,
+                [kw, req.user.id]
+              )
+            : await queryOne<{ one: number }>(
+                `SELECT 1 AS one FROM search_filter_logs
+                  WHERE event_type = 'SEARCH_KEYWORD' AND LOWER(TRIM(keyword)) = LOWER(TRIM(?))
+                    AND user_id IS NULL AND created_at > NOW() - INTERVAL '15 minutes' LIMIT 1`,
+                [kw]
+              );
+          if (!dupe) {
+            await logSearchOrFilter({ event_type: 'SEARCH_KEYWORD', keyword: kw, user_id: req.user?.id });
+          }
+        } catch {
+          /* non-blocking */
+        }
+      })();
     }
     if (filter.price_min || filter.price_max) {
       logSearchOrFilter({ event_type: 'FILTER_USE', filter_type: 'MAOSH_PRICE', filter_value: 'price_filter', user_id: req.user?.id });
@@ -157,6 +182,47 @@ router.get('/', optionalAuth, async (req: AuthRequest, res) => {
   } catch (err: any) {
     console.error('Listings search error:', err);
     serverError(res, err, 'E’lonlarni yuklashda xatolik yuz berdi');
+  }
+});
+
+// ─── Top qidiruv so'zlari — topbar typewriter placeholder uchun.
+// 10 daqiqali in-memory kesh: har bir sahifa ochilishida DB'ga urilmaydi.
+// Real qidiruvlar kam bo'lsa (yangi DB) eng ko'p ishlatilgan kategoriyalar
+// nomlari bilan to'ldiriladi — animatsiya hech qachon bo'sh qolmaydi.
+let topKeywordsCache: { at: number; words: string[] } = { at: 0, words: [] };
+router.get('/top-keywords', async (_req: AuthRequest, res: Response) => {
+  try {
+    if (topKeywordsCache.words.length && Date.now() - topKeywordsCache.at < 10 * 60 * 1000) {
+      return res.json({ keywords: topKeywordsCache.words });
+    }
+    const rows = await queryAll<{ keyword: string }>(
+      `SELECT keyword FROM search_filter_logs
+        WHERE event_type = 'SEARCH_KEYWORD' AND keyword IS NOT NULL
+          AND length(keyword) BETWEEN 3 AND 40
+          AND created_at > NOW() - INTERVAL '30 days'
+        GROUP BY keyword ORDER BY COUNT(*) DESC LIMIT 15`
+    );
+    let words = rows.map((r) => String(r.keyword || '').trim()).filter(Boolean);
+    if (words.length < 15) {
+      const cats = await queryAll<{ name: string }>(
+        `SELECT c.name_uz AS name
+           FROM categories c
+           LEFT JOIN listings l ON l.category_id = c.id AND l.status = 'ACTIVE'
+          WHERE c.parent_id IS NOT NULL AND c.is_active = 1
+          GROUP BY c.id, c.name_uz
+          ORDER BY COUNT(l.id) DESC, c.name_uz ASC LIMIT 15`
+      );
+      for (const c of cats) {
+        const n = String(c.name || '').trim();
+        if (n && !words.some((w) => w.toLowerCase() === n.toLowerCase())) words.push(n);
+        if (words.length >= 15) break;
+      }
+    }
+    words = words.slice(0, 15);
+    if (words.length) topKeywordsCache = { at: Date.now(), words };
+    res.json({ keywords: words });
+  } catch (err: any) {
+    serverError(res, err);
   }
 });
 
