@@ -550,6 +550,64 @@ async function main() {
         }
       }
 
+      // ── Qoralama (DRAFT): tozalash + har 2 kunda eslatma ──
+      // Talab: egasi bitta va barcha qoralamalarini butunlay o'chira oladi;
+      // eslatma cron'i har egaga 2 kunda eng ko'pi bilan 1 ta eslatma beradi.
+      {
+        const owner = await mkUser(`usr_integ_draft_${RUN_ID}`, `draft_${RUN_ID}@integ.example`);
+        const ownerToken = generateToken(owner);
+        const cat = await queryOne<any>('SELECT id FROM categories LIMIT 1');
+        const region = await queryOne<any>('SELECT id FROM regions LIMIT 1');
+        const district = await queryOne<any>('SELECT id FROM districts LIMIT 1');
+        if (cat && region && district) {
+          const mkDraft = async (id: string, ageDays: number) => {
+            await runQuery(
+              `INSERT INTO listings (id, owner_user_id, type, title, description, category_id, region_id, district_id, price_type, status, created_at, updated_at, expires_at)
+               VALUES (?, ?, 'SERVICE_OFFER', ?, ?, ?, ?, ?, 'FIXED', 'DRAFT', NOW() - (? || ' days')::INTERVAL, NOW(), NOW() + INTERVAL '30 days')`,
+              [id, owner.id, `Draft ${id}`, 'desc', cat.id, region.id, district.id, String(ageDays)]
+            );
+          };
+
+          const d1 = `lst_integ_draft1_${RUN_ID}`;
+          const d2 = `lst_integ_draft2_${RUN_ID}`;
+          const d3 = `lst_integ_draft3_${RUN_ID}`;
+          await mkDraft(d1, 3);
+          await mkDraft(d2, 3);
+          await mkDraft(d3, 0); // yangi — 24h derazasidan tashqarida, eslatma sababchisi emas
+
+          // Eslatma cron'ini chaqiramiz (eski qoralamalar uchun 1 consolidated eslatma)
+          await runQuery(`DELETE FROM notifications WHERE user_id = ? AND type = 'DRAFT_REMINDER'`, [owner.id]);
+          const { processDraftReminders } = await import('../server/services/draftReminderService.ts');
+          await processDraftReminders();
+          const cnt1 = await queryOne<any>(`SELECT COUNT(*) AS c FROM notifications WHERE user_id = ? AND type = 'DRAFT_REMINDER'`, [owner.id]);
+          assert(Number(cnt1?.c) >= 1, 'draft reminder: old drafts trigger a DRAFT_REMINDER');
+
+          // Dedup: 2 kunlik deraza ichida qayta chaqirish eslatma qo'shmaydi
+          await processDraftReminders();
+          const cnt2 = await queryOne<any>(`SELECT COUNT(*) AS c FROM notifications WHERE user_id = ? AND type = 'DRAFT_REMINDER'`, [owner.id]);
+          assert(Number(cnt2?.c) === Number(cnt1?.c), 'draft reminder: re-run within 2 days does NOT add a reminder (dedup)');
+
+          // Bitta qoralamani o'chirish → hard-delete (qator yo'qoladi)
+          const delOne = await req(`/api/listings/${d3}`, { method: 'DELETE', headers: { authorization: `Bearer ${ownerToken}` } });
+          assert(delOne.status === 200, 'draft: DELETE /:id (DRAFT) → 200');
+          const goneRow = await queryOne<any>('SELECT id FROM listings WHERE id = ?', [d3]);
+          assert(!goneRow, 'draft: single DRAFT is hard-deleted (row removed)');
+
+          // Barcha qoralamalarni tozalash
+          const clear = await req('/api/listings/drafts/mine', { method: 'DELETE', headers: { authorization: `Bearer ${ownerToken}` } });
+          const clearJson = await clear.json();
+          assert(clear.status === 200 && Number(clearJson.deleted) >= 2, 'draft: DELETE /drafts/mine → 200 & deleted>=2');
+          const remaining = await queryOne<any>(`SELECT COUNT(*) AS c FROM listings WHERE owner_user_id = ? AND status = 'DRAFT'`, [owner.id]);
+          assert(Number(remaining?.c) === 0, 'draft: after clear, no DRAFT rows remain for owner');
+
+          try { await runQuery('DELETE FROM notifications WHERE user_id = ?', [owner.id]); } catch {}
+          try { await runQuery('DELETE FROM listings WHERE owner_user_id = ?', [owner.id]); } catch {}
+          try { await runQuery('DELETE FROM users WHERE id = ?', [owner.id]); } catch {}
+        } else {
+          assert(false, 'draft: seeded category/region/district available for fixture');
+        }
+      }
+
       // ── SEO: sitemap.xml professional + Google Image sitemap ──
       {
         const cat = await queryOne<any>('SELECT id FROM categories LIMIT 1');

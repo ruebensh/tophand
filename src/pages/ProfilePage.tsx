@@ -34,6 +34,7 @@ import {
   Check,
   X,
   ImageOff,
+  Trash2,
 } from 'lucide-react';
 import { formatDateAgo, isOfficialAccount, isStaffAccount } from '../lib/utils.ts';
 import { VerifiedBadge } from '../components/common/VerifiedBadge.tsx';
@@ -417,6 +418,29 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       fetchProfile();
     } catch (err: any) {
       alert(err.message || t('profile.errComplete'));
+    }
+  };
+
+  // Barcha qoralamalarni (DRAFT) butunlay tozalash.
+  const handleClearDrafts = async () => {
+    if (!window.confirm(t('profile.clearDraftsConfirm'))) return;
+    try {
+      const r = await apiRequest<{ deleted: number }>('/api/listings/drafts/mine', { method: 'DELETE' });
+      alert(t('profile.clearDraftsOk', { n: r?.deleted ?? 0 }));
+      fetchProfile();
+    } catch (err: any) {
+      alert(err.message || t('profile.errClearDrafts'));
+    }
+  };
+
+  // Bitta qoralamani o'chirish (DRAFT — hard-delete).
+  const handleDeleteDraft = async (listingId: string) => {
+    if (!window.confirm(t('profile.deleteDraftConfirm'))) return;
+    try {
+      await apiRequest(`/api/listings/${listingId}`, { method: 'DELETE' });
+      fetchProfile();
+    } catch (err: any) {
+      alert(err.message || t('profile.errDeleteDraft'));
     }
   };
 
@@ -894,34 +918,61 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 <p className="font-bold text-gray-800 text-sm">{t('profile.draftsEmpty')}</p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                {draftListings.map((l) => (
-                  <ListingCard
-                    key={l.id}
-                    listing={l}
-                    dimmed
-                    hideSave
-                    onClick={() => onNavigate(`/create?edit=${l.id}`)}
-                    statusBadge={
-                      <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold text-[10px] border border-slate-300">
-                        {t('profile.draftBadge')}
-                      </span>
-                    }
-                    footer={
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onNavigate(`/create?edit=${l.id}`);
-                        }}
-                        className="w-full py-1.5 px-3 rounded-xl bg-[#1673E6] hover:bg-[#125FD0] text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                        <span>{t('profile.continueDraft')}</span>
-                      </button>
-                    }
-                  />
-                ))}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-semibold text-gray-500">{t('profile.draftsCount', { n: draftListings.length })}</p>
+                  <button
+                    type="button"
+                    onClick={handleClearDrafts}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs transition cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>{t('profile.clearDrafts')}</span>
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                  {draftListings.map((l) => (
+                    <ListingCard
+                      key={l.id}
+                      listing={l}
+                      dimmed
+                      hideSave
+                      onClick={() => onNavigate(`/create?edit=${l.id}`)}
+                      statusBadge={
+                        <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold text-[10px] border border-slate-300">
+                          {t('profile.draftBadge')}
+                        </span>
+                      }
+                      footer={
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onNavigate(`/create?edit=${l.id}`);
+                            }}
+                            className="flex-1 py-1.5 px-3 rounded-xl bg-[#1673E6] hover:bg-[#125FD0] text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                            <span>{t('profile.continueDraft')}</span>
+                          </button>
+                          <button
+                            type="button"
+                            title={t('profile.deleteDraft')}
+                            aria-label={t('profile.deleteDraft')}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteDraft(l.id);
+                            }}
+                            className="shrink-0 py-1.5 px-2.5 rounded-xl bg-gray-100 hover:bg-red-50 text-gray-500 hover:text-red-600 font-bold text-xs flex items-center justify-center transition cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      }
+                    />
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -1658,34 +1709,61 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 <p className="text-slate-500 text-sm mt-1">{t('profile.draftsEmptyBody')}</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {draftListings.map((l) => (
-                  <ListingCard
-                    key={l.id}
-                    listing={l}
-                    dimmed
-                    hideSave
-                    onClick={() => onNavigate(`/create?edit=${l.id}`)}
-                    statusBadge={
-                      <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold text-xs border border-slate-300">
-                        {t('profile.draftBadge')}
-                      </span>
-                    }
-                    footer={
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onNavigate(`/create?edit=${l.id}`);
-                        }}
-                        className="w-full py-2 px-4 rounded-xl bg-[#1673E6] hover:bg-[#125FD0] text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
-                      >
-                        <Edit3 className="w-4 h-4" />
-                        <span>{t('profile.continueDraft')}</span>
-                      </button>
-                    }
-                  />
-                ))}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-semibold text-slate-500">{t('profile.draftsCount', { n: draftListings.length })}</p>
+                  <button
+                    type="button"
+                    onClick={handleClearDrafts}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs transition cursor-pointer"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>{t('profile.clearDrafts')}</span>
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {draftListings.map((l) => (
+                    <ListingCard
+                      key={l.id}
+                      listing={l}
+                      dimmed
+                      hideSave
+                      onClick={() => onNavigate(`/create?edit=${l.id}`)}
+                      statusBadge={
+                        <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold text-xs border border-slate-300">
+                          {t('profile.draftBadge')}
+                        </span>
+                      }
+                      footer={
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onNavigate(`/create?edit=${l.id}`);
+                            }}
+                            className="flex-1 py-2 px-4 rounded-xl bg-[#1673E6] hover:bg-[#125FD0] text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                            <span>{t('profile.continueDraft')}</span>
+                          </button>
+                          <button
+                            type="button"
+                            title={t('profile.deleteDraft')}
+                            aria-label={t('profile.deleteDraft')}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteDraft(l.id);
+                            }}
+                            className="shrink-0 py-2 px-3 rounded-xl bg-gray-100 hover:bg-red-50 text-gray-500 hover:text-red-600 font-bold text-xs flex items-center justify-center transition cursor-pointer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      }
+                    />
+                  ))}
+                </div>
               </div>
             )}
           </div>

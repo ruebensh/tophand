@@ -608,6 +608,27 @@ router.post('/:id/toggle-hide', requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+// Barcha qoralamalarni (DRAFT) butunlay tozalash — faqat joriy foydalanuvchining
+// o'z qoralamalari. Hard-delete: listing_images + media + saved_listings tozalanadi.
+router.delete('/drafts/mine', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const drafts = await queryAll<{ id: string }>(
+      'SELECT id FROM listings WHERE owner_user_id = ? AND status = ?',
+      [req.user!.id, 'DRAFT']
+    );
+    for (const d of drafts) {
+      const mediaRows = await queryAll<{ url: string }>('SELECT url FROM listing_images WHERE listing_id = ?', [d.id]);
+      await runQuery('DELETE FROM listing_images WHERE listing_id = ?', [d.id]);
+      await runQuery('DELETE FROM saved_listings WHERE listing_id = ?', [d.id]);
+      await runQuery('DELETE FROM listings WHERE id = ?', [d.id]);
+      await Promise.all(mediaRows.map((m) => deleteStoredMediaIfUnreferenced(m.url)));
+    }
+    res.json({ success: true, deleted: drafts.length });
+  } catch (err: any) {
+    serverError(res, err);
+  }
+});
+
 // Delete / Remove listing
 router.delete('/:id', requireAuth, async (req: AuthRequest, res) => {
   try {
@@ -616,6 +637,17 @@ router.delete('/:id', requireAuth, async (req: AuthRequest, res) => {
 
     if (listing.owner_user_id !== req.user!.id && !hasMinLevel(req.user!.role, 'ADMIN')) {
       return res.status(403).json({ error: 'Ruxsat berilmadi' });
+    }
+
+    // Qoralama (DRAFT) — hali chop etilmagan, shuning uchun egasi uni butunlay
+    // o'chiradi (soft REMOVED emas) — bazada chiqindq qoldirmaydi.
+    if (listing.status === 'DRAFT' && listing.owner_user_id === req.user!.id) {
+      const draftMedia = await queryAll<{ url: string }>('SELECT url FROM listing_images WHERE listing_id = ?', [listing.id]);
+      await runQuery('DELETE FROM listing_images WHERE listing_id = ?', [listing.id]);
+      await runQuery('DELETE FROM saved_listings WHERE listing_id = ?', [listing.id]);
+      await runQuery('DELETE FROM listings WHERE id = ?', [listing.id]);
+      await Promise.all(draftMedia.map((m) => deleteStoredMediaIfUnreferenced(m.url)));
+      return res.json({ success: true, hard: true, message: "Qoralama o'chirildi" });
     }
 
     const now = new Date().toISOString();

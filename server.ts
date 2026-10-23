@@ -11,6 +11,7 @@ import { initDatabase } from './server/db/init.ts';
 import { queryOne } from './server/db/database.ts';
 import { startExpirationCron } from './server/services/expirationService.ts';
 import { startMediaCleanupCron } from './server/services/mediaCleanupService.ts';
+import { startDraftReminderCron } from './server/services/draftReminderService.ts';
 import { getSeoMeta, injectSeo } from './server/services/seoService.ts';
 
 // Routes
@@ -354,6 +355,10 @@ async function startServer() {
 
     // 2. Start background cron for listing lifecycle (configurable active-days) & notifications
     startExpirationCron();
+
+    // 2a. Draft reminder cron: users with unattended DRAFT listings get a
+    //     consolidated reminder at most once every 2 days.
+    startDraftReminderCron();
 
     // 2b. Media cleanup cron (report #6/#7/#10): retry failed deletes + reclaim
     //     orphan uploads and abandoned verification previews past a TTL.
