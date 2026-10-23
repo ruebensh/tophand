@@ -26,9 +26,18 @@ const ChatPage = lazy(() => import('./pages/ChatPage.tsx').then((m) => ({ defaul
 const SavedListingsPage = lazy(() => import('./pages/SavedListingsPage.tsx').then((m) => ({ default: m.SavedListingsPage })));
 const WalletPage = lazy(() => import('./pages/WalletPage.tsx').then((m) => ({ default: m.WalletPage })));
 const ModeratorDashboardPage = lazy(() => import('./pages/ModeratorDashboardPage.tsx').then((m) => ({ default: m.ModeratorDashboardPage })));
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage.tsx').then((m) => ({ default: m.NotFoundPage })));
 const AdminDashboardPage = lazy(() => import('./pages/AdminDashboardPage.tsx').then((m) => ({ default: m.AdminDashboardPage })));
 const ChiefModeratorPage = lazy(() => import('./pages/ChiefModeratorPage.tsx').then((m) => ({ default: m.ChiefModeratorPage })));
 const RegionCategoryPage = lazy(() => import('./pages/RegionCategoryPage.tsx').then((m) => ({ default: m.RegionCategoryPage })));
+
+// 404 chegarasi: FAQAT birinchi segment tekshiriladi — ro'yxatdan tashqaridagi
+// har qanday yo'l NotFoundPage'ga tushadi (modul darajasi — bir marta yaratiladi).
+const KNOWN_SEGMENTS = new Set([
+  '', 'listing', 'create', 'profile', 'chat', 'saved', 'wallet', 'hudud',
+  'moderator', 'lead', 'privacy', 'terms', 'about', 'contact',
+  ADMIN_PANEL_PATH.split('/')[1],
+]);
 const LegalPage = lazy(() => import('./pages/LegalPage.tsx').then((m) => ({ default: m.LegalPage })));
 
 // Global Modals
@@ -309,6 +318,12 @@ const AppContent: React.FC = () => {
         );
       }
       return <ChiefModeratorPage onNavigate={navigate} />;
+    }
+
+    // 10. Noma'lum yo'l — 404 (KNOWN_SEGMENTS modul darajasida).
+    const firstSeg = currentRoute.split('?')[0].split('/')[1] || '';
+    if (!KNOWN_SEGMENTS.has(firstSeg)) {
+      return <NotFoundPage onNavigate={navigate} />;
     }
 
     // Default: Home Page (/)

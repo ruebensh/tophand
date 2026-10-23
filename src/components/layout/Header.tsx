@@ -67,8 +67,10 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
   const { user, logout, openLoginModal } = useAuth();
   const { notifications, unreadCount, markAllAsRead, markAsRead, refreshNotifications } = useNotifications();
   const { t, localized } = useI18n();
-  // Topbar qidiruv: eng ko'p qidirilgan so'zlar typewriter ko'rinishida almashinadi
-  const searchPlaceholder = useTypewriterPlaceholder(t('nav.searchPlaceholder'));
+  // Topbar qidiruv: eng ko'p qidirilgan so'zlar typewriter ko'rinishida almashinadi.
+  // Kursor — alohida DOM-bar (placeholder matn emas), haqiqiy kursordek ko'rinadi.
+  const typewriter = useTypewriterPlaceholder();
+  const [searchFocused, setSearchFocused] = useState(false);
 
   // "Topbar" (katalog + qidiruv + xarita paneli) ba'zi sahifalarda kerak emas:
   // - /create, /chat, /profile — barcha o'lchamlarda (mobil + desktop) yashiriladi;
@@ -84,6 +86,9 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
     toolbarPath === ADMIN_PANEL_PATH || toolbarPath === '/moderator' || toolbarPath === '/lead';
 
   const [searchQuery, setSearchQuery] = useState('');
+  // Typewriter overlay faqat input BO'SH va fokusdan tashqarida (native kursor
+  // bilan chaqishmasligi uchun) — focus bo'lsa overlay yashirinadi
+  const showTypewriter = typewriter.active && !searchQuery && !searchFocused;
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [notifPos, setNotifPos] = useState<{ top: number; right: number } | null>(null);
@@ -704,26 +709,37 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
             <button type="submit" className="shrink-0 text-[#1673E6]" aria-label={t('nav.search')}>
               <Search className="w-5 h-5 sm:w-4 sm:h-4" />
             </button>
-            <input
-              type="text"
-              inputMode="search"
-              value={searchQuery}
-              onChange={(e) => {
-                const v = e.target.value;
-                setSearchQuery(v);
-                window.dispatchEvent(new CustomEvent('tophand:search', { detail: { q: v, immediate: false } }));
-                if (!isHomePath) {
-                  window.clearTimeout(searchNavTimerRef.current);
-                  if (v.trim()) {
-                    searchNavTimerRef.current = window.setTimeout(() => {
-                      onNavigate(`/?search=${encodeURIComponent(v.trim())}`);
-                    }, 2000);
+            <div className="relative flex-1 min-w-0 mx-2">
+              <input
+                type="text"
+                inputMode="search"
+                value={searchQuery}
+                onFocus={() => setSearchFocused(true)}
+                onBlur={() => setSearchFocused(false)}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setSearchQuery(v);
+                  window.dispatchEvent(new CustomEvent('tophand:search', { detail: { q: v, immediate: false } }));
+                  if (!isHomePath) {
+                    window.clearTimeout(searchNavTimerRef.current);
+                    if (v.trim()) {
+                      searchNavTimerRef.current = window.setTimeout(() => {
+                        onNavigate(`/?search=${encodeURIComponent(v.trim())}`);
+                      }, 2000);
+                    }
                   }
-                }
-              }}
-              placeholder={searchPlaceholder}
-              className="w-full bg-transparent text-[15px] sm:text-sm font-medium text-[#0f172a] placeholder-[#64748b] focus:outline-hidden mx-2 min-w-0"
-            />
+                }}
+                placeholder={typewriter.active ? '' : t('nav.searchPlaceholder')}
+                className="w-full bg-transparent text-[15px] sm:text-sm font-medium text-[#0f172a] placeholder-[#64748b] focus:outline-hidden min-w-0"
+              />
+              {/* Typewriter overlay: yozilayotgan so'z + haqiqiy kursor-bar */}
+              {showTypewriter && (
+                <div className="absolute inset-0 flex items-center pointer-events-none select-none overflow-hidden">
+                  <span className="text-[15px] sm:text-sm font-medium text-[#64748b] whitespace-nowrap">{typewriter.text}</span>
+                  <span className={`th-caret${typewriter.idle ? ' th-caret-blink' : ''}`} />
+                </div>
+              )}
+            </div>
             {searchQuery && (
               <button type="button" onClick={() => { setSearchQuery(''); window.clearTimeout(searchNavTimerRef.current); window.dispatchEvent(new CustomEvent('tophand:search', { detail: { q: '', immediate: true } })); }} aria-label={t('nav.clear')} className="shrink-0 text-[#64748b] hover:text-[#0f172a] p-1">
                 <X className="w-4 h-4" />

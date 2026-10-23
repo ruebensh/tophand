@@ -22,19 +22,30 @@ async function loadTopKeywords(): Promise<string[]> {
   return inflight;
 }
 
+export interface TypewriterState {
+  /** Faol — so'zlar yuklangan, overlay ko'rsatiladi (placeholder attribute bo'sh) */
+  active: boolean;
+  /** Hozirgi yozilgan matn (kursor belgisisiz — kursor DOM-element bilan chiziladi) */
+  text: string;
+  /** Haqqiqiy kursor miltillashi uchun: faqat so'z tugab TO'XTAGANDA true */
+  idle: boolean;
+}
+
 /**
- * Topbar qidiruv uchun "typewriter" placeholder: eng ko'p qidirilgan so'zlarni
- * yozadi → pauza → o'chiradi → keyingisiga o'tadi (15 tagacha, doimiy loop).
+ * Topbar qidiruv uchun "typewriter" holati: eng ko'p qidirilgan so'zlarni
+ * harfma-harf yozadi → to'xtaydi (idle=true — kursor miltillaydi) → qayta
+ * yozib-o'chirib loop qiladi.
  *
- * Optimizatsiya (silliqlik kafolati):
- *  - Faqat placeholder almashadi — layout'ga tegishli hech qanday qayta oqish yo'q.
- *  - Tab ko'rinmasa (document.hidden) yozuv to'xtaydi — batareya/CPU sarfi nol.
- *  - Ijobiy foydalanuvchi e'lon izlayotgan bo'lsa (fokussa + qiymat) ham to'xtaydi.
- *  - So'zlar modul darajasida keshlanadi — har bir mount'da network'ga chiqmaydi.
+ * Kursor endi MATN EMAS — Header uni alohida DOM-bar (2px, baland, ko'k)
+ * sifatida chizadi, shuning uchun haqiqiy klaviatura kursoridek ko'rinadi.
+ *
+ * Optimizatsiya: har tick = 1 setState; tab yashiringanida sikl to'xtaydi;
+ * so'zlar modul keshida — network bir marta.
  */
-export function useTypewriterPlaceholder(fallback: string): string {
+export function useTypewriterPlaceholder(): TypewriterState {
   const [words, setWords] = useState<string[]>(cachedWords || []);
   const [typed, setTyped] = useState('');
+  const [idle, setIdle] = useState(false);
 
   // So'zlarni bir marta yuklab olish
   useEffect(() => {
@@ -45,18 +56,17 @@ export function useTypewriterPlaceholder(fallback: string): string {
       setWords(cachedWords);
     }
     return () => { alive = false; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // eslint-disable-next-line react-hooks/exhaustive-deps
 
-  // Typewriter sikli
+  // Typewriter sikli: type (doim yoniq) → hold (idle — kursor miltillaydi) → delete
   useEffect(() => {
-    if (!words.length) { setTyped(''); return; }
+    if (!words.length) { setTyped(''); setIdle(false); return; }
     let stopped = false;
     let timer: ReturnType<typeof setTimeout>;
     let wordIdx = 0;
     let charIdx = 0;
-    let deleting = false;
-
-    const word = () => words[wordIdx % words.length];
+    let blinkCount = 0;
+    let phase: 'type' | 'hold' | 'delete' = 'type';
 
     const tick = () => {
       if (stopped) return;
@@ -65,34 +75,51 @@ export function useTypewriterPlaceholder(fallback: string): string {
         timer = setTimeout(tick, 1000);
         return;
       }
-      const w = word();
-      if (!deleting) {
-        charIdx++;
-        setTyped(w.slice(0, charIdx));
-        if (charIdx >= w.length) {
-          deleting = true;
-          timer = setTimeout(tick, 2200); // o'qish uchun pauza
-          return;
-        }
-        timer = setTimeout(tick, 75);
-      } else {
-        charIdx--;
-        setTyped(w.slice(0, charIdx));
-        if (charIdx <= 0) {
-          deleting = false;
-          wordIdx++;
-          timer = setTimeout(tick, 350);
-          return;
-        }
-        timer = setTimeout(tick, 32);
+      const w = words[wordIdx % words.length];
+      switch (phase) {
+        case 'type':
+          setIdle(false);
+          charIdx++;
+          setTyped(w.slice(0, charIdx));
+          if (charIdx >= w.length) {
+            phase = 'hold';
+            blinkCount = 0;
+            setIdle(true); // so'z tugadi — kursor endi miltillaydi
+            timer = setTimeout(tick, 1600);
+          } else {
+            timer = setTimeout(tick, 75);
+          }
+          break;
+        case 'hold':
+          // Miltillash faqat SHU fazada (idle) — CSS animatsiya o'zi boshqaradi
+          setIdle(true);
+          blinkCount++;
+          if (blinkCount >= 4) {
+            phase = 'delete';
+            setIdle(false);
+            timer = setTimeout(tick, 260);
+          } else {
+            timer = setTimeout(tick, 430);
+          }
+          break;
+        case 'delete':
+          setIdle(false);
+          charIdx--;
+          setTyped(w.slice(0, charIdx));
+          if (charIdx <= 0) {
+            phase = 'type';
+            wordIdx++;
+            timer = setTimeout(tick, 380);
+          } else {
+            timer = setTimeout(tick, 32);
+          }
+          break;
       }
     };
 
     timer = setTimeout(tick, 500);
-    return () => { stopped = true; clearTimeout(timer); };
+    return () => { stopped = true; clearTimeout(timer); setIdle(false); };
   }, [words]);
 
-  // Bo'sh momentda statik maslahat ko'rinib tursin — input hech qachon
-  // "bo'sh placeholder" bilan qolmasin
-  return typed || fallback;
+  return { active: words.length > 0, text: typed, idle };
 }

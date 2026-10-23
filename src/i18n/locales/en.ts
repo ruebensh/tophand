@@ -1693,6 +1693,11 @@ const en = {
     heroCraft3: 'Weaving',
     heroCraft4: 'Wood carving',
   },
+  notFound: {
+    title: 'Page not found',
+    body: 'This address may have changed or the page no longer exists. Continue from the home page.',
+    back: 'Back to home',
+  },
 };
 
 export default en;

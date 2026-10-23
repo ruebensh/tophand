@@ -393,7 +393,17 @@ async function startServer() {
           }
         },
       }));
+      // SPA fallback: birinchi segment ro'yxatdan tashqarida bo'lsa HTTP 404
+      // status beramiz — izxarlar noma'lum yo'llarni indekslamaydi (SPA ichida
+      // NotFoundPage ko'rinadi). App.tsx'dagi KNOWN_SEGMENTS bilan mos bo'lsin.
+      const SPA_SEGMENTS = new Set([
+        '', 'listing', 'create', 'profile', 'chat', 'saved', 'wallet', 'hudud',
+        'moderator', 'lead', 'privacy', 'terms', 'about', 'contact', 'th-adm-7f3k9q',
+      ]);
       app.get('*', async (req, res) => {
+        if (!SPA_SEGMENTS.has(req.path.split('/').filter(Boolean)[0] || '')) {
+          res.status(404);
+        }
         const htmlFile = path.resolve(distDir, 'index.html');
         const googleClientId = process.env.VITE_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || '';
         try {

@@ -1939,27 +1939,15 @@ export const HomePage: React.FC<HomePageProps> = ({
               ))}
             </div>
           ) : listings.length === 0 ? (
-            <div className="bg-[#F9FAFB] rounded-3xl border border-[#EBECF0] p-12 text-center max-w-md mx-auto my-8">
-              {/* "No Results" illiustratsiyasi — emoji doira o'rniga (public/not-found.webp) */}
+            <div className="relative overflow-hidden bg-white rounded-3xl border border-[#EBECF0] h-64 sm:h-72 max-w-md mx-auto my-8">
+              {/* "No Results" illiustratsiyasi — kartani to'liq qoplaydi */}
               <img
                 src="/not-found.webp"
                 alt=""
-                width={112}
-                height={112}
                 loading="lazy"
                 decoding="async"
-                className="w-28 h-28 mx-auto mb-2 object-contain select-none"
+                className="absolute inset-0 w-full h-full object-contain select-none"
               />
-              <h3 className="font-bold text-base text-[#172B4D]">{t('home.noResultsTitle')}</h3>
-              <p className="text-xs text-[#5E6C84] mt-1 mb-5">
-                {t('home.noResultsBody')}
-              </p>
-              <button
-                onClick={handleResetFilters}
-                className="px-5 py-2.5 rounded-xl bg-[#1673E6] hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
-              >
-                {t('home.clearAllFilters')}
-              </button>
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-4">

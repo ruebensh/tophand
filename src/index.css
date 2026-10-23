@@ -891,3 +891,27 @@ html { overscroll-behavior-y: none; }
     transform: none !important;
   }
 }
+
+/* ─── Topbar qidiruv typewriter kursori ───
+   Haqiqiy klaviatura kursoridek: ingichqa (2px), harflardan BALAND,
+   brand ko'k rangi — kulrang placeholder matnidan aniq ajraladi.
+   Yozish/o'chirish paytida doim yoniq (.th-caret), faqat so'z tugab
+   to'xtaganda miltillaydi (.th-caret-blink). */
+.th-caret {
+  flex: none;
+  width: 2px;
+  height: 1.12em;
+  margin-left: 1.5px;
+  border-radius: 1px;
+  background: #1673e6;
+}
+.th-caret-blink {
+  animation: th-caret-blink 0.9s steps(1, end) infinite;
+}
+@keyframes th-caret-blink {
+  0%, 55% { opacity: 1; }
+  55.01%, 100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .th-caret-blink { animation: none; }
+}

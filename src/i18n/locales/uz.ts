@@ -1695,6 +1695,11 @@ const uz = {
     heroCraft3: "To'qimachilik",
     heroCraft4: "Yog'och o'ymakorligi",
   },
+  notFound: {
+    title: 'Sahifa topilmadi',
+    body: 'Manzil o‘zgargan yoki bunday sahifa mavjud emas. Bosh sahifadan davom eting.',
+    back: 'Bosh sahifaga qaytish',
+  },
 };
 
 export default uz;
