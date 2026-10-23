@@ -551,7 +551,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
   );
 
   return (
-    <div className="max-w-6xl mx-auto w-full min-w-0 max-w-full px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-0 sm:pb-6">
+    <div className="max-w-6xl mx-auto w-full min-w-0 px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-0 sm:pb-6">
       {/* Breadcrumb / Back */}
       <div className="flex items-center gap-2 mb-4 text-xs text-gray-500">
         <button
@@ -688,7 +688,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
             {images.length > 0 ? (
               <div>
                 <div
-                  className="relative aspect-[16/10] sm:aspect-[16/9] w-full bg-gray-50 touch-pan-y"
+                  className="relative aspect-[16/10] sm:aspect-[16/9] lg:aspect-auto lg:h-[440px] w-full bg-gray-50 touch-pan-y"
                   onTouchStart={(e) => {
                     if (currentIsVideo || images.length < 2) return;
                     touchStartX.current = e.touches[0].clientX;
@@ -709,7 +709,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                       src={currentMedia}
                       controls
                       playsInline
-                      className="w-full h-full object-cover bg-black"
+                      className="w-full h-full object-cover lg:object-contain bg-black"
                     />
                   ) : (
                     <img
@@ -717,7 +717,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                       src={currentMedia}
                       alt={title}
                       decoding="async"
-                      className="w-full h-full object-cover th-gallery-img"
+                      className="w-full h-full object-cover lg:object-contain th-gallery-img"
                     />
                   )}
                   {/* Mobil: oldingi keyingi strelkalar */}
@@ -784,7 +784,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                 )}
               </div>
             ) : (
-              <div className="aspect-[16/10] sm:aspect-[16/9] w-full bg-gradient-to-br from-blue-50 to-indigo-50 flex flex-col items-center justify-center text-gray-400 p-6 text-center">
+              <div className="aspect-[16/10] sm:aspect-[16/9] lg:aspect-auto lg:h-[440px] w-full bg-gradient-to-br from-blue-50 to-indigo-50 flex flex-col items-center justify-center text-gray-400 p-6 text-center">
                 <span className="text-5xl mb-3">📋</span>
                 <span className="font-semibold text-sm text-gray-600">{listing.category_name}</span>
                 <ListingTypeBadge type={listing.type} size="sm" className="mt-2" />
