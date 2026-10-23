@@ -12,13 +12,17 @@ export const NotFoundPage: React.FC<{ onNavigate: (route: string) => void }> = (
       <img
         src="/404.webp"
         alt="404"
-        width={320}
-        height={226}
+        width={640}
+        height={452}
         decoding="async"
-        className="w-72 sm:w-80 h-auto object-contain select-none"
+        className="w-72 sm:w-[640px] max-w-full h-auto object-contain select-none"
       />
-      <h2 className="mt-4 font-bold text-base sm:text-lg text-[#172B4D]">{t('notFound.title')}</h2>
-      <p className="mt-1.5 text-xs sm:text-sm text-[#5E6C84] max-w-sm leading-relaxed">
+      {/* Brend "eyebrow" — tarjimasi yo'q, hammasida bir xil */}
+      <p className="mt-8 font-mono font-bold tracking-[0.3em] text-[11px] sm:text-xs text-[#1673E6] uppercase">
+        404 — TopHand
+      </p>
+      <h2 className="mt-2 font-extrabold text-lg sm:text-2xl text-[#172B4D]">{t('notFound.title')}</h2>
+      <p className="mt-2 text-sm sm:text-base text-[#5E6C84] max-w-md leading-relaxed">
         {t('notFound.body')}
       </p>
       <button

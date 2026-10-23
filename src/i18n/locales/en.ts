@@ -1694,8 +1694,8 @@ const en = {
     heroCraft4: 'Wood carving',
   },
   notFound: {
-    title: 'Page not found',
-    body: 'This address may have changed or the page no longer exists. Continue from the home page.',
+    title: 'Missed the target? 🎯',
+    body: "We couldn't find this page either. The bow is innocent — looks like the URL wandered off. 💀",
     back: 'Back to home',
   },
 };

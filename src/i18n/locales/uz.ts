@@ -1696,8 +1696,8 @@ const uz = {
     heroCraft4: "Yog'och o'ymakorligi",
   },
   notFound: {
-    title: 'Sahifa topilmadi',
-    body: 'Manzil o‘zgargan yoki bunday sahifa mavjud emas. Bosh sahifadan davom eting.',
+    title: 'Nishonga tekkizolmadingizmi? 🎯',
+    body: 'Biz ham bu sahifani topolmadik. Kamonchining aybi yo‘q, shekilli URL adashgan. 💀',
     back: 'Bosh sahifaga qaytish',
   },
 };
