@@ -676,7 +676,7 @@ async function main() {
         assert(mb4.status === 200, 'desktop UA: /api/admin → 200 (ruxsat etilgan)');
 
         const mb5 = await req('/api/catalogs', { headers: { 'user-agent': MOBILE_UA } });
-        assert(mb5.status === 200, 'mobil UA: GET /api/catalogs (public) → 200, ta\'sirlanmaydi');
+        assert(mb5.status === 200, 'mobil UA: GET /api/catalogs (public) → 200, ta\'sirlanmaydi'); 
       }
 
       // ── SEO: sitemap.xml professional + Google Image sitemap ──
