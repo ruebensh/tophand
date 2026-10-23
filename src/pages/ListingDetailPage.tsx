@@ -558,41 +558,41 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
 
       {/* Active countdown + promo banner (owner) */}
       {isOwner && listing.status === 'ACTIVE' && (
-        <div className="mb-4 p-4 rounded-2xl bg-blue-50 border border-blue-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-blue-900 text-xs">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-blue-600 text-white shadow-xs">
-              <Clock className="w-5 h-5" />
+        <div className="mb-3 p-3 sm:p-4 rounded-2xl bg-blue-50 border border-blue-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3 text-blue-900 text-[11px] sm:text-xs">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-1.5 sm:p-2 rounded-xl bg-blue-600 text-white shadow-xs">
+              <Clock className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <div>
               <span className="font-bold block">
                 {daysLeft !== null ? t('detail.daysLeft', { n: daysLeft }) : t('detail.activeListing')}
               </span>
-              <span className="text-[11px] text-blue-700">
+              <span className="text-[10px] sm:text-[11px] text-blue-700">
                 {daysLeft !== null && daysLeft <= (monetization?.warning_days ?? 3)
                   ? t('detail.expiresSoon')
                   : t('detail.activeForDays', { n: activeDays })}
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 flex-wrap">
             {promoMsg && (
-              <span className={`text-[11px] font-semibold ${promoErr ? 'text-rose-600' : 'text-emerald-600'}`}>
+              <span className={`text-[10px] sm:text-[11px] font-semibold ${promoErr ? 'text-rose-600' : 'text-emerald-600'}`}>
                 {promoMsg}
               </span>
             )}
             <button
               onClick={() => onNavigate(`/create?edit=${listingId}`)}
-              className="px-4 py-2 rounded-full bg-white hover:bg-blue-50 border border-blue-300 text-blue-700 font-bold text-xs shadow-xs flex items-center gap-1.5"
+              className="px-3 py-1.5 sm:px-4 sm:py-2 rounded-full bg-white hover:bg-blue-50 border border-blue-300 text-blue-700 font-bold text-[11px] sm:text-xs shadow-xs flex items-center gap-1.5"
             >
-              <Edit3 className="w-3.5 h-3.5" />
+              <Edit3 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
               <span>{t('common.edit')}</span>
             </button>
             <button
               onClick={handlePromote}
               disabled={isPromoting}
-              className="px-4 py-2 rounded-full bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs shadow-xs flex items-center gap-1.5"
+              className="px-3 py-1.5 sm:px-4 sm:py-2 rounded-full bg-violet-600 hover:bg-violet-700 text-white font-bold text-[11px] sm:text-xs shadow-xs flex items-center gap-1.5"
             >
-              <Rocket className={`w-3.5 h-3.5 ${isPromoting ? 'animate-pulse' : ''}`} />
+              <Rocket className={`w-3 h-3 sm:w-3.5 sm:h-3.5 ${isPromoting ? 'animate-pulse' : ''}`} />
               <span>
                 {isPromoActive ? t('detail.promoActive') : t('detail.promoteToTop')}
                 {promoPrice > 0 ? ` · ${promoPrice.toLocaleString(intlLocale)} ${t('wallet.som')}` : ` · ${t('common.free')}`}
@@ -602,25 +602,25 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
             <button
               onClick={handleComplete}
               disabled={isCompleting}
-              className="px-4 py-2 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs flex items-center gap-1.5"
+              className="px-3 py-1.5 sm:px-4 sm:py-2 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] sm:text-xs shadow-xs flex items-center gap-1.5"
             >
-              <CheckCircle2 className={`w-3.5 h-3.5 ${isCompleting ? 'animate-pulse' : ''}`} />
+              <CheckCircle2 className={`w-3 h-3 sm:w-3.5 sm:h-3.5 ${isCompleting ? 'animate-pulse' : ''}`} />
               <span>{t('profile.completeListing')}</span>
             </button>
           </div>
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 lg:gap-8 min-w-0">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-3 sm:gap-6 lg:gap-8 min-w-0">
         {/* ── Left Column ── */}
-        <div className="space-y-4 min-w-0">
+        <div className="space-y-3 sm:space-y-4 min-w-0">
 
           {/* 1. Image Gallery */}
           <div className="th-section-in bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-xs" style={{ '--si': '0ms' } as React.CSSProperties}>
             {images.length > 0 ? (
               <div>
                 <div
-                  className="relative aspect-[4/3] sm:aspect-[16/9] w-full bg-gray-50 touch-pan-y"
+                  className="relative aspect-[16/10] sm:aspect-[16/9] w-full bg-gray-50 touch-pan-y"
                   onTouchStart={(e) => {
                     if (currentIsVideo || images.length < 2) return;
                     touchStartX.current = e.touches[0].clientX;
@@ -716,7 +716,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                 )}
               </div>
             ) : (
-              <div className="aspect-[4/3] sm:aspect-[16/9] w-full bg-gradient-to-br from-blue-50 to-indigo-50 flex flex-col items-center justify-center text-gray-400 p-6 text-center">
+              <div className="aspect-[16/10] sm:aspect-[16/9] w-full bg-gradient-to-br from-blue-50 to-indigo-50 flex flex-col items-center justify-center text-gray-400 p-6 text-center">
                 <span className="text-5xl mb-3">📋</span>
                 <span className="font-semibold text-sm text-gray-600">{listing.category_name}</span>
                 <ListingTypeBadge type={listing.type} size="sm" className="mt-2" />
@@ -725,12 +725,12 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
           </div>
 
           {/* 2. Title & Price */}
-          <div className="th-section-in bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-xs" style={{ '--si': '60ms' } as React.CSSProperties}>
-            <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+          <div className="th-section-in bg-white rounded-2xl border border-gray-100 p-3 sm:p-5 shadow-xs" style={{ '--si': '60ms' } as React.CSSProperties}>
+            <div className="flex flex-wrap items-start justify-between gap-2 sm:gap-3 mb-2 sm:mb-3">
               {isCompleted ? (
-                <div className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700">
-                  <CheckCircle2 className="w-6 h-6" />
-                  <span className="text-2xl sm:text-3xl font-extrabold leading-none">{t('listing.completed')}</span>
+                <div className="inline-flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700">
+                  <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6" />
+                  <span className="text-xl sm:text-3xl font-extrabold leading-none">{t('listing.completed')}</span>
                 </div>
               ) : (
                 <div className="th-price-pop">
@@ -743,7 +743,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                     salaryMin={listing.salary_min}
                     salaryMax={listing.salary_max}
                     isJob={isJob}
-                    className="text-2xl sm:text-3xl text-[#172B4D] font-extrabold"
+                    className="text-xl sm:text-3xl text-[#172B4D] font-extrabold"
                   />
                 </div>
               )}
@@ -753,7 +753,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                 <button
                   type="button"
                   onClick={handleSaveToggle}
-                  className={`apple-tap relative p-2.5 rounded-full border-2 transition-all cursor-pointer ${
+                  className={`apple-tap relative p-2 sm:p-2.5 rounded-full border-2 transition-all cursor-pointer ${
                     isSaved
                       ? 'bg-rose-50 text-rose-600 border-rose-300'
                       : 'border-gray-200 text-gray-500 hover:border-rose-300 hover:text-rose-500'
@@ -775,7 +775,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                 <button
                   type="button"
                   onClick={handleShare}
-                  className="apple-tap p-2.5 rounded-full border-2 border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700 transition-all cursor-pointer"
+                  className="apple-tap p-2 sm:p-2.5 rounded-full border-2 border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700 transition-all cursor-pointer"
                   title={shareCopied ? t('detail.linkCopied') : t('detail.share')}
                 >
                   {shareCopied ? <CheckCheck className="w-4 h-4 text-green-600" /> : <Share2 className="w-4 h-4" />}
@@ -783,7 +783,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsReportModalOpen(true)}
-                  className="apple-tap p-2.5 rounded-full border-2 border-gray-200 text-gray-400 hover:border-amber-300 hover:text-amber-600 transition-all cursor-pointer"
+                  className="apple-tap p-2 sm:p-2.5 rounded-full border-2 border-gray-200 text-gray-400 hover:border-amber-300 hover:text-amber-600 transition-all cursor-pointer"
                   title={t('detail.report')}
                 >
                   <AlertTriangle className="w-4 h-4" />
@@ -791,20 +791,20 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
               </div>
             </div>
 
-            <h1 className="text-lg sm:text-xl font-bold text-gray-950 leading-snug tracking-tight">
+            <h1 className="text-base sm:text-xl font-bold text-gray-950 leading-snug tracking-tight">
               {title}
             </h1>
 
             {/* Location line */}
-            <div className="flex items-center gap-1.5 mt-2 text-sm text-gray-500">
-              <MapPin className="w-4 h-4 text-blue-500 shrink-0" />
+            <div className="flex items-center gap-1.5 mt-1.5 sm:mt-2 text-xs sm:text-sm text-gray-500">
+              <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-500 shrink-0" />
               <span>
                 {[listing.district_name, listing.region_name].filter(Boolean).join(', ') || t('detail.noAddress')}
               </span>
             </div>
 
             {/* Posted date */}
-            <div className="flex items-center gap-1.5 mt-1.5 text-xs text-gray-400">
+            <div className="flex items-center gap-1.5 mt-1 text-xs text-gray-400">
               <Calendar className="w-3.5 h-3.5" />
               <span>{t('detail.postedAt', { date: formatDateAgo(listing.created_at) })}</span>
             </div>
@@ -812,9 +812,9 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
 
           {/* 2b. Tavsif (Описание) — Avito style */}
           {listing.description && (
-            <div className="th-section-in bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-xs" style={{ '--si': '120ms' } as React.CSSProperties}>
-              <h2 className="font-bold text-sm text-gray-900 mb-2">{t('detail.description')}</h2>
-              <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap break-words">
+            <div className="th-section-in bg-white rounded-2xl border border-gray-100 p-3 sm:p-5 shadow-xs" style={{ '--si': '120ms' } as React.CSSProperties}>
+              <h2 className="font-bold text-sm text-gray-900 mb-1.5 sm:mb-2">{t('detail.description')}</h2>
+              <p className="text-sm text-gray-700 leading-normal sm:leading-relaxed whitespace-pre-wrap break-words">
                 {description}
               </p>
             </div>
@@ -823,12 +823,12 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
           {/* 3. Tafsilotlar (Подробности) — Avito style (yakunlangan e'londa ko'rsatilmaydi) */}
           {!isCompleted && (
           <div className="th-section-in bg-white rounded-2xl border border-gray-100 shadow-xs overflow-hidden" style={{ '--si': '180ms' } as React.CSSProperties}>
-            <div className="px-4 sm:px-5 py-3.5 border-b border-gray-100 bg-gray-50/60">
+            <div className="px-4 sm:px-5 py-3 border-b border-gray-100 bg-gray-50/60">
               <h2 className="font-bold text-sm text-gray-900">{t('detail.details')}</h2>
             </div>
             <div className="divide-y divide-gray-50">
               {details.map((d, i) => (
-                <div key={i} className="th-section-in flex items-center justify-between px-4 sm:px-5 py-3 text-xs" style={{ '--si': `${220 + i * 30}ms` } as React.CSSProperties}>
+                <div key={i} className="th-section-in flex items-center justify-between px-4 sm:px-5 py-2.5 sm:py-3 text-xs" style={{ '--si': `${220 + i * 30}ms` } as React.CSSProperties}>
                   <div className="flex items-center gap-2.5 text-gray-500 min-w-0">
                     {d.icon}
                     <span className="truncate">{d.label}</span>
