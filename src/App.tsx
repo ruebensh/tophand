@@ -304,7 +304,7 @@ const AppContent: React.FC = () => {
           ko'rinadi. Shuning uchun ajratiladigan pastki joy ham aynan shu `md`
           breakpointgacha bo'lishi kerak (QA-03: 640–767px oralig'ida bar bor, lekin
           `sm:pb-0` paddingni olib qo'yib, kartalar ustiga mingib qolar edi). */}
-      <main className="relative z-10 flex-1 pb-[calc(var(--mobile-nav-h)+8px+env(safe-area-inset-bottom))] md:pb-0">
+      <main className="relative z-10 flex-1 min-w-0 pb-[calc(var(--mobile-nav-h)+8px+env(safe-area-inset-bottom))] md:pb-0">
         <Suspense
           fallback={
             <div className="flex items-center justify-center min-h-[60vh]">
@@ -312,7 +312,7 @@ const AppContent: React.FC = () => {
             </div>
           }
         >
-          <div key={currentRoute.split('?')[0]} className="apple-page-enter flex-1 flex flex-col w-full">
+          <div key={currentRoute.split('?')[0]} className="apple-page-enter flex-1 flex flex-col min-w-0 w-full">
             {renderRoute()}
           </div>
         </Suspense>

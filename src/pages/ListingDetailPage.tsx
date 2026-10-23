@@ -482,7 +482,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
   ];
 
   return (
-    <div className="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-0 sm:pb-6">
+    <div className="max-w-6xl mx-auto w-full min-w-0 max-w-full px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-0 sm:pb-6">
       {/* Breadcrumb / Back */}
       <div className="flex items-center gap-2 mb-4 text-xs text-gray-500">
         <button
@@ -608,9 +608,9 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 lg:gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 lg:gap-8 min-w-0">
         {/* ── Left Column ── */}
-        <div className="space-y-4">
+        <div className="space-y-4 min-w-0">
 
           {/* 1. Image Gallery */}
           <div className="th-section-in bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-xs" style={{ '--si': '0ms' } as React.CSSProperties}>
@@ -978,7 +978,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
         </div>
 
         {/* ── Right Column: Sticky Contact & Owner ── */}
-        <div className="space-y-4 lg:self-start lg:sticky lg:top-20">
+        <div className="space-y-4 min-w-0 lg:self-start lg:sticky lg:top-20">
 
           {/* Contact Panel (yakunlangan e'londa bog'lanish yopiq) */}
           {isCompleted ? (
