@@ -1595,7 +1595,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                   {t('home.byCategories')}
                 </h2>
                 <TileGrid
-                  items={[...catalogs].sort((a, b) => (a.id === 'handmade' ? -1 : b.id === 'handmade' ? 1 : 0))}
+                  items={catalogs}
                   getKey={(cat) => cat.id}
                   renderItem={(cat, i) => (
                     <CatalogTile
