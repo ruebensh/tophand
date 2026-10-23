@@ -692,7 +692,7 @@ async function main() {
           try { await runQuery('DELETE FROM listings WHERE id = ?', [seoListing]); } catch {}
         } else {
           assert(false, 'seo: seeded category/region/district available for sitemap fixture');
-        }
+        } 
       }
 
       // ── AI yordamchi: filtr to'ldirish + tavsif generatsiyasi ──
