@@ -287,7 +287,7 @@ router.get('/:id/popular', async (req, res) => {
 // ADMIN: POST /api/categories - Yangi kategoriya yoki subkategoriya qo'shish
 router.post('/', requireAuth, requireRole(['ADMIN']), async (req: AuthRequest, res) => {
   try {
-    const { name_uz, slug, icon, catalog_id, parent_id, sort_order } = req.body;
+    const { name_uz, slug, icon, catalog_id, parent_id, sort_order, image_url } = req.body;
     if (!name_uz || !slug) {
       return res.status(400).json({ error: 'Kategoriya nomi va slug kiritilishi shart' });
     }
@@ -296,14 +296,15 @@ router.post('/', requireAuth, requireRole(['ADMIN']), async (req: AuthRequest, r
     const now = new Date().toISOString();
 
     await runQuery(`
-      INSERT INTO categories (id, catalog_id, name_uz, slug, icon, parent_id, is_active, sort_order, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+      INSERT INTO categories (id, catalog_id, name_uz, slug, icon, image_url, parent_id, is_active, sort_order, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
     `, [
       id,
       catalog_id || 'services',
       name_uz.trim(),
       slug.trim(),
       icon || 'Layers',
+      image_url || null,
       parent_id || null,
       sort_order || 0,
       now,
@@ -320,7 +321,7 @@ router.post('/', requireAuth, requireRole(['ADMIN']), async (req: AuthRequest, r
 // ADMIN: PUT /api/categories/:id - Kategoriyani tahrirlash
 router.put('/:id', requireAuth, requireRole(['ADMIN']), async (req: AuthRequest, res) => {
   try {
-    const { name_uz, slug, icon, catalog_id, parent_id, sort_order, is_active } = req.body;
+    const { name_uz, slug, icon, catalog_id, parent_id, sort_order, is_active, image_url } = req.body;
     const now = new Date().toISOString();
 
     await runQuery(`
@@ -328,6 +329,7 @@ router.put('/:id', requireAuth, requireRole(['ADMIN']), async (req: AuthRequest,
       SET name_uz = COALESCE(?, name_uz),
           slug = COALESCE(?, slug),
           icon = COALESCE(?, icon),
+          image_url = COALESCE(?, image_url),
           catalog_id = COALESCE(?, catalog_id),
           parent_id = COALESCE(?, parent_id),
           sort_order = COALESCE(?, sort_order),
@@ -338,6 +340,7 @@ router.put('/:id', requireAuth, requireRole(['ADMIN']), async (req: AuthRequest,
       name_uz || null,
       slug || null,
       icon || null,
+      image_url !== undefined ? image_url : null,
       catalog_id || null,
       parent_id !== undefined ? parent_id : null,
       sort_order !== undefined ? sort_order : null,

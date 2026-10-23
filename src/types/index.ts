@@ -89,6 +89,7 @@ export interface Catalog {
   slug: string;
   icon: string;
   description?: string;
+  image_url?: string | null;
   listing_types: string;
   sort_order: number;
   is_active: number;
@@ -103,6 +104,7 @@ export interface Category {
   name_uz: string;
   slug: string;
   icon: string;
+  image_url?: string | null;
   parent_id?: string;
   scope?: string | null;
   is_active: number;

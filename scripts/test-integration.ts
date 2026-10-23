@@ -608,6 +608,54 @@ async function main() {
         }
       }
 
+      // ── Katalog + Kategoriya: image_url va tartib (reorder) ──
+      {
+        const mkA = await req('/api/catalogs', { ...authJson({ name_uz: `Integ A ${RUN_ID}`, slug: `itg-cat-a-${RUN_ID}`, icon: 'Wrench', listing_types: 'SERVICE_OFFER', image_url: '/uploads/catalogs/a.webp', sort_order: 5 }, adminToken) });
+        assert(mkA.status === 201, 'catalog: POST /api/catalogs → 201');
+        const aBody: any = await mkA.json().catch(() => ({}));
+        const catAId = aBody?.id;
+        assert(aBody?.image_url === '/uploads/catalogs/a.webp', 'catalog: image_url saqlandi');
+
+        const mkB = await req('/api/catalogs', { ...authJson({ name_uz: `Integ B ${RUN_ID}`, slug: `itg-cat-b-${RUN_ID}`, listing_types: 'SELL', sort_order: 6 }, adminToken) });
+        const bBody: any = await mkB.json().catch(() => ({}));
+        const catBId = bBody?.id;
+
+        // GET /api/catalogs/all (admin) yangi katalogni image_url bilan qaytaradi
+        const all = await req('/api/catalogs/all', { headers: { authorization: `Bearer ${adminToken}` } });
+        const allBody: any = await all.json().catch(() => []);
+        const foundA = Array.isArray(allBody) && allBody.find((c: any) => c.id === catAId);
+        assert(all.status === 200 && !!foundA && foundA.image_url === '/uploads/catalogs/a.webp', 'catalog: GET /api/catalogs/all includes new catalog + image_url');
+
+        // Reorder: B oldinga, A orqaga → sort_order index bo'yicha
+        const ro = await req('/api/catalogs/reorder', { ...authJson({ order: [catBId, catAId] }, adminToken) });
+        assert(ro.status === 200, 'catalog: POST /api/catalogs/reorder → 200');
+        const aRow = await queryOne<any>('SELECT sort_order FROM catalogs WHERE id = ?', [catAId]);
+        const bRow = await queryOne<any>('SELECT sort_order FROM catalogs WHERE id = ?', [catBId]);
+        assert(Number(bRow?.sort_order) === 0 && Number(aRow?.sort_order) === 1, 'catalog: reorder sets sort_order by index');
+
+        // Kategoriya: image_url + reorder
+        const k1res = await req('/api/admin/categories', { ...authJson({ name_uz: `Integ K1 ${RUN_ID}`, slug: `itg-k1-${RUN_ID}`, catalog_id: catAId, image_url: '/uploads/categories/k1.webp', sort_order: 3 }, adminToken) });
+        assert(k1res.status === 201, 'category: POST /api/admin/categories → 201');
+        const k1body: any = await k1res.json().catch(() => ({}));
+        assert(k1body?.image_url === '/uploads/categories/k1.webp', 'category: image_url saqlandi');
+        const k2res = await req('/api/admin/categories', { ...authJson({ name_uz: `Integ K2 ${RUN_ID}`, slug: `itg-k2-${RUN_ID}`, catalog_id: catAId, sort_order: 4 }, adminToken) });
+        const k2body: any = await k2res.json().catch(() => ({}));
+        const cr = await req('/api/admin/categories/reorder', { ...authJson({ order: [k2body.id, k1body.id] }, adminToken) });
+        assert(cr.status === 200, 'category: POST /api/admin/categories/reorder → 200');
+        const kc1 = await queryOne<any>('SELECT sort_order FROM categories WHERE id = ?', [k1body.id]);
+        const kc2 = await queryOne<any>('SELECT sort_order FROM categories WHERE id = ?', [k2body.id]);
+        assert(Number(kc2?.sort_order) === 0 && Number(kc1?.sort_order) === 1, 'category: reorder sets sort_order by index');
+
+        // PUT image_url='' tozalaydi (COALESCE emas, aniq bo'sh satr)
+        await req(`/api/admin/categories/${k1body.id}`, { method: 'PUT', headers: { 'content-type': 'application/json', authorization: `Bearer ${adminToken}` }, body: JSON.stringify({ image_url: '' }) });
+        const kc1c = await queryOne<any>('SELECT image_url FROM categories WHERE id = ?', [k1body.id]);
+        assert((kc1c?.image_url ?? '') === '', 'category: PUT image_url="" tozalaydi');
+
+        // Cleanup (FK tartibi: avval kategoriyalar, keyin kataloglar)
+        try { await runQuery('DELETE FROM categories WHERE catalog_id = ?', [catAId]); } catch {}
+        try { await runQuery('DELETE FROM catalogs WHERE id IN (?, ?)', [catAId, catBId]); } catch {}
+      }
+
       // ── SEO: sitemap.xml professional + Google Image sitemap ──
       {
         const cat = await queryOne<any>('SELECT id FROM categories LIMIT 1');
