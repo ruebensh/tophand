@@ -27,6 +27,8 @@ interface ReviewsSectionProps {
   employerName: string;
   listingId?: string;
   onRatingUpdated?: (newAvg: number, total: number) => void;
+  /** E'lon sahifasida: mobil card bezaklari olib tashlanadi (bitta tekis yuzaga qo'shiladi) */
+  bare?: boolean;
 }
 
 export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
@@ -34,6 +36,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
   employerName,
   listingId,
   onRatingUpdated,
+  bare = false,
 }) => {
   const { user, openLoginModal } = useAuth();
   const { t } = useI18n();
@@ -247,11 +250,11 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-3xl border border-[#EBECF0] p-6 sm:p-8 shadow-xs">
+    <div className={`bg-white ${bare ? 'p-3 sm:rounded-3xl sm:border sm:border-[#EBECF0] sm:p-6 sm:shadow-xs' : 'rounded-3xl border border-[#EBECF0] p-6 sm:p-8 shadow-xs'}`}>
       {/* 1. Header with Title & Action */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-[#EBECF0]">
+      <div className={`flex flex-col sm:flex-row sm:items-center justify-between ${bare ? 'gap-3 pb-3' : 'gap-4 pb-6'} border-b border-[#EBECF0]`}>
         <div>
-          <h3 className="text-xl font-extrabold text-[#172B4D] tracking-tight">
+          <h3 className={`${bare ? 'text-base sm:text-xl' : 'text-xl'} font-extrabold text-[#172B4D] tracking-tight`}>
             {t('reviews.title')}
           </h3>
           <p className="text-xs sm:text-sm text-[#5E6C84] mt-1">
@@ -271,8 +274,8 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
       </div>
 
       {/* 2. Rating Summary Section */}
-      <div className="py-6 border-b border-[#EBECF0]">
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+      <div className={`${bare ? 'py-3' : 'py-6'} border-b border-[#EBECF0]`}>
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 md:gap-6 items-center">
           {/* Left: Overall score & stars */}
           <div className="md:col-span-5 flex flex-col items-center md:items-start text-center md:text-left justify-center">
             <div className="flex items-baseline gap-3">
@@ -335,7 +338,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
       </div>
 
       {/* 3. Review List Section */}
-      <div className="pt-6">
+      <div className={bare ? 'pt-3' : 'pt-6'}>
         {isLoading ? (
           /* Loading Skeletons */
           <div className="space-y-4">

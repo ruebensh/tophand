@@ -613,10 +613,12 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-3 sm:gap-6 lg:gap-8 min-w-0">
         {/* ── Left Column ── */}
-        <div className="space-y-3 sm:space-y-4 min-w-0">
+        {/* Mobil: barcha bo'limlar BITTA tekis oq yuzada, yupqa chiziqlar bilan
+            ajratiladi (Avito zichligi). sm+: avvalgidek alohida card'lar. */}
+        <div className="min-w-0 space-y-0 divide-y divide-gray-100 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-xs sm:space-y-4 sm:divide-y-0 sm:overflow-visible sm:rounded-none sm:border-0 sm:bg-transparent sm:shadow-none">
 
           {/* 1. Image Gallery */}
-          <div className="th-section-in bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-xs" style={{ '--si': '0ms' } as React.CSSProperties}>
+          <div className="th-section-in bg-white overflow-hidden sm:rounded-2xl sm:border sm:border-gray-100 sm:shadow-xs" style={{ '--si': '0ms' } as React.CSSProperties}>
             {images.length > 0 ? (
               <div>
                 <div
@@ -725,7 +727,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
           </div>
 
           {/* 2. Title & Price */}
-          <div className="th-section-in bg-white rounded-2xl border border-gray-100 p-3 sm:p-5 shadow-xs" style={{ '--si': '60ms' } as React.CSSProperties}>
+          <div className="th-section-in bg-white p-3 sm:p-5 sm:rounded-2xl sm:border sm:border-gray-100 sm:shadow-xs" style={{ '--si': '60ms' } as React.CSSProperties}>
             <div className="flex flex-wrap items-start justify-between gap-2 sm:gap-3 mb-2 sm:mb-3">
               {isCompleted ? (
                 <div className="inline-flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700">
@@ -812,7 +814,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
 
           {/* 2b. Tavsif (Описание) — Avito style */}
           {listing.description && (
-            <div className="th-section-in bg-white rounded-2xl border border-gray-100 p-3 sm:p-5 shadow-xs" style={{ '--si': '120ms' } as React.CSSProperties}>
+            <div className="th-section-in bg-white p-3 sm:p-5 sm:rounded-2xl sm:border sm:border-gray-100 sm:shadow-xs" style={{ '--si': '120ms' } as React.CSSProperties}>
               <h2 className="font-bold text-sm text-gray-900 mb-1.5 sm:mb-2">{t('detail.description')}</h2>
               <p className="text-sm text-gray-700 leading-normal sm:leading-relaxed whitespace-pre-wrap break-words">
                 {description}
@@ -822,8 +824,8 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
 
           {/* 3. Tafsilotlar (Подробности) — Avito style (yakunlangan e'londa ko'rsatilmaydi) */}
           {!isCompleted && (
-          <div className="th-section-in bg-white rounded-2xl border border-gray-100 shadow-xs overflow-hidden" style={{ '--si': '180ms' } as React.CSSProperties}>
-            <div className="px-4 sm:px-5 py-3 border-b border-gray-100 bg-gray-50/60">
+          <div className="th-section-in bg-white overflow-hidden sm:rounded-2xl sm:border sm:border-gray-100 sm:shadow-xs" style={{ '--si': '180ms' } as React.CSSProperties}>
+            <div className="px-4 sm:px-5 py-3 border-b border-gray-100 bg-white sm:bg-gray-50/60">
               <h2 className="font-bold text-sm text-gray-900">{t('detail.details')}</h2>
             </div>
             <div className="divide-y divide-gray-50">
@@ -856,8 +858,8 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
               ...keys.filter((k) => !attrSchema.some((a) => a.key === k)).map((k) => ({ key: k } as CategoryAttribute)),
             ];
             return (
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-xs overflow-hidden">
-                <div className="px-4 sm:px-5 py-3.5 border-b border-gray-100 bg-gray-50/60">
+              <div className="bg-white overflow-hidden sm:rounded-2xl sm:border sm:border-gray-100 sm:shadow-xs">
+                <div className="px-4 sm:px-5 py-3 border-b border-gray-100 bg-white sm:bg-gray-50/60">
                   <h2 className="font-bold text-sm text-gray-900">{t('detail.attributes')}</h2>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 divide-y divide-gray-50 sm:divide-y-0">
@@ -877,7 +879,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
 
           {/* 4. Ko'nikmalar / Skills */}
           {skillsList.length > 0 && (
-            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-xs">
+            <div className="bg-white p-3 sm:p-5 sm:rounded-2xl sm:border sm:border-gray-100 sm:shadow-xs">
               <h2 className="font-bold text-sm text-gray-900 mb-3">{t('detail.skills')}</h2>
               <div className="flex flex-wrap gap-2">
                 {skillsList.map((skill: string, idx: number) => (
@@ -893,11 +895,11 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
           )}
 
           {/* 5. Joylashuv (Расположение) — Avito style */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-xs overflow-hidden">
-            <div className="px-4 sm:px-5 py-3.5 border-b border-gray-100 bg-gray-50/60">
+          <div className="bg-white overflow-hidden sm:rounded-2xl sm:border sm:border-gray-100 sm:shadow-xs">
+            <div className="px-4 sm:px-5 py-3 border-b border-gray-100 bg-white sm:bg-gray-50/60">
               <h2 className="font-bold text-sm text-gray-900">{t('detail.location')}</h2>
             </div>
-            <div className="p-4 sm:p-5">
+            <div className="p-3 sm:p-5">
               <div className="flex items-start gap-3">
                 <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600 shrink-0">
                   <MapPin className="w-5 h-5" />
@@ -948,7 +950,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
 
           {/* 6. Bog'lanish vaqti (yakunlangan e'londa ko'rsatilmaydi) */}
           {!isCompleted && (
-          <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-xs">
+          <div className="bg-white p-3 sm:p-5 sm:rounded-2xl sm:border sm:border-gray-100 sm:shadow-xs">
             <div className="flex items-center gap-2.5 text-sm text-gray-800">
               <div className="p-2 rounded-xl bg-amber-50 text-amber-600 shrink-0">
                 <Clock className="w-4 h-4" />
@@ -966,6 +968,7 @@ export const ListingDetailPage: React.FC<ListingDetailPageProps> = ({
           {/* 7. Reviews */}
           <div id="reviews" className="scroll-mt-20">
             <ReviewsSection
+              bare
               targetUserId={listing.owner_user_id}
               employerName={listing.owner_name || t('detail.employerFallback')}
               listingId={listing.id}
