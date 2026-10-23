@@ -243,6 +243,7 @@ const en = {
   },
   admin: {
     accessNote: 'Only the platform administrator can access this page.',
+    mobileNote: 'The admin panel is not available on mobile screens. Please open it from a computer or tablet (or enable "Desktop site" mode in your browser).',
     loginAsAdmin: 'Sign in as admin',
     panelTitle: 'TopHand Master Admin Panel',
     panelSub: 'Extended statistics, platform branding, passport verification and full management',

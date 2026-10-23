@@ -619,7 +619,8 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentRoute }) => {
                           </button>
                         )}
                         {(user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') && (
-                          <button onClick={() => { setIsUserMenuOpen(false); onNavigate(ADMIN_PANEL_PATH); }} className="w-full px-3.5 py-2 text-xs text-left font-semibold text-blue-800 hover:bg-blue-100/50">
+                          /* Mobil ekranda admin panelga kirish umuman ko'rsatilmaydi (md: 768px+) */
+                          <button onClick={() => { setIsUserMenuOpen(false); onNavigate(ADMIN_PANEL_PATH); }} className="hidden md:block w-full px-3.5 py-2 text-xs text-left font-semibold text-blue-800 hover:bg-blue-100/50">
                             {t('nav.adminPanel')}
                           </button>
                         )}

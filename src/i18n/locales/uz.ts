@@ -245,6 +245,7 @@ const uz = {
   },
   admin: {
     accessNote: 'Ushbu sahifaga faqat platforma administratori kira oladi.',
+    mobileNote: 'Admin panel mobil ekranda ishlatilmaydi — kompyuter yoki planshetdan kiring (yoki brauzerda "Desktop versiyasi" rejimini yoqing).',
     loginAsAdmin: 'Admin hisobiga kirish',
     panelTitle: 'TopHand Bosh Admin Paneli',
     panelSub: "Kengaytirilgan statistika, platforma brendi, pasport verifikatsiyasi va to'liq boshqaruv",

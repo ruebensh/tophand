@@ -42,6 +42,16 @@ const AppContent: React.FC = () => {
   );
   const [homeStamp, setHomeStamp] = useState(0);
 
+  // Mobil responsive (<768px, md breykpoint — MobileNav bilan bir xil):
+  // admin panel bunda butunlay o'chirilgan — hatto admin akkauntida ham.
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const onChange = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
   // Sync browser popstate (back/forward)
   useEffect(() => {
     const handlePopState = () => {
@@ -232,6 +242,17 @@ const AppContent: React.FC = () => {
 
     // 9. Admin Dashboard: /th-adm-7f3k9q (yashirin kodsimon yo'l — ADMIN_PANEL_PATH)
     if (currentRoute === ADMIN_PANEL_PATH) {
+      // Mobil ekranda admin panel umuman ishlamaydi (kirish eshiklari ham yashirin).
+      if (isMobile) {
+        return (
+          <div className="max-w-md mx-auto py-16 text-center">
+            <h3 className="font-bold text-base text-gray-900">{t('common.accessDenied')}</h3>
+            <p className="text-xs text-gray-500 mt-1">
+              {t('admin.mobileNote')}
+            </p>
+          </div>
+        );
+      }
       if (!user || (user.role !== 'ADMIN' && user.role !== 'SUPER_ADMIN')) {
         return (
           <div className="max-w-md mx-auto py-16 text-center">
