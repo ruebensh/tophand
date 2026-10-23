@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { queryAll, runQuery } from '../db/database.ts';
+import { queryAll } from '../db/database.ts';
 
 /**
  * Faza 12 — Admin Excel import / export.
@@ -21,6 +21,9 @@ interface EntityDef {
   importColumns: string[];
   required: string[];
   label: string;
+  // eksport saralashi — har jadvalda `created_at` YO'Q (regions/districts),
+  // shuning uchun per-entity belgilanadi
+  orderBy: string;
 }
 
 const ENTITY_DEFS: Record<ExportEntity, EntityDef> = {
@@ -32,6 +35,7 @@ const ENTITY_DEFS: Record<ExportEntity, EntityDef> = {
     ],
     required: ['id', 'name'],
     label: 'Foydalanuvchilar',
+    orderBy: 'created_at DESC NULLS LAST',
   },
   listings: {
     table: 'listings',
@@ -41,6 +45,7 @@ const ENTITY_DEFS: Record<ExportEntity, EntityDef> = {
     ],
     required: ['id', 'owner_user_id', 'type', 'title', 'description', 'category_id', 'region_id', 'district_id'],
     label: "E'lonlar",
+    orderBy: 'created_at DESC NULLS LAST',
   },
   categories: {
     table: 'categories',
@@ -49,18 +54,21 @@ const ENTITY_DEFS: Record<ExportEntity, EntityDef> = {
     ],
     required: ['id', 'name_uz', 'slug'],
     label: 'Kategoriyalar',
+    orderBy: 'created_at DESC NULLS LAST',
   },
   regions: {
     table: 'regions',
     importColumns: ['id', 'name_uz', 'code', 'sort_order'],
     required: ['id', 'name_uz', 'code'],
     label: 'Viloyatlar',
+    orderBy: 'sort_order ASC, name_uz ASC',
   },
   districts: {
     table: 'districts',
     importColumns: ['id', 'region_id', 'name_uz', 'latitude', 'longitude', 'sort_order'],
     required: ['id', 'region_id', 'name_uz'],
     label: 'Tumanlar',
+    orderBy: 'sort_order ASC, name_uz ASC',
   },
 };
 
@@ -71,7 +79,7 @@ export function isSupportedEntity(entity: string): entity is ExportEntity {
 /** Build an .xlsx buffer containing every row of the given entity table. */
 export async function exportToXlsx(entity: ExportEntity): Promise<Buffer> {
   const def = ENTITY_DEFS[entity];
-  const rows = await queryAll<Record<string, any>>(`SELECT * FROM ${def.table} ORDER BY created_at DESC NULLS LAST`);
+  const rows = await queryAll<Record<string, any>>(`SELECT * FROM ${def.table} ORDER BY ${def.orderBy}`);
 
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'TopHand Admin';
@@ -151,23 +159,25 @@ export async function importFromXlsx(entity: ExportEntity, buffer: Buffer): Prom
   const nonIdColumns = presentColumns.filter((c) => c !== 'id');
   // Build a stable upsert SQL for this sheet
   const columnList = ['id', ...nonIdColumns];
-  const placeholders = columnList.map(() => '?').join(', ');
-  const updateClause = nonIdColumns.length
-    ? `ON CONFLICT (id) DO UPDATE SET ${nonIdColumns.map((c) => `${c} = EXCLUDED.${c}`).join(', ')}, updated_at = NOW()`
-    : 'ON CONFLICT (id) DO NOTHING';
+  const groupPlaceholders = `(${columnList.map(() => '?').join(', ')})`;
+  const setClause = nonIdColumns.map((c) => `${c} = EXCLUDED.${c}`).join(', ');
   const hasUpdatedAt = await queryAll<{ column_name: string }>(
     `SELECT column_name FROM information_schema.columns WHERE table_name = ? AND column_name = 'updated_at'`,
     [def.table]
   );
-  const sql =
-    `INSERT INTO ${def.table} (${columnList.join(', ')}) VALUES (${placeholders}) ` +
-    (hasUpdatedAt.length > 0
-      ? updateClause
-      : nonIdColumns.length
-        ? `ON CONFLICT (id) DO UPDATE SET ${nonIdColumns.map((c) => `${c} = EXCLUDED.${c}`).join(', ')}`
-        : 'ON CONFLICT (id) DO NOTHING');
+  const conflictAction = !nonIdColumns.length
+    ? 'DO NOTHING'
+    : hasUpdatedAt.length > 0
+      ? `DO UPDATE SET ${setClause}, updated_at = NOW()`
+      : `DO UPDATE SET ${setClause}`;
+  // `xmax = 0` — qator shu INSERT'da YANGI yaratilganini bildiradi (insert/update
+  // hisobini aniq ajratish uchun).
+  const sqlFor = (rowCount: number) =>
+    `INSERT INTO ${def.table} (${columnList.join(', ')}) VALUES ${Array(rowCount).fill(groupPlaceholders).join(', ')} ` +
+    `ON CONFLICT (id) ${conflictAction} RETURNING id, (xmax = 0) AS is_new`;
+  const paramsFor = (values: Record<string, any>) => columnList.map((c) => values[c]);
 
-  // Gather data rows first, then upsert sequentially so the report is deterministic.
+  // Gather data rows first, then upsert so the report is deterministic.
   const dataRows: { rowNumber: number; values: Record<string, any> }[] = [];
   sheet.eachRow((row: any, rowNumber: number) => {
     if (rowNumber === 1) return; // header
@@ -181,27 +191,46 @@ export async function importFromXlsx(entity: ExportEntity, buffer: Buffer): Prom
     if (!emptyRow) dataRows.push({ rowNumber, values });
   });
 
-  for (const { rowNumber, values } of dataRows) {
-    report.total++;
-
-    // Required field validation
-    let missing = false;
-    for (const req of def.required) {
-      if (values[req] === null || values[req] === undefined || values[req] === '') {
-        report.errors.push({ row: rowNumber, message: `Majburiy maydon yetishmaydi: ${req}` });
-        missing = true;
-        break;
+  // BATCH upsert: har ~150 qatorga BITTA network round-trip. Avvalgi qatorma-qator
+  // versiya uzoq (Neon) DB'ga juda sekin edi — Render'da so'ov timeout bo'lib,
+  // gateway 502 qaytardi.
+  const CHUNK = 150;
+  for (let start = 0; start < dataRows.length; start += CHUNK) {
+    const chunk = dataRows.slice(start, start + CHUNK);
+    const valid: typeof chunk = [];
+    for (const entry of chunk) {
+      report.total++;
+      // Required field validation
+      let missing = false;
+      for (const req of def.required) {
+        if (entry.values[req] === null || entry.values[req] === undefined || entry.values[req] === '') {
+          report.errors.push({ row: entry.rowNumber, message: `Majburiy maydon yetishmaydi: ${req}` });
+          missing = true;
+          break;
+        }
       }
+      if (!missing) valid.push(entry);
     }
-    if (missing) continue;
+    if (valid.length === 0) continue;
 
-    const params = columnList.map((c) => values[c]);
+    const batchParams = valid.flatMap((v) => paramsFor(v.values));
     try {
-      const r = await runQuery(sql, params);
-      if (r.changes > 0) report.inserted++;
-      else report.updated++;
-    } catch (err: any) {
-      report.errors.push({ row: rowNumber, message: err.message });
+      const returned = await queryAll<{ is_new: boolean }>(sqlFor(valid.length), batchParams);
+      const insertedCount = returned.filter((r) => r.is_new === true).length;
+      report.inserted += insertedCount;
+      report.updated += returned.length - insertedCount;
+    } catch {
+      // Butun batch yiqildi (masalan bitta qatorda FK / type xatosi) — aniqlash
+      // uchun shu batch'ni qatorma-qator qayta bajarib, qolganlarini saqlaymiz.
+      for (const { rowNumber, values } of valid) {
+        try {
+          const res = await queryAll<{ is_new: boolean }>(sqlFor(1), paramsFor(values));
+          if (res[0] && res[0].is_new === true) report.inserted++;
+          else report.updated++;
+        } catch (err: any) {
+          report.errors.push({ row: rowNumber, message: err.message });
+        }
+      }
     }
   }
 

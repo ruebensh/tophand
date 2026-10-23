@@ -699,6 +699,48 @@ async function main() {
         }
       }
 
+      // ── Excel import / export: users + regions/districts regressiyasi ──
+      {
+        const XLSX_CT = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+        const ex1 = await req('/api/admin/export/users', { headers: hdr(adminToken) });
+        const ex1buf = Buffer.from(await ex1.arrayBuffer());
+        assert(ex1.status === 200 && ex1buf.length > 100, 'excel: GET /api/admin/export/users → 200 (.xlsx bayt)');
+        assert((ex1.headers.get('content-type') || '').includes('spreadsheetml'), 'excel: export Content-Type — spreadsheetml');
+
+        // Regressiya: regions/districts jadvallarida created_at yo'q — avval xato berardi
+        const ex2 = await req('/api/admin/export/regions', { headers: hdr(adminToken) });
+        assert(ex2.status === 200, 'excel: GET /api/admin/export/regions → 200 (created_at regressiyasi)');
+        const ex3 = await req('/api/admin/export/districts', { headers: hdr(adminToken) });
+        assert(ex3.status === 200, 'excel: GET /api/admin/export/districts → 200');
+
+        // users import: 2 yangi qator + 1 buzuq qator (name yo'q) — batch upsert + per-row xato
+        const ExcelJS = (await import('exceljs')).default;
+        const wb = new ExcelJS.Workbook();
+        const sh = wb.addWorksheet('Foydalanuvchilar');
+        sh.columns = [{ header: 'id', key: 'id' }, { header: 'name', key: 'name' }, { header: 'phone', key: 'phone' }];
+        sh.addRow({ id: `usr_integ_xl_${RUN_ID}_a`, name: 'Excel A', phone: '+998900000001' });
+        sh.addRow({ id: `usr_integ_xl_${RUN_ID}_b`, name: 'Excel B', phone: '+998900000002' });
+        sh.addRow({ id: `usr_integ_xl_${RUN_ID}_c`, name: '', phone: '+998900000003' });
+        const xlBuf = Buffer.from(await wb.xlsx.writeBuffer());
+        const fd = new FormData();
+        fd.append('file', new Blob([xlBuf], { type: XLSX_CT }), 'users.xlsx');
+        const im1 = await req('/api/admin/import/users', { method: 'POST', headers: hdr(adminToken), body: fd });
+        const rep1: any = await im1.json().catch(() => ({}));
+        assert(im1.status === 200 && rep1.inserted === 2, 'excel: POST /api/admin/import/users → 2 qator import qilindi');
+        assert(Array.isArray(rep1.errors) && rep1.errors.length === 1 && rep1.errors[0].row > 0, 'excel: import — buzuq qator alohida xabar qilindi');
+        const inDb = await queryOne<any>('SELECT count(*)::int AS c FROM users WHERE id LIKE ?', [`usr_integ_xl_${RUN_ID}%`]);
+        assert(Number(inDb?.c) === 2, "excel: importlangan foydalanuvchilar DB'da");
+
+        // Takroriy import → updated sanaladi (insert emas — upsert aniq)
+        const fd2 = new FormData();
+        fd2.append('file', new Blob([xlBuf], { type: XLSX_CT }), 'users.xlsx');
+        const im2 = await req('/api/admin/import/users', { method: 'POST', headers: hdr(adminToken), body: fd2 });
+        const rep2: any = await im2.json().catch(() => ({}));
+        assert(im2.status === 200 && rep2.inserted === 0 && rep2.updated === 2, 'excel: takroriy import → updated hisobladi');
+
+        try { await runQuery('DELETE FROM users WHERE id LIKE ?', [`usr_integ_xl_${RUN_ID}%`]); } catch {}
+      }
+
       // ── SEO: sitemap.xml professional + Google Image sitemap ──
       {
         const cat = await queryOne<any>('SELECT id FROM categories LIMIT 1');
