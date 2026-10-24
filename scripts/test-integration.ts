@@ -1063,6 +1063,35 @@ async function main() {
         }
       }
 
+      // ─── Excel import (listings) — expires_at NOT NULL regressiyasi ───
+      // E'lonlar sheeti 'expires_at' ustunisiz yuklansa ham har qator NOT NULL
+      // violation bilan qaytmasligi kerak (import +30 kun default qo'yadi).
+      {
+        const ExcelJS = (await import('exceljs')).default;
+        const refCat = await queryOne<any>('SELECT id FROM categories LIMIT 1');
+        const refReg = await queryOne<any>('SELECT id FROM regions LIMIT 1');
+        const refDis = await queryOne<any>('SELECT id FROM districts LIMIT 1');
+        if (refCat && refReg && refDis) {
+          const wb = new ExcelJS.Workbook();
+          const ws = wb.addWorksheet("E'lonlar");
+          ws.columns = ['id', 'owner_user_id', 'type', 'title', 'description', 'category_id', 'region_id', 'district_id', 'price_type', 'status']
+            .map((h) => ({ header: h, key: h }));
+          const impId = `lst_integ_imp_${RUN_ID}`;
+          ws.addRow({ id: impId, owner_user_id: admin.id, type: 'SERVICE', title: `Integ import ${RUN_ID}`, description: 'test', category_id: refCat.id, region_id: refReg.id, district_id: refDis.id, price_type: 'FIXED', status: 'ACTIVE' });
+          const xbuf = Buffer.from(await wb.xlsx.writeBuffer());
+          const fd = new FormData();
+          fd.append('file', new Blob([xbuf]), 'listings.xlsx');
+          const impRes = await req('/api/admin/import/listings', { method: 'POST', headers: { authorization: `Bearer ${adminToken}` }, body: fd });
+          const impRep = await impRes.json().catch(() => ({}));
+          assert(impRes.status === 200 && impRep.inserted === 1 && impRep.errors?.length === 0, 'excel import: listings sheet (expires_at ustunsiz) → 200, 0 error');
+          const impRow = await queryOne<any>('SELECT expires_at, status FROM listings WHERE id = ?', [impId]);
+          assert(!!impRow && !!impRow.expires_at && impRow.status === 'ACTIVE', 'excel import: listing created with default expires_at (+30d)');
+          try { await runQuery('DELETE FROM listings WHERE id = ?', [impId]); } catch {}
+        } else {
+          assert(false, 'excel import: category/region/district refs available');
+        }
+      }
+
       for (const id of [admin.id, lead.id, mod.id, plain.id]) {
         try { await runQuery('DELETE FROM users WHERE id = ?', [id]); } catch {}
       }

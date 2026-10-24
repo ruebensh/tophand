@@ -41,7 +41,7 @@ const ENTITY_DEFS: Record<ExportEntity, EntityDef> = {
     table: 'listings',
     importColumns: [
       'id', 'owner_user_id', 'type', 'title', 'description',
-      'category_id', 'region_id', 'district_id', 'price_type', 'status',
+      'category_id', 'region_id', 'district_id', 'price_type', 'status', 'expires_at',
     ],
     required: ['id', 'owner_user_id', 'type', 'title', 'description', 'category_id', 'region_id', 'district_id'],
     label: "E'lonlar",
@@ -157,15 +157,20 @@ export async function importFromXlsx(entity: ExportEntity, buffer: Buffer): Prom
   }
 
   const nonIdColumns = presentColumns.filter((c) => c !== 'id');
+  // listings.expires_at — NOT NULL, ammo DB default'i yo'q: sheet'da ustun
+  // bo'lmasa ham INSERT'ga qo'shiladi (aks holda har qator NOT NULL
+  // violation bilan qaytardi).
+  const needsForcedExpiry = entity === 'listings' && !nonIdColumns.includes('expires_at');
+  const writableColumns = needsForcedExpiry ? [...nonIdColumns, 'expires_at'] : nonIdColumns;
   // Build a stable upsert SQL for this sheet
-  const columnList = ['id', ...nonIdColumns];
+  const columnList = ['id', ...writableColumns];
   const groupPlaceholders = `(${columnList.map(() => '?').join(', ')})`;
-  const setClause = nonIdColumns.map((c) => `${c} = EXCLUDED.${c}`).join(', ');
+  const setClause = writableColumns.map((c) => `${c} = EXCLUDED.${c}`).join(', ');
   const hasUpdatedAt = await queryAll<{ column_name: string }>(
     `SELECT column_name FROM information_schema.columns WHERE table_name = ? AND column_name = 'updated_at'`,
     [def.table]
   );
-  const conflictAction = !nonIdColumns.length
+  const conflictAction = !writableColumns.length
     ? 'DO NOTHING'
     : hasUpdatedAt.length > 0
       ? `DO UPDATE SET ${setClause}, updated_at = NOW()`
@@ -184,12 +189,24 @@ export async function importFromXlsx(entity: ExportEntity, buffer: Buffer): Prom
     const values: Record<string, any> = {};
     let emptyRow = true;
     for (const col of columnList) {
-      const v = cellValue(row.getCell(colIndexByName[col]).value);
+      const idx = colIndexByName[col];
+      const v = idx !== undefined ? cellValue(row.getCell(idx).value) : null;
       if (v !== null && v !== undefined && v !== '') emptyRow = false;
       values[col] = v;
     }
     if (!emptyRow) dataRows.push({ rowNumber, values });
   });
+
+  // expires_at bo'sh qatorlarga oddiy e'lon yaratishdagi kabi +30 kun —
+  // NOT NULL ustun default'siz, bo'sh qoldirib bo'lmaydi.
+  if (entity === 'listings') {
+    const defaultExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    for (const { values } of dataRows) {
+      if (values.expires_at === null || values.expires_at === undefined || values.expires_at === '') {
+        values.expires_at = defaultExpiry;
+      }
+    }
+  }
 
   // BATCH upsert: har ~150 qatorga BITTA network round-trip. Avvalgi qatorma-qator
   // versiya uzoq (Neon) DB'ga juda sekin edi — Render'da so'ov timeout bo'lib,
