@@ -185,46 +185,9 @@ router.get('/', optionalAuth, async (req: AuthRequest, res) => {
   }
 });
 
-// ─── Top qidiruv so'zlari — topbar typewriter placeholder uchun.
-// 10 daqiqali in-memory kesh: har bir sahifa ochilishida DB'ga urilmaydi.
-// Real qidiruvlar kam bo'lsa (yangi DB) eng ko'p ishlatilgan kategoriyalar
-// nomlari bilan to'ldiriladi — animatsiya hech qachon bo'sh qolmaydi.
-let topKeywordsCache: { at: number; words: string[] } = { at: 0, words: [] };
-router.get('/top-keywords', async (_req: AuthRequest, res: Response) => {
-  try {
-    if (topKeywordsCache.words.length && Date.now() - topKeywordsCache.at < 10 * 60 * 1000) {
-      return res.json({ keywords: topKeywordsCache.words });
-    }
-    const rows = await queryAll<{ keyword: string }>(
-      `SELECT keyword FROM search_filter_logs
-        WHERE event_type = 'SEARCH_KEYWORD' AND keyword IS NOT NULL
-          AND length(keyword) BETWEEN 3 AND 40
-          AND created_at > NOW() - INTERVAL '30 days'
-        GROUP BY keyword ORDER BY COUNT(*) DESC LIMIT 15`
-    );
-    let words = rows.map((r) => String(r.keyword || '').trim()).filter(Boolean);
-    if (words.length < 15) {
-      const cats = await queryAll<{ name: string }>(
-        `SELECT c.name_uz AS name
-           FROM categories c
-           LEFT JOIN listings l ON l.category_id = c.id AND l.status = 'ACTIVE'
-          WHERE c.parent_id IS NOT NULL AND c.is_active = 1
-          GROUP BY c.id, c.name_uz
-          ORDER BY COUNT(l.id) DESC, c.name_uz ASC LIMIT 15`
-      );
-      for (const c of cats) {
-        const n = String(c.name || '').trim();
-        if (n && !words.some((w) => w.toLowerCase() === n.toLowerCase())) words.push(n);
-        if (words.length >= 15) break;
-      }
-    }
-    words = words.slice(0, 15);
-    if (words.length) topKeywordsCache = { at: Date.now(), words };
-    res.json({ keywords: words });
-  } catch (err: any) {
-    serverError(res, err);
-  }
-});
+// Eslatma: avval shu yerda GET /top-keywords (typewriter uchun DB'dan top
+// qidiruv so'zlari) bor edi — endi so'zlar kodda kuratsiya qilingan
+// (src/lib/useTypewriterPlaceholder.ts), endpoint kerak emas.
 
 // Get single listing detail
 router.get('/:id', optionalAuth, async (req: AuthRequest, res) => {

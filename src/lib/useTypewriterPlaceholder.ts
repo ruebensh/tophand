@@ -1,66 +1,50 @@
 import { useEffect, useState } from 'react';
-import { apiRequest } from './api';
 
-// ─── Top qidiruv so'zlari — butun sahifa uchun bitta marta yuklanadi ───
-let cachedWords: string[] | null = null;
-let inflight: Promise<string[]> | null = null;
-
-async function loadTopKeywords(): Promise<string[]> {
-  if (cachedWords) return cachedWords;
-  if (!inflight) {
-    inflight = apiRequest<{ keywords: string[] }>('/api/listings/top-keywords')
-      .then((r) => {
-        cachedWords = Array.isArray(r?.keywords) ? r.keywords : [];
-        return cachedWords;
-      })
-      .catch(() => {
-        cachedWords = []; // xato bo'lsa jimgina statik placeholder'da qolamiz
-        return [] as string[];
-      })
-      .finally(() => { inflight = null; });
-  }
-  return inflight;
-}
+// ─── Kuratsiya qilingan top qidiruv so'zlari ───
+// Admin panel statistikasiga BEKOR qilinmaydi — har bir asosiy kategoriya
+// bo'yicha foydalanuvchilar haqiqiy yozadigan eng kerakli so'zlar kodda
+// belgilangan. Tartib muhim: xizmatlar → tovarlar → ish, aralash aylanadi.
+export const CURATED_SEARCH_WORDS: string[] = [
+  // Ustalar va uy xizmatlari
+  'santexnik', 'elektrik', 'duradgor', 'ta\'mirchi', 'konditsioner o\'rnatish',
+  'tozalash xizmati', 'enaga', 'bog\'bon',
+  // Transport va yuk
+  'gruzchik', 'evakuator', 'mashina yuvish', 'yuk tashish', 'taksi haydovchisi',
+  // Go\'zallik va salomatlik
+  'sochtarosh', 'manikyur', 'veterinar', 'massaj',
+  // Texnika va tovarlar
+  'telefon ta\'mirlash', 'noutbuk', 'smartfon', 'velosiped', 'mebel', 'shinalar',
+  // Ta\'lim va biznes
+  'repetitor', 'buxgalter', 'tarjimon', 'ovqat yetkazish', 'video suratga olish',
+];
 
 export interface TypewriterState {
-  /** Faol — so'zlar yuklangan, overlay ko'rsatiladi (placeholder attribute bo'sh) */
+  /** Faol — so'zlar har doim bor (statik ro'yxat), overlay ko'rsatiladi */
   active: boolean;
   /** Hozirgi yozilgan matn (kursor belgisisiz — kursor DOM-element bilan chiziladi) */
   text: string;
-  /** Haqqiqiy kursor miltillashi uchun: faqat so'z tugab TO'XTAGANDA true */
+  /** Haqiqiy kursor miltillashi uchun: faqat so'z tugab TO'XTAGANDA true */
   idle: boolean;
 }
 
 /**
- * Topbar qidiruv uchun "typewriter" holati: eng ko'p qidirilgan so'zlarni
+ * Topbar qidiruv uchun "typewriter" holati: kuratsiya qilingan so'zlarni
  * harfma-harf yozadi → to'xtaydi (idle=true — kursor miltillaydi) → qayta
  * yozib-o'chirib loop qiladi.
  *
- * Kursor endi MATN EMAS — Header uni alohida DOM-bar (2px, baland, ko'k)
- * sifatida chizadi, shuning uchun haqiqiy klaviatura kursoridek ko'rinadi.
+ * Kursor — MATN EMAS, Header uni alohida DOM-bar (2px, baland, ko'k)
+ * sifatida chizadi (th-caret), haqiqiy klaviatura kursoridek ko'rinadi.
  *
  * Optimizatsiya: har tick = 1 setState; tab yashiringanida sikl to'xtaydi;
- * so'zlar modul keshida — network bir marta.
+ * network SO'ROVI YO'Q — ro'yxat kodda.
  */
 export function useTypewriterPlaceholder(): TypewriterState {
-  const [words, setWords] = useState<string[]>(cachedWords || []);
   const [typed, setTyped] = useState('');
   const [idle, setIdle] = useState(false);
 
-  // So'zlarni bir marta yuklab olish
-  useEffect(() => {
-    let alive = true;
-    if (!cachedWords) {
-      loadTopKeywords().then((w) => { if (alive && w.length) setWords(w); });
-    } else if (!words.length) {
-      setWords(cachedWords);
-    }
-    return () => { alive = false; };
-  }, []); // eslint-disable-next-line react-hooks/exhaustive-deps
-
   // Typewriter sikli: type (doim yoniq) → hold (idle — kursor miltillaydi) → delete
   useEffect(() => {
-    if (!words.length) { setTyped(''); setIdle(false); return; }
+    const words = CURATED_SEARCH_WORDS;
     let stopped = false;
     let timer: ReturnType<typeof setTimeout>;
     let wordIdx = 0;
@@ -119,7 +103,7 @@ export function useTypewriterPlaceholder(): TypewriterState {
 
     timer = setTimeout(tick, 500);
     return () => { stopped = true; clearTimeout(timer); setIdle(false); };
-  }, [words]);
+  }, []);
 
-  return { active: words.length > 0, text: typed, idle };
+  return { active: true, text: typed, idle };
 }

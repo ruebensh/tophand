@@ -741,19 +741,13 @@ async function main() {
         try { await runQuery('DELETE FROM users WHERE id LIKE ?', [`usr_integ_xl_${RUN_ID}%`]); } catch {}
       }
 
-      // ── Top qidiruv so'zlari (topbar typewriter placeholder) ──
+      // ── Qidiruv logi (typewriter endi kodda kuratsiya — /top-keywords endpoint
+      // o'chirildi, u endi /:id bo'yicha 404 qaytishi kerak) ──
       {
         const tkRes = await req('/api/listings/top-keywords');
-        assert(tkRes.status === 200, `top-keywords 200 (got ${tkRes.status})`);
-        const tkBody: any = await tkRes.json().catch(() => ({}));
-        const tk = tkBody?.keywords;
-        assert(Array.isArray(tk) && tk.length > 0 && tk.length <= 15, `1..15 ta so'z (got ${Array.isArray(tk) ? tk.length : 'no'})`);
-        assert(tk.every((k: any) => typeof k === 'string' && k.trim().length >= 3), 'barcha so\'zlar 3+ belgili matn');
-        const tkRes2 = await req('/api/listings/top-keywords'); // keshlangan javob barqaror
-        const tkBody2: any = await tkRes2.json().catch(() => ({}));
-        assert(tkRes2.status === 200 && tkBody2?.keywords?.length === tk.length, 'kesh javobi barqaror');
+        assert(tkRes.status === 404, `/top-keywords endpoint olib tashlangan (404, got ${tkRes.status})`);
 
-        // Qidiruv logi: bir xil so'z 15 daqiqa ichida bir marta sanaladi,
+        // Bir xil so'z 15 daqiqa ichida bir marta sanaladi,
         // 2 belgidan qisqa fragmentlar yozilmaydi (admin statistikasi tozaligi).
         const probeKw = `zz_kws_${RUN_ID}`;
         try { await runQuery("DELETE FROM search_filter_logs WHERE keyword = ?", [probeKw]); } catch {}
